@@ -1365,10 +1365,19 @@ export class GameScene extends Phaser.Scene {
   }
 
   // ---------- END ----------
+  winDelayUntil = 0;
+
   checkEndConditions() {
     // Level is won by defeating the boss, not by a kill count.
     if (this.bossSpawned && (!this.boss || this.boss.dying || !this.boss.active)) {
-      this.win();
+      // Start a 5s collection window so the player can grab coins
+      if (this.winDelayUntil === 0) {
+        this.winDelayUntil = this.vTime + 5000;
+        this.countdownText.setText('VICTORY! Collect your loot!');
+        this.countdownText.setColor('#7cf29a');
+      } else if (this.vTime >= this.winDelayUntil) {
+        this.win();
+      }
     }
   }
 
