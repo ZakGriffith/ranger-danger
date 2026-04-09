@@ -176,40 +176,14 @@ function drawPlayer(frame: PFrame) {
     // chest strap
     rect(put, cx - 2, torsoY + 1, 4, 1, P.blueL);
 
-    // ----- arms -----
-    let armLxOff = 0, armRxOff = 0, armY = torsoY + 2;
-    let shootExtend = false;
-    if (frame === 'shoot0') { shootExtend = true; armY = torsoY + 1; }
-    if (frame === 'shoot1') { shootExtend = true; armY = torsoY + 2; }
-    // left arm
-    rect(put, cx - 8 + armLxOff, armY, 2, 5, P.blue);
-    put(cx - 8 + armLxOff, armY, P.blueL);
-    put(cx - 7 + armLxOff, armY + 5, P.skin); // hand
-    // right arm
-    rect(put, cx + 6 + armRxOff, armY, 2, 5, P.blue);
-    put(cx + 7 + armRxOff, armY, P.blueL);
-    put(cx + 6 + armRxOff, armY + 5, P.skin); // hand
-
-    // shooting arms forward (both extended to the right)
-    if (shootExtend) {
-      // clear default arms area
-      rect(put, cx - 8 + armLxOff, armY, 2, 5, P.blue);
-      rect(put, cx + 6 + armRxOff, armY, 2, 5, P.blue);
-      // forward extended hand + bow
-      rect(put, cx + 7, armY + 1, 4, 2, P.blueM);
-      rect(put, cx + 10, armY + 1, 1, 2, P.skin);
-      // bow
-      for (let y = -3; y <= 3; y++) {
-        const offx = Math.round(Math.abs(y) * 0.3);
-        put(cx + 12 - offx, armY + 2 + y, P.wood);
-        put(cx + 11 - offx, armY + 2 + y, P.woodD);
-      }
-      // string
-      for (let y = -3; y <= 3; y++) put(cx + 11 - Math.round(Math.abs(y) * 0.2), armY + 2 + y, P.white);
-      // arrow
-      rect(put, cx + 7, armY + 2, 6, 1, P.arrowD);
-      put(cx + 13, armY + 2, P.arrow);
-    }
+    // ----- shoulder stubs (arms are on the bow sprite) -----
+    const armY = torsoY + 2;
+    // left shoulder nub
+    rect(put, cx - 7, armY, 2, 3, P.blue);
+    put(cx - 7, armY, P.blueL);
+    // right shoulder nub
+    rect(put, cx + 5, armY, 2, 3, P.blue);
+    put(cx + 6, armY, P.blueL);
 
     // ----- head -----
     const headCx = cx, headCy = 9 + bob;
@@ -240,6 +214,85 @@ function drawPlayer(frame: PFrame) {
           if (y >= headCy - 4 && y <= 29 && x >= cx - 8 && x <= cx + 8) put(x, y, P.white);
         }
       }
+    }
+  };
+}
+
+// ==================================================================
+//  BOW (32x32) — separate rotatable weapon sprite
+//  Drawn pointing right. Origin set to (0.25, 0.5) = grip area at ~(8, 16).
+// ==================================================================
+function drawBow(shooting: boolean) {
+  return (put: Put) => {
+    const gx = 8, gy = 16; // grip / pivot point
+
+    // ===== BACK ARM (string hand) =====
+    // Extends from body (left) to the string pull point
+    const stringPullX = shooting ? gx - 4 : gx;
+    // upper arm from shoulder area
+    rect(put, gx - 6, gy - 1, 2, 3, P.blue);
+    put(gx - 6, gy - 1, P.blueL);
+    // forearm reaching to string
+    const backArmLen = Math.abs(stringPullX - (gx - 4));
+    for (let x = gx - 4; x >= stringPullX; x--) {
+      rect(put, x, gy - 1, 1, 3, P.blueM);
+    }
+    // string hand
+    rect(put, stringPullX - 1, gy - 1, 2, 3, P.skin);
+    put(stringPullX - 1, gy + 1, P.skinD);
+
+    // ===== FRONT ARM (bow hand) =====
+    // Extends from body (left) out to the grip
+    // upper arm
+    rect(put, gx - 6, gy - 2, 2, 3, P.blue);
+    put(gx - 6, gy - 2, P.blueL);
+    // forearm
+    rect(put, gx - 4, gy - 2, 4, 3, P.blueM);
+    rect(put, gx - 4, gy - 2, 4, 1, P.blueL);
+    // grip hand
+    rect(put, gx, gy - 2, 3, 4, P.skin);
+    put(gx, gy - 2, P.skinL);
+    put(gx + 2, gy + 1, P.skinD);
+
+    // ===== BOW (wooden arc) =====
+    for (let y = -10; y <= 10; y++) {
+      const curve = Math.round(y * y * 0.04);
+      const bx = gx + 4 - curve;
+      put(bx + 1, gy + y, P.woodD);
+      put(bx, gy + y, P.wood);
+      put(bx - 1, gy + y, P.woodL);
+    }
+    // Limb tips (steel caps)
+    rect(put, gx + 3, gy - 10, 2, 2, P.steel);
+    rect(put, gx + 3, gy + 9, 2, 2, P.steel);
+
+    // ===== BOWSTRING =====
+    for (let y = -9; y <= 9; y++) {
+      const pull = shooting ? Math.round((1 - (y * y) / 81) * 4) : 0;
+      put(gx + 1 - pull, gy + y, P.stoneL);
+    }
+
+    // ===== ARROW =====
+    const arrowStartX = shooting ? gx - 4 : gx + 1;
+    for (let x = arrowStartX; x <= gx + 14; x++) {
+      put(x, gy, P.arrowD);
+    }
+    // arrowhead
+    put(gx + 15, gy, P.steel);
+    put(gx + 16, gy - 1, P.steel);
+    put(gx + 16, gy, P.steel);
+    put(gx + 16, gy + 1, P.steel);
+    // fletching
+    put(arrowStartX, gy - 1, P.white);
+    put(arrowStartX, gy + 1, P.white);
+    put(arrowStartX - 1, gy - 1, P.white);
+    put(arrowStartX - 1, gy + 1, P.white);
+
+    // Muzzle flash when shooting
+    if (shooting) {
+      put(gx + 17, gy, P.sparkL);
+      put(gx + 18, gy - 1, P.spark);
+      put(gx + 18, gy + 1, P.spark);
     }
   };
 }
@@ -1102,6 +1155,11 @@ export function generateAllArt(scene: Phaser.Scene) {
   for (const { k, f } of pFrames) add(scene, k, makeCanvas(32, drawPlayer(f)));
   add(scene, 'p_hit_0', makeCanvas(32, drawPlayer('hit')));
 
+  // Bow (separate rotatable sprite, 32x32, origin will be at ~left-center)
+  // Drawn pointing right, pivot near the grip (left side)
+  add(scene, 'bow_0', makeCanvas(32, drawBow(false)));
+  add(scene, 'bow_1', makeCanvas(32, drawBow(true)));
+
   // Enemies
   const eFrames: EFrame[] = ['move0','move1','move2','move3','atk0','atk1','hit','die0','die1','die2','die3'];
   for (const f of eFrames) add(scene, `eb_${f}`, makeCanvas(32, drawEnemyBasic(f)));
@@ -1163,6 +1221,8 @@ export function registerAnimations(scene: Phaser.Scene) {
   mk('player-move',  ['p_move_0','p_move_1','p_move_2','p_move_3'], 10, -1);
   mk('player-shoot', ['p_shoot_0','p_shoot_1'], 14, 0);
   mk('player-hit',   ['p_hit_0'], 8, 0);
+  mk('bow-idle',  ['bow_0'], 1, 0);
+  mk('bow-shoot', ['bow_1', 'bow_0'], 10, 0);
 
   mk('eb-move', ['eb_move0','eb_move1','eb_move2','eb_move3'], 8, -1);
   mk('eb-atk',  ['eb_atk0','eb_atk1'], 8, -1);

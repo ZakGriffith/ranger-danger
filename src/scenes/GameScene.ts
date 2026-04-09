@@ -530,27 +530,55 @@ export class GameScene extends Phaser.Scene {
       const len = Math.hypot(vx, vy);
       vx /= len; vy /= len;
       this.player.setVelocity(vx * CFG.player.speed, vy * CFG.player.speed);
-      this.player.setFlipX(vx < 0);
+      if (vx !== 0) this.player.facingRight = vx > 0;
+      this.player.setFlipX(!this.player.facingRight);
       if (this.player.anims.currentAnim?.key !== 'player-move') this.player.play('player-move');
     } else {
       this.player.setVelocity(0, 0);
       if (
-        this.player.anims.currentAnim?.key !== 'player-idle' &&
-        this.player.anims.currentAnim?.key !== 'player-shoot'
+        this.player.anims.currentAnim?.key !== 'player-idle'
       ) this.player.play('player-idle');
     }
 
-    // auto-shoot when stationary
-    if (!moving && time > this.player.lastShot + CFG.player.fireRate) {
-      const target = this.findNearestEnemy(this.player.x, this.player.y, CFG.player.range);
-      if (target) {
+    // Bow follows player with offset based on aim direction
+    const bow = this.player.bow;
+
+    // Find nearest enemy for aiming
+    const target = this.findNearestEnemy(this.player.x, this.player.y, CFG.player.range);
+
+    if (target) {
+      // Aim bow at target
+      const aimAngle = Math.atan2(target.y - this.player.y, target.x - this.player.x);
+      bow.setRotation(aimAngle);
+      bow.setFlipY(Math.abs(aimAngle) > Math.PI / 2);
+
+      // Push bow outward from body center along the aim direction
+      // More offset when aiming horizontally, less when vertical
+      const horizFactor = Math.abs(Math.cos(aimAngle)); // 1 at sides, 0 at top/bottom
+      const offset = 6 + horizFactor * 5; // 6px minimum, up to 11px at the sides
+      bow.setPosition(
+        this.player.x + Math.cos(aimAngle) * offset,
+        this.player.y + 2 + Math.sin(aimAngle) * offset
+      );
+
+      // Flip player body to face target
+      this.player.setFlipX(target.x < this.player.x);
+      if (target.x >= this.player.x) this.player.facingRight = true;
+      else this.player.facingRight = false;
+
+      // Auto-shoot
+      if (time > this.player.lastShot + CFG.player.fireRate) {
         this.player.lastShot = time;
-        this.player.play('player-shoot', true);
-        this.player.once('animationcomplete-player-shoot', () => this.player.play('player-idle'));
-        const dx = target.x - this.player.x;
-        this.player.setFlipX(dx < 0);
+        bow.play('bow-shoot', true);
+        bow.once('animationcomplete-bow-shoot', () => bow.play('bow-idle'));
         this.spawnProjectile(this.player.x, this.player.y, target.x, target.y, CFG.player.projectileSpeed, CFG.player.damage);
       }
+    } else {
+      // No target — bow points in the direction the player faces, held out to the side
+      const idleDir = this.player.facingRight ? 1 : -1;
+      bow.setRotation(this.player.facingRight ? 0 : Math.PI);
+      bow.setFlipY(!this.player.facingRight);
+      bow.setPosition(this.player.x + idleDir * 10, this.player.y + 2);
     }
   }
 
@@ -1525,8 +1553,9 @@ export class GameScene extends Phaser.Scene {
     const deathX = this.player.x;
     const deathY = this.player.y;
 
-    // Instantly hide the player sprite — no rotation/shrink
+    // Instantly hide the player sprite and bow
     this.player.setVisible(false);
+    this.player.bow.setVisible(false);
 
     // White flash at death point
     const flash = this.add.circle(deathX, deathY, 30, 0xffffff, 0.95).setDepth(19);
