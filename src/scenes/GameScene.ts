@@ -1079,20 +1079,119 @@ export class GameScene extends Phaser.Scene {
   }
 
   cannonExplode(x: number, y: number, radius: number, dmg: number) {
-    // Visual: expanding ring + shake
-    const ring = this.add.circle(x, y, radius, 0xffc070, 0.35)
-      .setStrokeStyle(3, 0xff8030, 0.9)
+    // ---------- VISUALS ----------
+    // 1) Bright white core flash (fast)
+    const core = this.add.circle(x, y, radius * 0.55, 0xfff5c0, 0.95)
+      .setDepth(16)
+      .setScale(0.3);
+    this.tweens.add({
+      targets: core,
+      scale: 1,
+      alpha: { from: 1, to: 0 },
+      duration: 160,
+      ease: 'Sine.Out',
+      onComplete: () => core.destroy()
+    });
+
+    // 2) Orange fireball layer
+    const fire = this.add.circle(x, y, radius * 0.85, 0xff8a20, 0.85)
+      .setDepth(15)
+      .setScale(0.25);
+    this.tweens.add({
+      targets: fire,
+      scale: 1,
+      alpha: { from: 0.9, to: 0 },
+      duration: 260,
+      ease: 'Cubic.Out',
+      onComplete: () => fire.destroy()
+    });
+
+    // 3) Dark red outer shell for depth
+    const shell = this.add.circle(x, y, radius, 0xc93010, 0.55)
       .setDepth(14)
       .setScale(0.2);
     this.tweens.add({
-      targets: ring,
-      scale: 1,
+      targets: shell,
+      scale: 1.05,
       alpha: { from: 0.7, to: 0 },
-      duration: 280,
+      duration: 340,
+      ease: 'Cubic.Out',
+      onComplete: () => shell.destroy()
+    });
+
+    // 4) Expanding shockwave ring outline
+    const ring = this.add.circle(x, y, radius, 0x000000, 0)
+      .setStrokeStyle(3, 0xffd070, 0.95)
+      .setDepth(17)
+      .setScale(0.2);
+    this.tweens.add({
+      targets: ring,
+      scale: 1.15,
+      alpha: { from: 1, to: 0 },
+      duration: 360,
       ease: 'Sine.Out',
       onComplete: () => ring.destroy()
     });
-    this.cameras.main.shake(80, 0.004);
+
+    // 5) Fiery shrapnel sparks shooting outward
+    const sparkCount = 14;
+    for (let i = 0; i < sparkCount; i++) {
+      const a = (i / sparkCount) * Math.PI * 2 + Phaser.Math.FloatBetween(-0.2, 0.2);
+      const dist = radius * Phaser.Math.FloatBetween(0.7, 1.1);
+      const sparkColor = [0xffe070, 0xff9030, 0xffffff][i % 3];
+      const s = this.add.circle(x, y, Phaser.Math.Between(2, 3), sparkColor, 1).setDepth(18);
+      this.tweens.add({
+        targets: s,
+        x: x + Math.cos(a) * dist,
+        y: y + Math.sin(a) * dist,
+        alpha: { from: 1, to: 0 },
+        scale: { from: 1, to: 0.3 },
+        duration: Phaser.Math.Between(260, 420),
+        ease: 'Cubic.Out',
+        onComplete: () => s.destroy()
+      });
+    }
+
+    // 6) Smoke puffs that linger after the fire fades
+    const smokeCount = 7;
+    for (let i = 0; i < smokeCount; i++) {
+      const a = Phaser.Math.FloatBetween(0, Math.PI * 2);
+      const offD = Phaser.Math.FloatBetween(0, radius * 0.6);
+      const px = x + Math.cos(a) * offD;
+      const py = y + Math.sin(a) * offD;
+      const shade = [0x6a6a74, 0x858590, 0x4a4a54][i % 3];
+      const puff = this.add.circle(px, py, Phaser.Math.Between(8, 13), shade, 0.65)
+        .setStrokeStyle(1, 0x2a2a32, 0.4)
+        .setDepth(13)
+        .setScale(0.4);
+      const driftX = Phaser.Math.Between(-10, 10);
+      const driftY = Phaser.Math.Between(-20, -8); // smoke rises
+      // small delay so smoke emerges as the fire dies down
+      this.tweens.add({
+        targets: puff,
+        scale: { from: 0.4, to: 1.4 },
+        alpha: { from: 0.7, to: 0 },
+        x: px + driftX,
+        y: py + driftY,
+        duration: Phaser.Math.Between(600, 900),
+        delay: Phaser.Math.Between(40, 140),
+        ease: 'Sine.Out',
+        onComplete: () => puff.destroy()
+      });
+    }
+
+    // 7) Scorch mark that lingers briefly on the ground
+    const scorch = this.add.circle(x, y, radius * 0.7, 0x1a1214, 0.55)
+      .setDepth(2);
+    this.tweens.add({
+      targets: scorch,
+      alpha: { from: 0.55, to: 0 },
+      duration: 1200,
+      ease: 'Sine.In',
+      onComplete: () => scorch.destroy()
+    });
+
+    this.cameras.main.shake(140, 0.006);
 
     // Damage all enemies in radius
     const r2 = radius * radius;
