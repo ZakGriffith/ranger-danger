@@ -1516,18 +1516,26 @@ export class GameScene extends Phaser.Scene {
 
   // ---------- COINS ----------
   spawnCrater(x: number, y: number, _radius: number) {
-    const g = this.add.graphics().setDepth(1);
+    const g = this.add.graphics().setDepth(0);
     const cr = 10;
-    // Outer scorched dots — dark burnt ground
-    const burnColors = [0x1a1008, 0x241810, 0x2e2014];
-    const chunks = Phaser.Math.Between(6, 9);
-    for (let i = 0; i < chunks; i++) {
-      const a = (i / chunks) * Math.PI * 2 + Phaser.Math.FloatBetween(-0.4, 0.4);
-      const d = cr + Phaser.Math.FloatBetween(1, 5);
-      const cx = x + Math.cos(a) * d;
-      const cy = y + Math.sin(a) * d;
-      g.fillStyle(burnColors[i % 3], Phaser.Math.FloatBetween(0.5, 0.7));
-      g.fillCircle(cx, cy, Phaser.Math.FloatBetween(1.5, 3));
+    // Ash streaks radiating outward — thicker near crater, tapering to a point
+    const streakColors = [0x1a1008, 0x241810, 0x2e2014];
+    const streaks = Phaser.Math.Between(5, 8);
+    for (let i = 0; i < streaks; i++) {
+      const a = (i / streaks) * Math.PI * 2 + Phaser.Math.FloatBetween(-0.35, 0.35);
+      const len = Phaser.Math.FloatBetween(6, 12);
+      const steps = 5;
+      const color = streakColors[i % 3];
+      const alpha = Phaser.Math.FloatBetween(0.45, 0.65);
+      g.fillStyle(color, alpha);
+      for (let s = 0; s < steps; s++) {
+        const t = s / (steps - 1); // 0 at crater edge, 1 at tip
+        const d = cr * 0.7 + len * t;
+        const sx = x + Math.cos(a) * d;
+        const sy = y + Math.sin(a) * d;
+        const r = 2.2 * (1 - t * 0.85); // thick at start, tiny point at end
+        g.fillCircle(sx, sy, Math.max(r, 0.5));
+      }
     }
     // Brown crater bowl
     g.fillStyle(0x3e2e1a, 0.6);
