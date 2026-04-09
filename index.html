@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no" />
+    <title>TD Survival</title>
+    <style>
+      html, body { margin:0; padding:0; background:#0b0f1a; color:#eee; font-family: system-ui, sans-serif; overflow:hidden; height:100%; }
+      #game { width:100vw; height:100vh; display:flex; align-items:center; justify-content:center; }
+      canvas { image-rendering: pixelated; image-rendering: crisp-edges; }
+      #overlay { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(5,8,15,0.85); z-index:10; }
+      #overlay.hidden { display:none; }
+      .panel { background:#11172a; padding:24px 32px; border:2px solid #2a3760; border-radius:8px; text-align:center; min-width:280px; }
+      .panel h1 { margin:0 0 8px; font-size:28px; letter-spacing:2px; color:#7cc4ff; }
+      .panel p { margin:4px 0 16px; color:#aab; font-size:13px; }
+      .panel input { background:#0b0f1a; color:#fff; border:1px solid #2a3760; padding:8px 10px; border-radius:4px; font-size:14px; width:80%; text-align:center; }
+      .panel button { margin-top:14px; background:#2a3760; color:#fff; border:none; padding:10px 20px; border-radius:4px; font-size:14px; cursor:pointer; }
+      .panel button:hover { background:#3b4d84; }
+      .hint { color:#556; font-size:11px; margin-top:14px; line-height:1.5; }
+    </style>
+  </head>
+  <body>
+    <div id="game"></div>
+    <div id="overlay">
+      <div class="panel">
+        <h1>TD SURVIVAL</h1>
+        <p>Enter your name and survive the horde</p>
+        <input id="playerName" maxlength="14" placeholder="hero" />
+        <br/>
+        <button id="startBtn">START</button>
+        <div class="hint">WASD / Arrows to move &middot; stand still to auto-shoot<br/>1 = Tower (60)  &middot;  2 = Wall (5)  &middot;  Click to build  &middot;  X to sell</div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
