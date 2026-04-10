@@ -32,3 +32,17 @@
 - Locked levels shown greyed out with a lock icon
 - Animated path between levels lights up as you progress
 - Player avatar stands on the current/last-beaten level node
+
+## 3. Improve Ground/Terrain Variety
+- Current ground is a single shade of green — looks flat and unpolished
+- Each biome needs varied terrain tiles that are all walkable but visually distinct
+- **Grasslands**: mix of grass shades, patches of dirt, sandy spots, small stones, tufts of tall grass
+- **Forest**: mossy ground, leaf litter, exposed roots, muddy patches
+- **Swamp**: murky water puddles, reeds, soggy earth tones
+- **Desert**: sand dunes, cracked earth, rock outcroppings, occasional scrub brush
+- **Mountains**: rocky ground, gravel patches, snow-dusted stone, cliff edges
+- **Volcanic**: charred rock, lava cracks (glowing), ash-covered ground
+- **Frozen Peaks**: snow, ice patches, frozen puddles, wind-swept stone
+- **Dark Fortress**: dark stone tiles, cracks, glowing runes
+- Use Perlin/simplex noise or random seeding to generate natural-looking terrain variation per level
+- Terrain is purely cosmetic — no gameplay effect on walkability (walls/towers still use the grid)
