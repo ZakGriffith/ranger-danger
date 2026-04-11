@@ -6,11 +6,12 @@ export class Wall extends Phaser.Physics.Arcade.Sprite {
   maxHp = CFG.wall.hp;
   tileX: number;
   tileY: number;
+  neighborMask = 0; // N=1, E=2, S=4, W=8
 
   constructor(scene: Phaser.Scene, tileX: number, tileY: number) {
     const wx = tileX * CFG.tile + CFG.tile / 2;
     const wy = tileY * CFG.tile + CFG.tile / 2;
-    super(scene, wx, wy, 'wall');
+    super(scene, wx, wy, 'wall_0');
     this.setScale(0.5);
     scene.add.existing(this);
     scene.physics.add.existing(this, true);
@@ -23,6 +24,14 @@ export class Wall extends Phaser.Physics.Arcade.Sprite {
     this.hp -= amount;
     this.setTintFill(0xffffff);
     this.scene.time.delayedCall(60, () => this.clearTint());
-    if (this.hp < this.maxHp * 0.5) this.setTexture('wall_dmg');
+    this.updateTexture();
+  }
+
+  /** Update texture based on current neighborMask and damage state */
+  updateTexture() {
+    const dmg = this.hp < this.maxHp * 0.5;
+    const key = dmg ? `wall_${this.neighborMask}_dmg` : `wall_${this.neighborMask}`;
+    console.log(`Wall(${this.tileX},${this.tileY}) mask=${this.neighborMask} key=${key} exists=${this.scene.textures.exists(key)}`);
+    this.setTexture(key);
   }
 }

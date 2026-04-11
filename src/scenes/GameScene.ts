@@ -8,6 +8,7 @@ import { Projectile } from '../entities/Projectile';
 import { Coin } from '../entities/Coin';
 import { Boss } from '../entities/Boss';
 import { createSparseGrid, findPath, canReachFromSpawnDirections, gridGet, gridSet, SparseGrid } from '../systems/Pathfinding';
+import { createGroundChunk } from '../assets/generateArt';
 
 type BuildKind = 'none' | 'tower' | 'wall';
 
@@ -266,6 +267,7 @@ export class GameScene extends Phaser.Scene {
     this.walls.push(w);
     this.wallGroup.add(w);
     gridSet(this.grid, tx, ty, 1);
+    this.updateWallNeighbors(tx, ty);
     this.gridVersion++;
     this.pushHud();
   }
@@ -291,7 +293,9 @@ export class GameScene extends Phaser.Scene {
       this.player.money += Math.floor(CFG.wall.cost * 0.5);
       w.destroy();
       this.walls.splice(wi, 1);
-      gridSet(this.grid, tx, ty, 0); this.gridVersion++;
+      gridSet(this.grid, tx, ty, 0);
+      this.updateWallNeighbors(tx, ty);
+      this.gridVersion++;
       this.pushHud();
     }
   }
@@ -473,15 +477,10 @@ export class GameScene extends Phaser.Scene {
         const key = `${cx + dx},${cy + dy}`;
         if (this.generatedChunks.has(key)) continue;
         this.generatedChunks.add(key);
-        const startX = (cx + dx) * cs;
-        const startY = (cy + dy) * cs;
-        for (let y = 0; y < cs; y++) {
-          for (let x = 0; x < cs; x++) {
-            const gx = startX + x, gy = startY + y;
-            const texKey = `ground_${((gx * 31 + gy * 17) % 4 + 4) % 4}`;
-            this.add.image(gx * tile + tile / 2, gy * tile + tile / 2, texKey).setDepth(0).setScale(0.5);
-          }
-        }
+        const ccx = cx + dx, ccy = cy + dy;
+        const texKey = createGroundChunk(this, ccx, ccy, cs, 32);
+        const chunkPx = cs * tile;
+        this.add.image(ccx * chunkPx + chunkPx / 2, ccy * chunkPx + chunkPx / 2, texKey).setDepth(0);
       }
     }
   }
@@ -1344,9 +1343,35 @@ export class GameScene extends Phaser.Scene {
   destroyWall(w: Wall) {
     const idx = this.walls.indexOf(w);
     if (idx >= 0) this.walls.splice(idx, 1);
-    gridSet(this.grid, w.tileX, w.tileY, 0);
+    const tx = w.tileX, ty = w.tileY;
+    gridSet(this.grid, tx, ty, 0);
     this.gridVersion++;
     w.destroy();
+    this.updateWallNeighbors(tx, ty);
+  }
+
+  /** Recalculate neighbor masks for wall at (tx,ty) and its 4 cardinal neighbors */
+  updateWallNeighbors(tx: number, ty: number) {
+    const dirs: [number, number, number][] = [
+      [0, -1, 1],  // N
+      [1, 0, 2],   // E
+      [0, 1, 4],   // S
+      [-1, 0, 8],  // W
+    ];
+    // Update the wall at (tx,ty) and each neighbor
+    for (const [dx, dy] of [[0, 0], [0, -1], [1, 0], [0, 1], [-1, 0]]) {
+      const wx = tx + dx, wy = ty + dy;
+      const wall = this.walls.find(w => w.tileX === wx && w.tileY === wy);
+      if (!wall) continue;
+      let mask = 0;
+      for (const [ndx, ndy, bit] of dirs) {
+        if (this.walls.some(w => w.tileX === wx + ndx && w.tileY === wy + ndy)) {
+          mask |= bit;
+        }
+      }
+      wall.neighborMask = mask;
+      wall.updateTexture();
+    }
   }
 
   liveEnemyCount(): number {

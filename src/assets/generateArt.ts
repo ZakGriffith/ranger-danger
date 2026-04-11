@@ -877,58 +877,127 @@ function drawCannonTop(shoot = false) {
 // ==================================================================
 //  WALL (32x32) — stacked brick
 // ==================================================================
-function drawWall(damaged: boolean) {
+// WC2-style dark fortress wall with autotiling
+// Neighbor bitmask: N=1, E=2, S=4, W=8
+// Wall nearly fills the tile; connected sides go edge-to-edge seamlessly
+function drawWall(mask: number, damaged: boolean) {
   return (put: Put) => {
-    // base fill
-    rect(put, 1, 1, 30, 30, P.stoneD);
-    // upper face
-    rect(put, 1, 1, 30, 28, P.stone);
-    // rim
-    rect(put, 1, 1, 30, 2, P.stoneL);
-    rect(put, 1, 1, 2, 28, P.stoneL);
-    rect(put, 29, 1, 2, 28, P.stoneD);
-    rect(put, 1, 27, 30, 2, P.stoneD);
-    // bottom rim
-    rect(put, 1, 29, 30, 2, P.outline);
+    const S = 32;
+    const pad = 1;      // tiny inset on open ends (just outline room)
+    const fd = 5;       // front face depth (3/4 view)
 
-    // brick rows (offset like running bond)
-    const mortar = P.stoneD;
-    // row 1
-    line(put, 1, 8, 30, 8, mortar);
-    line(put, 12, 1, 12, 8, mortar);
-    line(put, 22, 1, 22, 8, mortar);
-    // row 2
-    line(put, 1, 15, 30, 15, mortar);
-    line(put, 8, 8, 8, 15, mortar);
-    line(put, 18, 8, 18, 15, mortar);
-    line(put, 26, 8, 26, 15, mortar);
-    // row 3
-    line(put, 1, 22, 30, 22, mortar);
-    line(put, 12, 15, 12, 22, mortar);
-    line(put, 22, 15, 22, 22, mortar);
-    // row 4
-    line(put, 8, 22, 8, 29, mortar);
-    line(put, 18, 22, 18, 29, mortar);
-    line(put, 26, 22, 26, 29, mortar);
+    // Colors — dark fortress palette
+    const O  = '#12141e';   // outline
+    const TL = '#808ca4';   // top highlight
+    const T  = '#636e82';   // top surface
+    const TM = '#565f72';   // top mid
+    const TD = '#484f5e';   // top shadow/edge
+    const F  = '#3a4050';   // front face
+    const FM = '#2e3444';   // front mid
+    const FD = '#222834';   // front face dark
 
-    // random pebble highlights
-    put(5, 4, P.stoneL); put(15, 4, P.stoneL); put(25, 4, P.stoneL);
-    put(5, 11, P.stoneL); put(14, 11, P.stoneL);
-    put(10, 18, P.stoneL); put(24, 18, P.stoneL);
-    put(4, 25, P.stoneL); put(15, 25, P.stoneL);
+    const hasN = !!(mask & 1);
+    const hasE = !!(mask & 2);
+    const hasS = !!(mask & 4);
+    const hasW = !!(mask & 8);
 
-    // moss
-    put(2, 17, P.grassL); put(3, 18, P.grassD); put(2, 18, P.grass);
-    put(29, 4, P.grassL); put(28, 5, P.grass);
+    // Wall extents — nearly full tile, edge-to-edge on connected sides
+    // When connecting south, top surface extends to tile edge (no front face)
+    const l = hasW ? 0 : pad;
+    const r = hasE ? S - 1 : S - 1 - pad;
+    const t = hasN ? 0 : pad;
+    const bTop = hasS ? S - 1 : S - 1 - pad - fd;      // bottom of top surface
+    const bBot = hasS ? S - 1 : S - 1 - pad;            // bottom of front face
+
+    // --- FRONT FACE (south-facing depth visible in 3/4 view) ---
+    for (let y = bTop + 1; y <= bBot; y++) {
+      for (let x = l; x <= r; x++) {
+        const atL = x === l && !hasW;
+        const atR = x === r && !hasE;
+        const py = (y - bTop - 1) / Math.max(1, bBot - bTop - 1);
+        let c: string;
+        if (atL || atR) c = O;
+        else if (x <= l + 1 && !hasW) c = FD;
+        else if (x >= r - 1 && !hasE) c = FD;
+        else if (py > 0.7) c = FD;
+        else if (py < 0.2) c = F;
+        else c = FM;
+        put(x, y, c);
+      }
+    }
+    // Bottom outline (only on open south side)
+    if (!hasS) for (let x = l; x <= r; x++) put(x, bBot, O);
+
+    // --- TOP SURFACE ---
+    for (let y = t; y <= bTop; y++) {
+      for (let x = l; x <= r; x++) {
+        const atL = x === l && !hasW;
+        const atR = x === r && !hasE;
+        const atT = y === t && !hasN;
+        const w = r - l;
+        const h = bTop - t;
+        const px = w > 0 ? (x - l) / w : 0.5;
+        const py = h > 0 ? (y - t) / h : 0.5;
+        let c: string;
+        // Outlines only on open edges
+        if (atL || atR || atT) c = O;
+        // Lighting: top-left bright, bottom-right dark
+        else if (py < 0.12 && !hasN) c = TL;
+        else if (py < 0.25) c = TL;
+        else if (px < 0.08 && !hasW) c = TL;
+        else if (py > 0.85) c = TD;
+        else if (px > 0.92 && !hasE) c = TD;
+        else if (py < 0.5) c = T;
+        else c = TM;
+        put(x, y, c);
+      }
+    }
+
+    // 1px outline on open edges (reinforce)
+    if (!hasN) for (let x = l; x <= r; x++) put(x, t, O);
+    if (!hasW) for (let y = t; y <= bBot; y++) put(l, y, O);
+    if (!hasE) for (let y = t; y <= bBot; y++) put(r, y, O);
+
+    // Inner border highlight/shadow (1px inside outline on open sides)
+    if (!hasN) for (let x = l + 2; x <= r - 2; x++) put(x, t + 1, TL);
+    if (!hasW) for (let y = t + 2; y <= bTop - 1; y++) put(l + 1, y, TL);
+    if (!hasE) for (let y = t + 2; y <= bTop - 1; y++) put(r - 1, y, TD);
+
+    // Brick seams on top surface (running bond pattern)
+    const seamC = '#4e5668';
+    const rowH = 8;
+    for (let row = 0; row < 4; row++) {
+      const sy = t + 3 + row * rowH;
+      if (sy > bTop - 2) break;
+      // Horizontal seam
+      for (let x = l + 2; x <= r - 2; x++) put(x, sy, seamC);
+      // Vertical seams (offset per row)
+      const off = row % 2 === 0 ? 0 : 5;
+      for (let vx = l + 4 + off; vx <= r - 2; vx += 10) {
+        for (let dy = 1; dy < rowH && sy + dy <= bTop - 1; dy++) put(vx, sy + dy, seamC);
+      }
+    }
+
+    // Brick seams on front face
+    const fSeamC = '#283040';
+    const fMidY = Math.round((bTop + 1 + bBot) / 2);
+    if (bBot - bTop > 3) {
+      for (let x = l + 2; x <= r - 2; x++) put(x, fMidY, fSeamC);
+      for (let vx = l + 6; vx <= r - 2; vx += 10) {
+        for (let y = bTop + 2; y < fMidY; y++) put(vx, y, fSeamC);
+      }
+      for (let vx = l + 11; vx <= r - 2; vx += 10) {
+        for (let y = fMidY + 1; y < bBot - 1; y++) put(vx, y, fSeamC);
+      }
+    }
 
     if (damaged) {
-      // cracks
-      line(put, 10, 6, 14, 18, P.outline);
-      line(put, 14, 18, 11, 26, P.outline);
-      line(put, 20, 8, 24, 20, P.outline);
-      // chunk missing
-      disc(put, 20, 16, 3, P.outline);
-      put(20, 16, P.stoneD);
+      const cx = Math.round((l + r) / 2);
+      const cy = Math.round((t + bTop) / 2);
+      line(put, cx - 4, cy - 4, cx + 2, cy + 4, O);
+      line(put, cx + 3, cy - 3, cx - 1, cy + 5, O);
+      disc(put, cx + 2, cy + 1, 2, O);
+      put(cx + 2, cy + 1, FD);
     }
   };
 }
@@ -1152,29 +1221,90 @@ function drawCoinPop(frame: 0|1|2) {
 // ==================================================================
 //  GROUND TILE (32x32) — noise speckle
 // ==================================================================
-function drawGround(seed: number) {
+// Dirt/earth colors
+const E = {
+  dirt:  '#6b5030',
+  dirtD: '#4a3420',
+  dirtM: '#5a4228',
+  dirtL: '#8a6840',
+  sand:  '#b8a070',
+  sandD: '#8a7850',
+};
+
+// Multi-octave value noise to avoid banding artifacts
+function wnoise(wx: number, wy: number, scale: number): number {
+  const hash = (a: number, b: number) => {
+    const n = ((a * 12289 + b * 51749 + 71) * 2654435761) >>> 0;
+    return (n & 0xffff) / 0xffff;
+  };
+  const sm = (t: number) => t * t * (3 - 2 * t);
+  const oneOctave = (x: number, y: number, s: number) => {
+    const sx = Math.floor(x / s), sy = Math.floor(y / s);
+    const fx = x / s - sx, fy = y / s - sy;
+    const tl = hash(sx, sy), tr = hash(sx + 1, sy);
+    const bl = hash(sx, sy + 1), br = hash(sx + 1, sy + 1);
+    const u = sm(fx), v = sm(fy);
+    return tl * (1 - u) * (1 - v) + tr * u * (1 - v) + bl * (1 - u) * v + br * u * v;
+  };
+  // 3 octaves with different offsets to break patterns
+  return oneOctave(wx, wy, scale) * 0.6
+       + oneOctave(wx + 7777, wy + 3333, scale * 0.5) * 0.25
+       + oneOctave(wx + 1234, wy + 8765, scale * 0.25) * 0.15;
+}
+
+// Grasslands ground — gradient transitions between green shades like Bounty of One
+// Dark green → medium green → light green → yellow-green in large smooth zones
+function drawGroundWorld(tileX: number, tileY: number) {
   return (put: Put) => {
-    let s = seed;
-    const rnd = () => { s = (s * 9301 + 49297) % 233280; return s / 233280; };
-    rect(put, 0, 0, 32, 32, P.grass);
-    // subtle horizontal banding
-    for (let y = 0; y < 32; y += 4) {
-      for (let x = 0; x < 32; x++) {
-        if ((x + y) % 7 === 0) put(x, y, P.grassM);
+    // 4 grass shades from dark to light (close colors, smooth gradient feel)
+    const shades = ['#2a4826', '#32522e', '#3c5e36', '#486a3e'];
+
+    // Per-tile RNG for small detail placement
+    let s = ((tileX * 73856093 + tileY * 19349669) >>> 0) % 2147483647;
+    const rnd = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
+
+    for (let py = 0; py < 32; py++) {
+      for (let px = 0; px < 32; px++) {
+        const wx = tileX * 32 + px;
+        const wy = tileY * 32 + py;
+
+        // World-space noise → continuous 0..1 value → pick shade
+        // This creates huge smooth regions that gradually transition
+        const n = wnoise(wx + 8000, wy + 1000, 400);
+
+        // Map noise to shade index (0-3) with smooth transitions
+        const idx = Math.min(3, Math.floor(n * 4));
+        put(px, py, shades[idx]);
       }
     }
-    for (let i = 0; i < 30; i++) {
-      const x = Math.floor(rnd() * 32);
-      const y = Math.floor(rnd() * 32);
-      put(x, y, rnd() > 0.5 ? P.grassL : P.grassD);
+
+    // Scattered single flowers (0-2 per tile, ~15% of tiles)
+    const flowerCount = rnd() < 0.15 ? (rnd() < 0.5 ? 1 : 2) : 0;
+    const flowerColors = ['#e84060', '#e8d040', '#d070e0', '#70a0e8', '#e8a040'];
+    for (let i = 0; i < flowerCount; i++) {
+      const fx = 2 + Math.floor(rnd() * 28);
+      const fy = 2 + Math.floor(rnd() * 28);
+      const col = flowerColors[Math.floor(rnd() * flowerColors.length)];
+      put(fx, fy, col);
+      put(fx, fy + 1, '#1a3a18');
     }
-    // small plant tufts
-    for (let i = 0; i < 3; i++) {
-      const x = Math.floor(rnd() * 28) + 2;
-      const y = Math.floor(rnd() * 28) + 2;
-      put(x, y, P.grassL);
-      put(x + 1, y, P.grassL);
-      put(x, y + 1, P.grassD);
+
+    // Scattered single rock (0-1, ~10% of tiles)
+    if (rnd() < 0.1) {
+      const rx = 2 + Math.floor(rnd() * 28);
+      const ry = 2 + Math.floor(rnd() * 28);
+      put(rx, ry, '#7a8290');
+      put(rx + 1, ry, '#6a7280');
+      put(rx, ry + 1, '#5a6270');
+    }
+
+    // Rare grass tuft (~20% of tiles)
+    if (rnd() < 0.2) {
+      const tx = 3 + Math.floor(rnd() * 26);
+      const ty = 3 + Math.floor(rnd() * 26);
+      put(tx, ty, '#4a7a42');
+      put(tx + 1, ty, '#4a7a42');
+      put(tx, ty - 1, '#4a7a42');
     }
   };
 }
@@ -1454,6 +1584,37 @@ function add(scene: Phaser.Scene, key: string, canvas: HTMLCanvasElement) {
   scene.textures.addCanvas(key, canvas);
 }
 
+/** Create and register a ground chunk texture covering chunkSize×chunkSize tiles */
+export function createGroundChunk(scene: Phaser.Scene, chunkX: number, chunkY: number, chunkSize: number, tileSize: number): string {
+  const key = `gnd_chunk_${chunkX}_${chunkY}`;
+  if (scene.textures.exists(key)) return key;
+  const pxSize = chunkSize * tileSize; // e.g. 16 * 32 = 512
+  const canvas = document.createElement('canvas');
+  canvas.width = pxSize; canvas.height = pxSize;
+  const ctx = canvas.getContext('2d')!;
+  ctx.imageSmoothingEnabled = false;
+  const startTX = chunkX * chunkSize;
+  const startTY = chunkY * chunkSize;
+  // Draw each tile into the chunk canvas
+  for (let ty = 0; ty < chunkSize; ty++) {
+    for (let tx = 0; tx < chunkSize; tx++) {
+      const worldTX = startTX + tx;
+      const worldTY = startTY + ty;
+      const draw = drawGroundWorld(worldTX, worldTY);
+      const put: Put = (x, y, col) => {
+        if (col == null) return;
+        if (x < 0 || y < 0 || x >= tileSize || y >= tileSize) return;
+        ctx.fillStyle = col;
+        ctx.fillRect(tx * tileSize + Math.floor(x), ty * tileSize + Math.floor(y), 1, 1);
+      };
+      draw(put);
+    }
+  }
+  if (scene.textures.exists(key)) scene.textures.remove(key);
+  scene.textures.addCanvas(key, canvas);
+  return key;
+}
+
 export function generateAllArt(scene: Phaser.Scene) {
   // Player
   const pFrames: { k: string; f: PFrame }[] = [
@@ -1502,8 +1663,14 @@ export function generateAllArt(scene: Phaser.Scene) {
   add(scene, 'c_top_1', makeCanvas(64, drawCannonTop(true)));
 
   // Wall
-  add(scene, 'wall',     makeCanvas(32, drawWall(false)));
-  add(scene, 'wall_dmg', makeCanvas(32, drawWall(true)));
+  // Walls — 16 autotile variants (N=1, E=2, S=4, W=8) × normal/damaged
+  for (let mask = 0; mask < 16; mask++) {
+    add(scene, `wall_${mask}`,     makeCanvas(32, drawWall(mask, false)));
+    add(scene, `wall_${mask}_dmg`, makeCanvas(32, drawWall(mask, true)));
+  }
+  // Legacy keys for ghost preview and default
+  add(scene, 'wall',     makeCanvas(32, drawWall(0, false)));
+  add(scene, 'wall_dmg', makeCanvas(32, drawWall(0, true)));
 
   // Arrow
   add(scene, 'arrow_0', makeCanvas(32, drawArrow(0)));
@@ -1526,7 +1693,7 @@ export function generateAllArt(scene: Phaser.Scene) {
   for (let i = 0; i < 3; i++) add(scene, `fx_pop_${i}`,   makeCanvas(32, drawCoinPop(i as any)));
 
   // Ground tile variations
-  for (let i = 0; i < 4; i++) add(scene, `ground_${i}`, makeCanvas(32, drawGround(i * 77 + 13)));
+  // Ground tiles are generated per-tile in GameScene.generateChunksAround()
   add(scene, 'foundation', makeCanvas(64, drawFoundation));
 
   // Boss (64x64 native — 2x2 tile footprint)
