@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { CFG } from '../config';
+import { Difficulty, saveMedal } from '../levels';
 
 export class UIScene extends Phaser.Scene {
   hpBarBg!: Phaser.GameObjects.Rectangle;
@@ -20,7 +21,20 @@ export class UIScene extends Phaser.Scene {
   bossBar?: Phaser.GameObjects.Rectangle;
   bossLabel?: Phaser.GameObjects.Text;
 
+  levelId = 1;
+  difficulty: Difficulty = 'easy';
+
   constructor() { super({ key: 'UI', active: false }); }
+
+  init(data: any) {
+    this.levelId = data?.levelId ?? 1;
+    this.difficulty = data?.difficulty ?? 'easy';
+    this.endPanel = undefined;
+    this.bossBarBg = undefined;
+    this.bossBar = undefined;
+    this.bossLabel = undefined;
+    this.speedIdx = 0;
+  }
 
   create() {
     const W = this.scale.width;
@@ -123,6 +137,7 @@ export class UIScene extends Phaser.Scene {
 
   showEnd(s: any) {
     if (this.endPanel) return;
+    if (s.win) saveMedal(this.levelId, this.difficulty);
     const W = this.scale.width, H = this.scale.height;
     const bg = this.add.rectangle(0, 0, W, H, 0x000000, 0.7).setOrigin(0);
     const box = this.add.rectangle(W / 2, H / 2, 380, 200, 0x11172a).setStrokeStyle(2, 0x2a3760);
@@ -130,7 +145,18 @@ export class UIScene extends Phaser.Scene {
       { fontFamily: 'monospace', fontSize: '32px', color: s.win ? '#7cf29a' : '#ff6a6a' }).setOrigin(0.5);
     const sub = this.add.text(W / 2, H / 2 - 10, `${s.name}   Kills: ${s.kills}   $ ${s.money}`,
       { fontFamily: 'monospace', fontSize: '14px', color: '#ccd' }).setOrigin(0.5);
-    const btn = this.makeButton(W / 2, H / 2 + 40, 100, 32, 'RESTART', () => location.reload());
+    const btn = this.makeButton(W / 2, H / 2 + 40, 140, 32, 'RETURN TO MAP', () => {
+      this.scene.stop('Game');
+      this.scene.stop('UI');
+      this.scene.start('LevelSelect');
+    });
     this.endPanel = this.add.container(0, 0, [bg, box, title, sub, btn]);
+  }
+
+  shutdown() {
+    this.game.events.off('hud');
+    this.game.events.off('game-end');
+    this.game.events.off('boss-spawn');
+    this.game.events.off('boss-hp');
   }
 }

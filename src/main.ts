@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { CFG } from './config';
 import { BootScene } from './scenes/BootScene';
+import { LevelSelectScene } from './scenes/LevelSelectScene';
 import { GameScene } from './scenes/GameScene';
 import { UIScene } from './scenes/UIScene';
 
@@ -57,7 +58,7 @@ function start() {
       mode: Phaser.Scale.FIT,
       autoCenter: Phaser.Scale.CENTER_BOTH
     },
-    scene: [BootScene, GameScene, UIScene]
+    scene: [BootScene, LevelSelectScene, GameScene, UIScene]
   });
 
   // Hide overlay once the game scene is ready

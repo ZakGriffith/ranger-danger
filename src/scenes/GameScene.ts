@@ -9,6 +9,7 @@ import { Coin } from '../entities/Coin';
 import { Boss } from '../entities/Boss';
 import { createSparseGrid, findPath, canReachFromSpawnDirections, gridGet, gridSet, SparseGrid } from '../systems/Pathfinding';
 import { createGroundChunk } from '../assets/generateArt';
+import { Difficulty } from '../levels';
 
 type BuildKind = 'none' | 'tower' | 'wall';
 
@@ -65,14 +66,69 @@ export class GameScene extends Phaser.Scene {
   killsTarget = CFG.winKills;
   gameOver = false;
   playerName = 'hero';
+  levelId = 1;
+  difficulty: Difficulty = 'easy';
+  enemyHpMult = 1;
+  enemySpeedMult = 1;
 
   constructor() { super('Game'); }
 
   init(data: any) {
     this.playerName = data?.playerName || 'hero';
+    this.levelId = data?.levelId ?? 1;
+    this.difficulty = data?.difficulty ?? 'easy';
+
+    // Reset mutable state for scene re-entry
+    this.walls = [];
+    this.towers = [];
+    this.grid = createSparseGrid();
+    this.gridVersion = 0;
+    this.generatedChunks = new Set();
+    this.pendingChunks = [];
+    this.loadingDone = false;
+    this.buildKind = 'none';
+    this.buildTowerKind = 'arrow';
+    this.nextRunnerPack = 0;
+    this.playerStoppedAt = 0;
+    this.spawnTimer = 0;
+    this.spawnInterval = CFG.spawn.initialInterval;
+    this.rampTimer = 0;
+    this.heavyChance = CFG.spawn.heavyChanceStart;
+    this.waveStartAt = 0;
+    this.wave = 0;
+    this.waveSpawned = 0;
+    this.waveKills = 0;
+    this.waveBreakUntil = 0;
+    this.timeMult = 1;
+    this.vTime = 0;
+    this.selectedTower = null;
+    this.towerIndicators = new Map();
+    this.boss = null;
+    this.bossSpawned = false;
+    this.bossCountdownUntil = 0;
+    this.killsTarget = CFG.winKills;
+    this.gameOver = false;
+    this.dying = false;
+    this.winDelayUntil = 0;
+    this.winCollectedAt = 0;
+
+    // Difficulty multipliers (don't mutate CFG)
+    this.enemySpeedMult = 1;
+    switch (this.difficulty) {
+      case 'medium':
+        this.enemyHpMult = 1.3; break;
+      case 'hard':
+      case 'oneHP':
+        this.enemyHpMult = 1.6; break;
+      default:
+        this.enemyHpMult = 1;
+    }
   }
 
   create() {
+    // Resume physics in case previous run ended with physics.pause()
+    this.physics.resume();
+
     // Infinite world — no physics bounds, no camera bounds
     this.physics.world.setBounds(-1e6, -1e6, 2e6, 2e6);
     this.physics.world.setBoundsCollision(false);
@@ -87,6 +143,14 @@ export class GameScene extends Phaser.Scene {
     // player — starts at origin, camera follows
     this.player = new Player(this, 0, 0);
     this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
+
+    // Apply difficulty adjustments
+    if (this.difficulty === 'oneHP') {
+      this.player.hp = 1;
+      this.player.maxHp = 1;
+    }
+    if (this.difficulty === 'medium') this.player.money = 100;
+    else if (this.difficulty === 'hard' || this.difficulty === 'oneHP') this.player.money = 80;
 
     // Generate all initial ground chunks before the game starts
     this.generateChunksAround(0, 0);
@@ -140,13 +204,11 @@ export class GameScene extends Phaser.Scene {
       stroke: '#0b0f1a', strokeThickness: 4
     }).setOrigin(0.5).setDepth(30).setScrollFactor(0);
 
-    // Delay game-ready by a few frames so the browser can composite
-    // and the UI scene has time to finish its own create()
+    // Delay a few frames so the browser can composite and UI scene finishes create()
     this.loadingDone = false;
     this.time.delayedCall(100, () => {
       this.loadingDone = true;
       this.pushHud();
-      this.game.events.emit('game-ready');
     });
   }
 
@@ -154,7 +216,7 @@ export class GameScene extends Phaser.Scene {
     return {
       name: this.playerName,
       hp: this.player?.hp ?? CFG.player.hp,
-      maxHp: CFG.player.hp,
+      maxHp: this.player?.maxHp ?? CFG.player.hp,
       money: this.player?.money ?? 0,
       kills: this.player?.kills ?? 0,
       target: this.killsTarget,
@@ -1425,6 +1487,7 @@ export class GameScene extends Phaser.Scene {
       const kind: EnemyKind = Math.random() < 0.4 ? 'heavy' : 'basic';
       const e = new Enemy(this, ex, ey, kind);
       e.noCoinDrop = true;
+      this.applyEnemyDifficulty(e);
       this.enemies.add(e);
       const body = e.body as Phaser.Physics.Arcade.Body;
       body.setVelocity(Math.cos(a) * 120, Math.sin(a) * 120 - 40);
@@ -1957,6 +2020,7 @@ export class GameScene extends Phaser.Scene {
       const ox = Phaser.Math.Between(-28, 28);
       const oy = Phaser.Math.Between(-28, 28);
       const e = new Enemy(this, cx + ox, cy + oy, 'runner');
+      this.applyEnemyDifficulty(e);
       this.enemies.add(e);
       this.waveSpawned++;
     }
@@ -1984,7 +2048,18 @@ export class GameScene extends Phaser.Scene {
     const y = py + Math.sin(angle) * spawnR;
     const kind: EnemyKind = Math.random() < this.heavyChance ? 'heavy' : 'basic';
     const e = new Enemy(this, x, y, kind);
+    this.applyEnemyDifficulty(e);
     this.enemies.add(e);
+  }
+
+  applyEnemyDifficulty(e: Enemy) {
+    if (this.enemyHpMult !== 1) {
+      e.hp = Math.ceil(e.hp * this.enemyHpMult);
+      e.maxHp = e.hp;
+    }
+    if (this.enemySpeedMult !== 1) {
+      e.speed = Math.ceil(e.speed * this.enemySpeedMult);
+    }
   }
 
   // ---------- END ----------
@@ -2110,5 +2185,11 @@ export class GameScene extends Phaser.Scene {
     this.gameOver = true;
     this.physics.pause();
     this.game.events.emit('game-end', { win: true, name: this.playerName, kills: this.player.kills, money: this.player.money });
+  }
+
+  shutdown() {
+    this.game.events.off('ui-build');
+    this.game.events.off('ui-sell');
+    this.game.events.off('ui-speed');
   }
 }
