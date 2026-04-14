@@ -1797,6 +1797,33 @@ export function generateAllArt(scene: Phaser.Scene) {
   add(scene, 'ind_cannon', makeCanvas(32, drawIndicatorCannon()));
   add(scene, 'ind_ptr',    makeCanvas(16, drawIndicatorPointer()));
 
+  // Green checkmark for level select
+  {
+    const s = 20;
+    const c = document.createElement('canvas');
+    c.width = s; c.height = s;
+    const x = c.getContext('2d')!;
+    // Black outline
+    x.strokeStyle = '#000';
+    x.lineWidth = 4;
+    x.lineCap = 'round';
+    x.lineJoin = 'round';
+    x.beginPath();
+    x.moveTo(3, 10);
+    x.lineTo(8, 16);
+    x.lineTo(17, 4);
+    x.stroke();
+    // Green fill
+    x.strokeStyle = '#4ad96a';
+    x.lineWidth = 2.5;
+    x.beginPath();
+    x.moveTo(3, 10);
+    x.lineTo(8, 16);
+    x.lineTo(17, 4);
+    x.stroke();
+    add(scene, 'ui_check', c);
+  }
+
   // Wall
   // Walls — 16 autotile variants (N=1, E=2, S=4, W=8) × normal/damaged
   for (let mask = 0; mask < 16; mask++) {

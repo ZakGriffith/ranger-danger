@@ -10,6 +10,7 @@ export class LevelSelectScene extends Phaser.Scene {
   selectedLevel: LevelDef | null = null;
   selectedDiff: Difficulty | null = null;
   panel: Phaser.GameObjects.Container | null = null;
+  panelExtras: Phaser.GameObjects.GameObject[] = [];
   tooltip: Phaser.GameObjects.Container | null = null;
   tooltipTimer?: Phaser.Time.TimerEvent;
   diffButtons: { bg: Phaser.GameObjects.Graphics; text: Phaser.GameObjects.Text; diff: Difficulty }[] = [];
@@ -329,7 +330,7 @@ export class LevelSelectScene extends Phaser.Scene {
 
     const W = this.scale.width;
     const H = this.scale.height;
-    const pw = 300, ph = 310;
+    const pw = 300, ph = 360;
     const px = W / 2, py = H / 2;
 
     // Backdrop
@@ -395,18 +396,11 @@ export class LevelSelectScene extends Phaser.Scene {
         stroke: '#000', strokeThickness: 1
       }).setOrigin(0, 0.5);
 
-      // Medal indicator
-      const medalG = this.add.graphics();
+      // Green checkmark for completed difficulties (added to scene, not container)
       if (earned) {
-        medalG.fillStyle(mc.fill, 0.3);
-        medalG.fillCircle(btnW / 2 - 24, by, 8);
-        medalG.fillStyle(mc.fill, 1);
-        medalG.fillCircle(btnW / 2 - 24, by, 5);
-        medalG.fillStyle(0xffffff, 0.3);
-        medalG.fillCircle(btnW / 2 - 25, by - 1, 2);
-      } else {
-        medalG.lineStyle(1, 0x3a3a4a, 0.5);
-        medalG.strokeCircle(btnW / 2 - 24, by, 5);
+        const chk = this.add.sprite(px + btnW / 2 - 24, py + by, 'ui_check')
+          .setScale(1.2).setDepth(51);
+        this.panelExtras.push(chk);
       }
 
       hitRect.on('pointerover', () => {
@@ -440,13 +434,14 @@ export class LevelSelectScene extends Phaser.Scene {
       });
 
       this.diffButtons.push({ bg: btnBg, text: label, diff });
-      items.push(btnBg, hitRect, label, medalG);
+      items.push(btnBg, hitRect, label);
     }
 
     // START button
+    this.startBtnY = ph / 2 - 52;
     this.startBtnG = this.add.graphics();
     this.startBtnG.fillStyle(0x1a2540, 1);
-    this.startBtnG.fillRoundedRect(-60, ph / 2 - 52, 120, 36, 8);
+    this.startBtnG.fillRoundedRect(-60, this.startBtnY, 120, 36, 8);
     this.startBtnG.lineStyle(1, 0x2a3760, 0.8);
     this.startBtnG.strokeRoundedRect(-60, ph / 2 - 52, 120, 36, 8);
     this.startText = this.add.text(0, ph / 2 - 34, 'START', {
@@ -495,6 +490,7 @@ export class LevelSelectScene extends Phaser.Scene {
   startBtnG: Phaser.GameObjects.Graphics | null = null;
   startHit: Phaser.GameObjects.Rectangle | null = null;
   startText: Phaser.GameObjects.Text | null = null;
+  startBtnY = 0; // top-left Y of the start button rect (panel-relative)
 
   updateStartButton() {
     if (!this.startBtnG || !this.startHit || !this.startText) return;
@@ -503,11 +499,12 @@ export class LevelSelectScene extends Phaser.Scene {
     const hit = this.startHit;
 
     if (this.selectedDiff) {
+      const by = this.startBtnY;
       g.clear();
       g.fillStyle(0x1e4a2e, 1);
-      g.fillRoundedRect(-60, -18, 120, 36, 8);
+      g.fillRoundedRect(-60, by, 120, 36, 8);
       g.lineStyle(2, 0x4ad96a, 0.9);
-      g.strokeRoundedRect(-60, -18, 120, 36, 8);
+      g.strokeRoundedRect(-60, by, 120, 36, 8);
       text.setColor('#7cf29a');
       hit.setInteractive({ useHandCursor: true });
       hit.off('pointerdown');
@@ -515,16 +512,16 @@ export class LevelSelectScene extends Phaser.Scene {
       hit.on('pointerover', () => {
         g.clear();
         g.fillStyle(0x2a6a3e, 1);
-        g.fillRoundedRect(-60, -18, 120, 36, 8);
+        g.fillRoundedRect(-60, by, 120, 36, 8);
         g.lineStyle(2, 0x6afa8a, 0.9);
-        g.strokeRoundedRect(-60, -18, 120, 36, 8);
+        g.strokeRoundedRect(-60, by, 120, 36, 8);
       });
       hit.on('pointerout', () => {
         g.clear();
         g.fillStyle(0x1e4a2e, 1);
-        g.fillRoundedRect(-60, -18, 120, 36, 8);
+        g.fillRoundedRect(-60, by, 120, 36, 8);
         g.lineStyle(2, 0x4ad96a, 0.9);
-        g.strokeRoundedRect(-60, -18, 120, 36, 8);
+        g.strokeRoundedRect(-60, by, 120, 36, 8);
       });
     }
   }
@@ -536,6 +533,8 @@ export class LevelSelectScene extends Phaser.Scene {
         onComplete: () => { this.panel?.destroy(); this.panel = null; }
       });
     }
+    for (const obj of this.panelExtras) obj.destroy();
+    this.panelExtras = [];
     this.selectedLevel = null;
     this.selectedDiff = null;
     this.diffButtons = [];
