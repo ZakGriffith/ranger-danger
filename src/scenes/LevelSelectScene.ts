@@ -322,7 +322,7 @@ export class LevelSelectScene extends Phaser.Scene {
     const px = W / 2, py = H / 2;
 
     // Backdrop
-    const backdrop = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.65)
+    const backdrop = this.add.rectangle(0, 0, W, H, 0x000000, 0.65)
       .setInteractive();
 
     // Panel box with double border
