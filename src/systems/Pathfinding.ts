@@ -61,19 +61,22 @@ export function findPath(
       if (!inRange(nx, ny)) continue;
       const ni = idx(nx, ny);
       if (visited[ni]) continue;
-      if (gridGet(g, nx, ny) === 1) continue;
+      if (gridGet(g, nx, ny) >= 1) continue;
       visited[ni] = 1;
       prev[ni] = cur;
       queue.push(ni);
     }
-    // Diagonals — only if both adjacent cardinal tiles are walkable
+    // Diagonals — walls (1) block, towers (2) allow squeeze-through at corners
     for (const [dx, dy] of diagonals) {
       const nx = cx + dx, ny = cy + dy;
       if (!inRange(nx, ny)) continue;
       const ni = idx(nx, ny);
       if (visited[ni]) continue;
-      if (gridGet(g, nx, ny) === 1) continue;
-      if (gridGet(g, cx + dx, cy) === 1 || gridGet(g, cx, cy + dy) === 1) continue;
+      if (gridGet(g, nx, ny) >= 1) continue;
+      const c1 = gridGet(g, cx + dx, cy);
+      const c2 = gridGet(g, cx, cy + dy);
+      // Both blocked = no gap; any wall (1) = full-tile, no squeeze
+      if (c1 === 1 || c2 === 1 || (c1 >= 1 && c2 >= 1)) continue;
       visited[ni] = 1;
       prev[ni] = cur;
       queue.push(ni);

@@ -1633,6 +1633,31 @@ function drawIndicatorCannon() {
   };
 }
 
+function drawIndicatorBoss() {
+  return (put: Put) => {
+    const cx = 16, cy = 16;
+    // Red circle background
+    disc(put, cx, cy, 13, P.outline);
+    disc(put, cx, cy, 12, '#4a0a0a');
+    disc(put, cx, cy, 11, '#6a1a1a');
+    // Skull icon: cranium
+    disc(put, cx, cy - 1, 5, '#e8d8c8');
+    disc(put, cx, cy - 2, 4, '#f0e4d4');
+    // Eye sockets
+    put(cx - 2, cy - 2, P.outline); put(cx - 2, cy - 1, P.outline);
+    put(cx + 2, cy - 2, P.outline); put(cx + 2, cy - 1, P.outline);
+    // Red eye glow
+    put(cx - 2, cy - 2, '#ff3333'); put(cx + 2, cy - 2, '#ff3333');
+    // Nose
+    put(cx, cy, P.outline);
+    // Jaw
+    rect(put, cx - 3, cy + 2, 7, 2, '#d8c8b8');
+    // Teeth
+    put(cx - 2, cy + 2, P.outline); put(cx, cy + 2, P.outline); put(cx + 2, cy + 2, P.outline);
+    put(cx - 2, cy + 3, P.outline); put(cx, cy + 3, P.outline); put(cx + 2, cy + 3, P.outline);
+  };
+}
+
 function drawIndicatorPointer() {
   return (put: Put) => {
     // 16x16 — small triangle/chevron pointing right
@@ -1795,6 +1820,7 @@ export function generateAllArt(scene: Phaser.Scene) {
   // Off-screen tower indicators
   add(scene, 'ind_arrow',  makeCanvas(32, drawIndicatorArrow()));
   add(scene, 'ind_cannon', makeCanvas(32, drawIndicatorCannon()));
+  add(scene, 'ind_boss',   makeCanvas(32, drawIndicatorBoss()));
   add(scene, 'ind_ptr',    makeCanvas(16, drawIndicatorPointer()));
 
   // Green checkmark for level select
