@@ -87,7 +87,37 @@ const P = {
   hoodD:   '#1a3a18',
   stoneHL: '#d0d8e4',
   banner:  '#c04040',
-  bannerL: '#e06060'
+  bannerL: '#e06060',
+
+  // Forest enemies
+  wolf:    '#8a8a8a',
+  wolfD:   '#4a4a4a',
+  wolfM:   '#6a6a6a',
+  wolfL:   '#b0b0b0',
+
+  bear:    '#5a3a1a',
+  bearD:   '#2a1a0a',
+  bearM:   '#4a2a10',
+  bearL:   '#8a6a3a',
+
+  spider:  '#2a2a2a',
+  spiderD: '#0a0a0a',
+  spiderM: '#1a1a1a',
+  spiderL: '#4a4a4a',
+  spiderEye: '#ff2020',
+
+  // Forest boss (Ent)
+  bark:    '#4a3420',
+  barkD:   '#2a1808',
+  barkM:   '#3a2814',
+  barkL:   '#6a5030',
+  leaf:    '#1a3a12',
+  leafD:   '#0e2408',
+  leafM:   '#28521e',
+  leafL:   '#38682c',
+  leafB:   '#4a7e3a',
+  entEye:  '#60ff60',
+  entEyeD: '#208020'
 };
 
 // ------------------------------------------------------------------
@@ -531,6 +561,247 @@ function drawEnemyHeavy(f: EFrame) {
     rect(put, 24, 15, 3, 3, bodyD);
     put(6, 15, bodyM);
     put(25, 15, bodyM);
+  };
+}
+
+// ==================================================================
+//  ENEMY WOLF (32x32) — fast grey pack hunter
+// ==================================================================
+function drawEnemyWolf(f: EFrame) {
+  return (put: Put) => {
+    if (f.startsWith('die')) {
+      const step = parseInt(f.slice(3));
+      const r = 7 - step * 2;
+      if (r <= 0) return;
+      disc(put, 16, 18, r, P.wolf);
+      disc(put, 16, 18, Math.max(0, r - 1), P.wolfL);
+      for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * Math.PI * 2 + step * 0.5;
+        const d = step * 3 + 3;
+        put(Math.round(16 + Math.cos(a) * d), Math.round(18 + Math.sin(a) * d), P.wolfD);
+      }
+      return;
+    }
+    const flash = f === 'hit';
+    const body = flash ? P.white : P.wolf;
+    const bodyD = flash ? P.white : P.wolfD;
+    const bodyM = flash ? P.white : P.wolfM;
+    const bodyL = flash ? P.white : P.wolfL;
+
+    // shadow
+    for (let dy = -1; dy <= 1; dy++)
+      for (let dx = -6; dx <= 6; dx++)
+        if ((dx * dx) / 36 + (dy * dy) / 1.5 <= 1) put(16 + dx, 28 + dy, P.shadow);
+
+    // tail (bushy, curves up)
+    let tailY = 0;
+    if (f === 'move1' || f === 'move3') tailY = 1;
+    put(6, 14 + tailY, bodyD); put(5, 13 + tailY, bodyM); put(4, 12 + tailY, body);
+    put(4, 11 + tailY, bodyL); put(5, 11 + tailY, body);
+
+    // hind legs
+    let footY = 0;
+    if (f === 'move1') footY = -1;
+    if (f === 'move3') footY = 1;
+    rect(put, 9, 24 + footY, 3, 3, bodyD);
+    rect(put, 19, 24 - footY, 3, 3, bodyD);
+    put(9, 26 + footY, P.outline);
+    put(11, 26 + footY, P.outline);
+    put(19, 26 - footY, P.outline);
+    put(21, 26 - footY, P.outline);
+
+    // body (elongated oval)
+    for (let dy = -5; dy <= 5; dy++)
+      for (let dx = -8; dx <= 8; dx++)
+        if ((dx * dx) / 64 + (dy * dy) / 25 <= 1)
+          put(16 + dx, 18 + dy, bodyD);
+    for (let dy = -4; dy <= 4; dy++)
+      for (let dx = -7; dx <= 7; dx++)
+        if ((dx * dx) / 49 + (dy * dy) / 16 <= 1)
+          put(16 + dx, 18 + dy, body);
+    // belly highlight
+    for (let dy = -2; dy <= 2; dy++)
+      for (let dx = -5; dx <= 5; dx++)
+        if ((dx * dx) / 25 + (dy * dy) / 4 <= 1)
+          put(16 + dx, 17 + dy, bodyL);
+
+    // head (snout pointing right)
+    disc(put, 22, 15, 4, bodyD);
+    disc(put, 22, 15, 3, body);
+    disc(put, 22, 14, 2, bodyL);
+    // snout
+    rect(put, 25, 15, 4, 2, bodyM);
+    rect(put, 26, 15, 3, 2, bodyL);
+
+    // ears (pointed)
+    put(20, 10, bodyD); put(21, 10, body); put(21, 9, bodyL);
+    put(24, 10, bodyD); put(23, 10, body); put(23, 9, bodyL);
+
+    // eyes
+    put(21, 14, P.outline); put(24, 14, P.outline);
+    put(21, 13, bodyL); put(24, 13, bodyL);
+
+    // mouth / fangs
+    if (f === 'atk0' || f === 'atk1') {
+      rect(put, 26, 17, 3, 2, P.outline);
+      put(27, 17, P.white); put(28, 17, P.white);
+      if (f === 'atk1') put(27, 18, P.red);
+    } else {
+      put(27, 17, P.outline); put(28, 17, P.outline);
+    }
+  };
+}
+
+// ==================================================================
+//  ENEMY BEAR (32x32) — tanky brown brute
+// ==================================================================
+function drawEnemyBear(f: EFrame) {
+  return (put: Put) => {
+    if (f.startsWith('die')) {
+      const step = parseInt(f.slice(3));
+      const r = 10 - step * 2;
+      if (r <= 0) return;
+      disc(put, 16, 18, r, P.bear);
+      disc(put, 16, 18, Math.max(0, r - 1), P.bearL);
+      for (let i = 0; i < 8; i++) {
+        const a = (i / 8) * Math.PI * 2 + step * 0.3;
+        const d = step * 3 + 4;
+        put(Math.round(16 + Math.cos(a) * d), Math.round(18 + Math.sin(a) * d), P.bearD);
+      }
+      return;
+    }
+    const flash = f === 'hit';
+    const body = flash ? P.white : P.bear;
+    const bodyD = flash ? P.white : P.bearD;
+    const bodyM = flash ? P.white : P.bearM;
+    const bodyL = flash ? P.white : P.bearL;
+
+    // shadow
+    for (let dy = -2; dy <= 2; dy++)
+      for (let dx = -9; dx <= 9; dx++)
+        if ((dx * dx) / 81 + (dy * dy) / 4 <= 1) put(16 + dx, 29 + dy, P.shadow);
+
+    // feet (thick paws)
+    let footY = 0;
+    if (f === 'move1') footY = -1;
+    if (f === 'move3') footY = 1;
+    rect(put, 8, 26 + footY, 5, 3, bodyD);
+    rect(put, 19, 26 - footY, 5, 3, bodyD);
+    // claws
+    put(8, 28 + footY, P.outline); put(12, 28 + footY, P.outline);
+    put(19, 28 - footY, P.outline); put(23, 28 - footY, P.outline);
+
+    // main body (large disc)
+    disc(put, 16, 17, 11, bodyD);
+    disc(put, 16, 17, 10, body);
+    disc(put, 16, 16, 8, bodyL);
+    // fur texture lines
+    rect(put, 10, 18, 12, 1, bodyM);
+    rect(put, 11, 21, 10, 1, bodyM);
+
+    // rounded ears
+    disc(put, 9, 9, 3, bodyD); disc(put, 9, 9, 2, body);
+    disc(put, 23, 9, 3, bodyD); disc(put, 23, 9, 2, body);
+
+    // face
+    // snout mound
+    disc(put, 16, 16, 4, bodyM);
+    // eyes — small beady
+    put(12, 13, P.outline); put(12, 12, bodyL);
+    put(20, 13, P.outline); put(20, 12, bodyL);
+    // nose
+    put(15, 15, P.outline); put(16, 15, P.outline); put(17, 15, P.outline);
+
+    // mouth / fangs
+    if (f === 'atk0' || f === 'atk1') {
+      rect(put, 13, 17, 7, 3, P.outline);
+      put(14, 18, P.white); put(18, 18, P.white);
+      if (f === 'atk1') { put(15, 19, P.white); put(17, 19, P.white); }
+    } else {
+      rect(put, 14, 17, 5, 1, P.outline);
+    }
+
+    // big arms
+    rect(put, 4, 15, 4, 4, bodyD); put(5, 15, bodyM);
+    rect(put, 24, 15, 4, 4, bodyD); put(26, 15, bodyM);
+  };
+}
+
+// ==================================================================
+//  ENEMY SPIDER (32x32) — dark arachnid with red eyes
+// ==================================================================
+function drawEnemySpider(f: EFrame) {
+  return (put: Put) => {
+    if (f.startsWith('die')) {
+      const step = parseInt(f.slice(3));
+      const r = 6 - step * 2;
+      if (r <= 0) return;
+      disc(put, 16, 18, r, P.spider);
+      disc(put, 16, 18, Math.max(0, r - 1), P.spiderL);
+      for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * Math.PI * 2 + step * 0.4;
+        const d = step * 3 + 3;
+        put(Math.round(16 + Math.cos(a) * d), Math.round(18 + Math.sin(a) * d), P.spiderD);
+      }
+      return;
+    }
+    const flash = f === 'hit';
+    const body = flash ? P.white : P.spider;
+    const bodyD = flash ? P.white : P.spiderD;
+    const bodyM = flash ? P.white : P.spiderM;
+    const bodyL = flash ? P.white : P.spiderL;
+    const eye = flash ? P.white : P.spiderEye;
+
+    // shadow
+    for (let dy = -1; dy <= 1; dy++)
+      for (let dx = -7; dx <= 7; dx++)
+        if ((dx * dx) / 49 + (dy * dy) / 1.5 <= 1) put(16 + dx, 28 + dy, P.shadow);
+
+    // legs — 4 per side, animated
+    const legStep = (f === 'move1' || f === 'move3') ? 1 : 0;
+    const legAngles = [-0.8, -0.3, 0.2, 0.7]; // spread angles
+    for (let i = 0; i < 4; i++) {
+      const a = legAngles[i];
+      const flip = (i + legStep) % 2 === 0 ? 1 : -1;
+      // Left leg
+      const lx1 = 16 - 5, ly1 = 18 + Math.round(a * 6);
+      const lx2 = lx1 - 6, ly2 = ly1 + flip * 3;
+      put(lx1, ly1, bodyD); put(lx1 - 1, ly1, bodyM);
+      put(lx2, ly2, bodyD); put(lx2 + 1, ly2, bodyM);
+      put(lx2 - 1, ly2 + 1, P.outline); // foot
+      // Right leg
+      const rx1 = 16 + 5, ry1 = 18 + Math.round(a * 6);
+      const rx2 = rx1 + 6, ry2 = ry1 + flip * 3;
+      put(rx1, ry1, bodyD); put(rx1 + 1, ry1, bodyM);
+      put(rx2, ry2, bodyD); put(rx2 - 1, ry2, bodyM);
+      put(rx2 + 1, ry2 + 1, P.outline); // foot
+    }
+
+    // abdomen (rear body)
+    disc(put, 16, 21, 6, bodyD);
+    disc(put, 16, 21, 5, body);
+    disc(put, 16, 20, 3, bodyL);
+    // markings on abdomen
+    put(15, 23, bodyM); put(17, 23, bodyM);
+    put(16, 24, bodyM);
+
+    // head (front)
+    disc(put, 16, 14, 4, bodyD);
+    disc(put, 16, 14, 3, body);
+    disc(put, 16, 13, 2, bodyL);
+
+    // eyes (4 red dots)
+    put(14, 12, eye); put(18, 12, eye);
+    put(13, 14, eye); put(19, 14, eye);
+
+    // fangs
+    if (f === 'atk0' || f === 'atk1') {
+      put(14, 17, P.outline); put(15, 18, P.outline);
+      put(18, 17, P.outline); put(17, 18, P.outline);
+      if (f === 'atk1') { put(15, 19, P.red); put(17, 19, P.red); }
+    } else {
+      put(14, 17, P.outline); put(18, 17, P.outline);
+    }
   };
 }
 
@@ -1316,6 +1587,255 @@ function drawGroundWorld(tileX: number, tileY: number) {
   };
 }
 
+// Forest ground — darker greens with brown dirt patches, leaf litter, mushrooms, moss
+function drawGroundForest(tileX: number, tileY: number) {
+  return (put: Put) => {
+    // Forest green shades — darker than meadow but not too dark
+    const greenShades = ['#243e22', '#2c482a', '#345232', '#2a4428'];
+    // Brown dirt transition band (5 colors)
+    const dirtBand = ['#2a4226', '#3e5028', '#4e4e26', '#5e482e', '#4a3420'];
+
+    let s = ((tileX * 73856093 + tileY * 19349669) >>> 0) % 2147483647;
+    const rnd = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
+
+    for (let py = 0; py < 32; py++) {
+      for (let px = 0; px < 32; px++) {
+        const wx = tileX * 32 + px;
+        const wy = tileY * 32 + py;
+
+        // Base green noise
+        const n = wnoise(wx + 8000, wy + 1000, 400);
+        // Dirt patch noise (different offset for variety)
+        const dirtN = wnoise(wx + 5000, wy + 2000, 300);
+
+        if (dirtN > 0.62) {
+          // Dirt transition bands
+          const t = (dirtN - 0.62) / 0.38; // 0..1
+          const idx = Math.min(4, Math.floor(t * 5));
+          put(px, py, dirtBand[idx]);
+        } else {
+          const idx = Math.min(3, Math.floor(n * 4));
+          put(px, py, greenShades[idx]);
+        }
+      }
+    }
+
+    // Scattered leaf litter (~12% of tiles, 1-2 leaves)
+    if (rnd() < 0.12) {
+      const leafColors = ['#c07030', '#8a5020', '#b09040', '#a06828', '#7a4018'];
+      const count = 1 + Math.floor(rnd() * 2);
+      for (let i = 0; i < count; i++) {
+        const lx = 1 + Math.floor(rnd() * 30);
+        const ly = 1 + Math.floor(rnd() * 30);
+        put(lx, ly, leafColors[Math.floor(rnd() * leafColors.length)]);
+      }
+    }
+
+    // Scattered mushrooms (~2.5% of tiles)
+    if (rnd() < 0.025) {
+      const mx = 2 + Math.floor(rnd() * 28);
+      const my = 2 + Math.floor(rnd() * 28);
+      put(mx, my - 1, '#d04040');    // red cap
+      put(mx + 1, my - 1, '#b03030');
+      put(mx, my, '#e8e0d0');        // white stem
+    }
+
+    // Moss patches (~6% of tiles)
+    if (rnd() < 0.06) {
+      const mx = 3 + Math.floor(rnd() * 26);
+      const my = 3 + Math.floor(rnd() * 26);
+      put(mx, my, '#4a8a30');
+      put(mx + 1, my, '#3a7a28');
+      put(mx, my + 1, '#4a8a30');
+    }
+
+    // Rare rock (~4%)
+    if (rnd() < 0.04) {
+      const rx = 2 + Math.floor(rnd() * 28);
+      const ry = 2 + Math.floor(rnd() * 28);
+      put(rx, ry, '#5a6270');
+      put(rx + 1, ry, '#4a5260');
+      put(rx, ry + 1, '#3e4654');
+    }
+
+    // Rare grass tuft (~8%)
+    if (rnd() < 0.08) {
+      const tx = 3 + Math.floor(rnd() * 26);
+      const ty = 3 + Math.floor(rnd() * 26);
+      put(tx, ty, '#2a5a20');
+      put(tx + 1, ty, '#2a5a20');
+      put(tx, ty - 1, '#3a6a28');
+    }
+  };
+}
+
+// Tree cluster patterns — each defines which tiles are occupied
+// Coordinates are relative (dx, dy) from the top-left of the cluster
+export const TREE_PATTERNS: { tiles: { dx: number; dy: number }[]; w: number; h: number }[] = [
+  // Pattern 0: L-shape (3 trees)
+  { tiles: [{ dx: 0, dy: 0 }, { dx: 0, dy: 1 }, { dx: 1, dy: 1 }], w: 2, h: 2 },
+  // Pattern 1: Vertical bar (3 trees)
+  { tiles: [{ dx: 0, dy: 0 }, { dx: 0, dy: 1 }, { dx: 0, dy: 2 }], w: 1, h: 3 },
+  // Pattern 2: Horizontal bar (3 trees)
+  { tiles: [{ dx: 0, dy: 0 }, { dx: 1, dy: 0 }, { dx: 2, dy: 0 }], w: 3, h: 1 },
+  // Pattern 3: T-shape (4 trees)
+  { tiles: [{ dx: 0, dy: 0 }, { dx: 1, dy: 0 }, { dx: 2, dy: 0 }, { dx: 1, dy: 1 }], w: 3, h: 2 },
+  // Pattern 4: Square (4 trees)
+  { tiles: [{ dx: 0, dy: 0 }, { dx: 1, dy: 0 }, { dx: 0, dy: 1 }, { dx: 1, dy: 1 }], w: 2, h: 2 },
+  // Pattern 5: Z-shape (4 trees)
+  { tiles: [{ dx: 0, dy: 0 }, { dx: 1, dy: 0 }, { dx: 1, dy: 1 }, { dx: 2, dy: 1 }], w: 3, h: 2 },
+  // Pattern 6: Big L (5 trees)
+  { tiles: [{ dx: 0, dy: 0 }, { dx: 0, dy: 1 }, { dx: 0, dy: 2 }, { dx: 1, dy: 2 }, { dx: 2, dy: 2 }], w: 3, h: 3 },
+  // Pattern 7: Cross (5 trees)
+  { tiles: [{ dx: 1, dy: 0 }, { dx: 0, dy: 1 }, { dx: 1, dy: 1 }, { dx: 2, dy: 1 }, { dx: 1, dy: 2 }], w: 3, h: 3 },
+];
+
+// Draw a WC2-style conifer tree cluster — triangular tiered pine trees packed tightly
+function drawTreeClusterCanvas(patternIdx: number): HTMLCanvasElement {
+  const pattern = TREE_PATTERNS[patternIdx];
+  const T = 32; // tile size in pixels (world space)
+  // Large padding — trees are much taller than a single tile
+  const pad = 40;
+  const cw = pattern.w * T + pad * 2;
+  const ch = pattern.h * T + pad * 2;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = cw;
+  canvas.height = ch;
+  const ctx = canvas.getContext('2d')!;
+  ctx.imageSmoothingEnabled = false;
+
+  // Seeded RNG per pattern
+  let seed = (patternIdx * 73856093 + 54321) >>> 0;
+  const rnd = () => { seed = (seed * 16807 + 1) % 2147483647; return seed / 2147483647; };
+
+  // Place 2-3 trees per tile, tightly packed with jitter for dense clumps
+  type TreeDef = { cx: number; cy: number; h: number; baseW: number; shade: number };
+  const trees: TreeDef[] = [];
+
+  for (const t of pattern.tiles) {
+    const tileCx = t.dx * T + T / 2 + pad;
+    const tileCy = t.dy * T + T * 0.85 + pad;
+    const treesPerTile = 2 + (rnd() > 0.5 ? 1 : 0); // 2-3 trees per tile
+    for (let i = 0; i < treesPerTile; i++) {
+      const cx = tileCx + (rnd() - 0.5) * T * 0.7;
+      const cy = tileCy + (rnd() - 0.5) * T * 0.4;
+      const treeH = 48 + Math.floor(rnd() * 14); // much taller: 48-62px
+      trees.push({
+        cx, cy, h: treeH,
+        baseW: 26 + Math.floor(rnd() * 8), // wider: 26-34px
+        shade: Math.floor(rnd() * 3)
+      });
+    }
+  }
+
+  // Sort back-to-front (higher cy = closer to camera = drawn later)
+  trees.sort((a, b) => a.cy - b.cy);
+
+  // Color palettes — 3 shade variants
+  const palettes = [
+    { dark: '#0e2408', mid: '#1a3a12', light: '#28521e', highlight: '#38682c', bright: '#4a7e3a' },
+    { dark: '#102608', mid: '#1c3e14', light: '#2a5420', highlight: '#3a6a2e', bright: '#4c823c' },
+    { dark: '#0c2206', mid: '#183810', light: '#26501c', highlight: '#36642a', bright: '#488038' },
+  ];
+
+  for (const tree of trees) {
+    const p = palettes[tree.shade];
+    const { cx, cy, h, baseW } = tree;
+    const topY = cy - h;
+
+    // Trunk — short, visible below the lowest branches
+    const trunkW = 4;
+    const trunkH = 7;
+    ctx.fillStyle = '#2a1808';
+    ctx.fillRect(Math.floor(cx - trunkW / 2) - 1, Math.floor(cy - trunkH), trunkW + 2, trunkH + 1);
+    ctx.fillStyle = '#4a2e14';
+    ctx.fillRect(Math.floor(cx - trunkW / 2), Math.floor(cy - trunkH), trunkW, trunkH);
+
+    // 3 tiers of triangular branch layers, bottom to top
+    const tiers = 3;
+    for (let tier = 0; tier < tiers; tier++) {
+      const t0 = tier / tiers;
+      const t1 = (tier + 1) / tiers;
+      const tierBot = cy - h * t0 * 0.75 - 3;
+      const tierTop = cy - h * (t0 + (t1 - t0) * 0.85) - 3;
+      const tierMid = (tierBot + tierTop) / 2;
+      const tierW = baseW * (1 - t0 * 0.55);
+
+      // Dark shadow triangle (slightly offset)
+      ctx.fillStyle = p.dark;
+      ctx.beginPath();
+      ctx.moveTo(cx, tierTop - 1);
+      ctx.lineTo(cx - tierW / 2 - 1, tierBot + 1);
+      ctx.lineTo(cx + tierW / 2 + 1, tierBot + 1);
+      ctx.closePath();
+      ctx.fill();
+
+      // Main body triangle
+      ctx.fillStyle = p.mid;
+      ctx.beginPath();
+      ctx.moveTo(cx, tierTop);
+      ctx.lineTo(cx - tierW / 2, tierBot);
+      ctx.lineTo(cx + tierW / 2, tierBot);
+      ctx.closePath();
+      ctx.fill();
+
+      // Left-side highlight (light from top-left)
+      ctx.fillStyle = p.light;
+      ctx.beginPath();
+      ctx.moveTo(cx - 1, tierTop + 1);
+      ctx.lineTo(cx - tierW / 2 + 1, tierBot);
+      ctx.lineTo(cx - tierW * 0.15, tierBot);
+      ctx.lineTo(cx - 1, tierMid);
+      ctx.closePath();
+      ctx.fill();
+
+      // Bright highlight near top-left
+      ctx.fillStyle = p.highlight;
+      ctx.beginPath();
+      ctx.moveTo(cx - 1, tierTop + 2);
+      ctx.lineTo(cx - tierW * 0.3, tierMid + 1);
+      ctx.lineTo(cx - 1, tierMid - 1);
+      ctx.closePath();
+      ctx.fill();
+
+      // Branch edge detail — jagged pixels along edges
+      const steps = Math.floor(tierBot - tierTop);
+      for (let i = 0; i < steps; i += 2) {
+        const fy = tierTop + i;
+        const frac = i / steps;
+        const edgeW = tierW / 2 * frac;
+        if (rnd() > 0.3) {
+          const jx = cx - edgeW - 1 + rnd() * 2;
+          ctx.fillStyle = rnd() > 0.5 ? p.dark : p.mid;
+          ctx.fillRect(Math.floor(jx), Math.floor(fy), 1, 1);
+        }
+        if (rnd() > 0.3) {
+          const jx = cx + edgeW - 1 + rnd() * 2;
+          ctx.fillStyle = rnd() > 0.5 ? p.dark : p.mid;
+          ctx.fillRect(Math.floor(jx), Math.floor(fy), 1, 1);
+        }
+      }
+    }
+
+    // Pointed tip
+    ctx.fillStyle = p.bright;
+    ctx.fillRect(Math.floor(cx), Math.floor(topY - 2), 1, 3);
+    ctx.fillStyle = p.highlight;
+    ctx.fillRect(Math.floor(cx - 1), Math.floor(topY - 1), 1, 1);
+
+    // Scattered bright needle highlights
+    for (let i = 0; i < 10; i++) {
+      const hx = cx + (rnd() - 0.5) * baseW * 0.6;
+      const hy = cy - rnd() * h * 0.8 - 3;
+      ctx.fillStyle = rnd() > 0.5 ? p.bright : p.highlight;
+      ctx.fillRect(Math.floor(hx), Math.floor(hy), 1, 1);
+    }
+  }
+
+  return canvas;
+}
+
 function drawFoundation(put: Put) {
   // Organic dirt patch for 2x2 tower footprint (64x64, rendered at 0.5 scale = 32x32 = 2 tiles)
   // Stays within bounds but with rounded/noisy corners
@@ -1586,6 +2106,256 @@ function drawBossDie(put: Put, step: number) {
   // central flash
   if (step < 2) disc(put, cx, cy, 6, P.sparkL);
 }
+
+// ==================================================================
+//  FOREST BOSS — Ent / Tree Guardian
+// ==================================================================
+interface EntOpts {
+  bob?: number;
+  flash?: boolean;
+  chargeGlow?: boolean;
+  pockets?: number;
+  rearUp?: boolean;
+  legStep?: number;
+  armSwing?: number; // -1 to 1 for arm pose
+}
+
+function drawEntBody(put: Put, opts: EntOpts) {
+  const cx = 32;
+  const baseCy = 34 + (opts.bob ?? 0) + (opts.rearUp ? -2 : 0);
+  const armSwing = opts.armSwing ?? 0;
+
+  const col = {
+    out:  opts.flash ? P.white : P.outline,
+    d:    opts.flash ? P.white : P.barkD,
+    m:    opts.flash ? P.white : P.barkM,
+    b:    opts.flash ? P.white : P.bark,
+    l:    opts.flash ? P.white : P.barkL,
+    lfD:  opts.flash ? P.white : P.leafD,
+    lf:   opts.flash ? P.white : P.leaf,
+    lfM:  opts.flash ? P.white : P.leafM,
+    lfL:  opts.flash ? P.white : P.leafL,
+    lfB:  opts.flash ? P.white : P.leafB,
+  };
+
+  // Drop shadow — oval
+  for (let dy = -2; dy <= 2; dy++)
+    for (let dx = -20; dx <= 20; dx++)
+      if ((dx * dx) / 400 + (dy * dy) / 5 <= 1) put(cx + dx, 59 + dy, P.shadow);
+
+  // Root-legs (2 thick roots)
+  const legStep = opts.legStep ?? 0;
+  // Left root
+  rect(put, cx - 14, baseCy + 14 + legStep, 6, 8, col.d);
+  rect(put, cx - 13, baseCy + 15 + legStep, 4, 6, col.b);
+  put(cx - 16, baseCy + 21 + legStep, col.d); // root tip
+  put(cx - 15, baseCy + 21 + legStep, col.m);
+  // Right root
+  rect(put, cx + 8, baseCy + 14 - legStep, 6, 8, col.d);
+  rect(put, cx + 9, baseCy + 15 - legStep, 4, 6, col.b);
+  put(cx + 15, baseCy + 21 - legStep, col.d);
+  put(cx + 14, baseCy + 21 - legStep, col.m);
+
+  // Main trunk body — tall rectangular with rounded top
+  // Outer bark
+  rect(put, cx - 12, baseCy - 14, 24, 30, col.out);
+  rect(put, cx - 11, baseCy - 13, 22, 28, col.d);
+  rect(put, cx - 10, baseCy - 12, 20, 26, col.b);
+  // Lighter left highlight
+  rect(put, cx - 10, baseCy - 12, 8, 24, col.m);
+  rect(put, cx - 9, baseCy - 10, 4, 18, col.l);
+
+  // Bark texture lines (horizontal grooves)
+  for (let y = -8; y <= 12; y += 4) {
+    for (let x = -8; x <= 8; x++) {
+      put(cx + x, baseCy + y, col.d);
+    }
+  }
+  // Vertical bark cracks
+  for (let y = -10; y <= 10; y++) {
+    if (y % 2 === 0) {
+      put(cx - 4, baseCy + y, col.d);
+      put(cx + 5, baseCy + y, col.d);
+    }
+  }
+
+  // Branch arms
+  const lArmOff = Math.floor(armSwing * 3);
+  const rArmOff = Math.floor(-armSwing * 3);
+  // Left arm
+  rect(put, cx - 20, baseCy - 6 + lArmOff, 9, 5, col.out);
+  rect(put, cx - 19, baseCy - 5 + lArmOff, 7, 3, col.b);
+  rect(put, cx - 18, baseCy - 5 + lArmOff, 3, 3, col.l);
+  // Left arm twigs
+  put(cx - 22, baseCy - 8 + lArmOff, col.lfM);
+  put(cx - 21, baseCy - 9 + lArmOff, col.lf);
+  put(cx - 23, baseCy - 7 + lArmOff, col.lfD);
+  put(cx - 20, baseCy - 8 + lArmOff, col.lfL);
+  // Right arm
+  rect(put, cx + 11, baseCy - 6 + rArmOff, 9, 5, col.out);
+  rect(put, cx + 12, baseCy - 5 + rArmOff, 7, 3, col.b);
+  rect(put, cx + 16, baseCy - 5 + rArmOff, 3, 3, col.l);
+  // Right arm twigs
+  put(cx + 21, baseCy - 8 + rArmOff, col.lfM);
+  put(cx + 22, baseCy - 9 + rArmOff, col.lf);
+  put(cx + 23, baseCy - 7 + rArmOff, col.lfD);
+  put(cx + 20, baseCy - 8 + rArmOff, col.lfL);
+
+  // Leafy crown (canopy on top of the trunk)
+  // Large circle of leaves on top
+  const crownY = baseCy - 20;
+  disc(put, cx, crownY, 16, col.out);
+  disc(put, cx, crownY, 15, col.lfD);
+  disc(put, cx, crownY, 14, col.lf);
+  disc(put, cx, crownY, 12, col.lfM);
+  // Highlight on upper-left
+  disc(put, cx - 3, crownY - 3, 8, col.lfL);
+  disc(put, cx - 4, crownY - 4, 5, col.lfB);
+  // Dark underside
+  for (let x = -12; x <= 12; x++)
+    for (let y = 2; y <= 6; y++)
+      if (x * x + y * y <= 144) put(cx + x, crownY + y, col.lfD);
+
+  // Leaf edge detail — scattered bright/dark pixels around crown edge
+  for (let a = 0; a < 20; a++) {
+    const angle = (a / 20) * Math.PI * 2;
+    const r = 14 + (a % 3);
+    const lx = Math.round(cx + Math.cos(angle) * r);
+    const ly = Math.round(crownY + Math.sin(angle) * r);
+    put(lx, ly, a % 2 === 0 ? col.lfM : col.lfD);
+  }
+
+  // Eyes — two glowing green eyes in the trunk face area
+  const eyeY = baseCy - 4;
+  const glow = opts.chargeGlow ? P.sparkL : P.entEye;
+  const glowD = opts.chargeGlow ? P.spark : P.entEyeD;
+  // Left eye
+  put(cx - 6, eyeY - 1, col.out);
+  put(cx - 5, eyeY - 1, col.out);
+  put(cx - 4, eyeY - 1, col.out);
+  put(cx - 6, eyeY, col.out);
+  put(cx - 5, eyeY, glow);
+  put(cx - 4, eyeY, opts.chargeGlow ? P.white : glow);
+  put(cx - 6, eyeY + 1, col.out);
+  put(cx - 5, eyeY + 1, glowD);
+  put(cx - 4, eyeY + 1, col.out);
+  // Right eye
+  put(cx + 4, eyeY - 1, col.out);
+  put(cx + 5, eyeY - 1, col.out);
+  put(cx + 6, eyeY - 1, col.out);
+  put(cx + 4, eyeY, opts.chargeGlow ? P.white : glow);
+  put(cx + 5, eyeY, glow);
+  put(cx + 6, eyeY, col.out);
+  put(cx + 4, eyeY + 1, col.out);
+  put(cx + 5, eyeY + 1, glowD);
+  put(cx + 6, eyeY + 1, col.out);
+
+  // Mouth — dark hollow in the bark
+  rect(put, cx - 3, baseCy + 2, 6, 2, col.out);
+  put(cx - 2, baseCy + 2, col.d);
+  put(cx + 2, baseCy + 2, col.d);
+
+  // Birth pockets — mossy bulges on trunk
+  if (opts.pockets !== undefined) {
+    const stage = opts.pockets;
+    const pockets: Array<[number, number]> = [
+      [-6, -10], [0, -12], [6, -10]
+    ];
+    for (const [px, py] of pockets) {
+      const ox = cx + px, oy = baseCy + py;
+      if (stage === 0) {
+        disc(put, ox, oy, 3, col.lfM);
+        disc(put, ox, oy, 2, col.lf);
+      } else if (stage === 1) {
+        disc(put, ox, oy, 3, col.lfD);
+        disc(put, ox, oy, 2, col.out);
+        put(ox, oy, col.lfL);
+      } else if (stage === 2) {
+        disc(put, ox, oy, 3, col.lfD);
+        disc(put, ox, oy, 2, P.wolfL);
+        put(ox - 1, oy, P.white);
+        put(ox + 1, oy, P.white);
+      } else if (stage === 3) {
+        disc(put, ox, oy - 1, 4, col.lfD);
+        disc(put, ox, oy - 1, 3, P.wolfL);
+        disc(put, ox, oy - 2, 2, P.wolf);
+        put(ox - 1, oy - 1, P.white);
+        put(ox + 1, oy - 1, P.white);
+      } else if (stage === 4) {
+        disc(put, ox, oy, 3, col.out);
+        disc(put, ox, oy, 2, col.d);
+      }
+    }
+  }
+}
+
+type ForestBossFrame =
+  | 'idle0' | 'idle1'
+  | 'move0' | 'move1' | 'move2' | 'move3'
+  | 'atk0' | 'atk1'
+  | 'chargeWind'
+  | 'hit'
+  | 'birth0' | 'birth1' | 'birth2' | 'birth3' | 'birth4'
+  | 'die0' | 'die1' | 'die2' | 'die3' | 'die4';
+
+const forestBossFrames: ForestBossFrame[] = [
+  'idle0','idle1',
+  'move0','move1','move2','move3',
+  'atk0','atk1',
+  'chargeWind','hit',
+  'birth0','birth1','birth2','birth3','birth4',
+  'die0','die1','die2','die3','die4'
+];
+
+function drawForestBoss(frame: ForestBossFrame) {
+  return (put: Put) => {
+    switch (frame) {
+      case 'idle0':      return drawEntBody(put, { bob: 0 });
+      case 'idle1':      return drawEntBody(put, { bob: 1 });
+      case 'move0':      return drawEntBody(put, { bob: 0, legStep: 1, armSwing: 0.5 });
+      case 'move1':      return drawEntBody(put, { bob: 1, legStep: 0, armSwing: 0 });
+      case 'move2':      return drawEntBody(put, { bob: 0, legStep: -1, armSwing: -0.5 });
+      case 'move3':      return drawEntBody(put, { bob: 1, legStep: 0, armSwing: 0 });
+      case 'atk0':       return drawEntBody(put, { rearUp: true, bob: -1, armSwing: 1 });
+      case 'atk1':       return drawEntBody(put, { bob: 2, armSwing: -1 });
+      case 'chargeWind': return drawEntBody(put, { chargeGlow: true, bob: 0 });
+      case 'hit':        return drawEntBody(put, { flash: true });
+      case 'birth0':     return drawEntBody(put, { pockets: 0 });
+      case 'birth1':     return drawEntBody(put, { pockets: 1 });
+      case 'birth2':     return drawEntBody(put, { pockets: 2 });
+      case 'birth3':     return drawEntBody(put, { pockets: 3 });
+      case 'birth4':     return drawEntBody(put, { pockets: 4 });
+      case 'die0':       return drawForestBossDie(put, 0);
+      case 'die1':       return drawForestBossDie(put, 1);
+      case 'die2':       return drawForestBossDie(put, 2);
+      case 'die3':       return drawForestBossDie(put, 3);
+      case 'die4':       return drawForestBossDie(put, 4);
+    }
+  };
+}
+
+function drawForestBossDie(put: Put, step: number) {
+  const cx = 32, cy = 36;
+  const r = Math.max(0, 24 - step * 5);
+  if (r > 0) {
+    disc(put, cx, cy, r, P.barkD);
+    disc(put, cx, cy, Math.max(0, r - 1), P.bark);
+    disc(put, cx, cy, Math.max(0, r - 3), P.barkL);
+  }
+  // Leaves and bark chunks flying out
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * Math.PI * 2 + step * 0.3;
+    const d = step * 6 + 6;
+    const x = Math.round(cx + Math.cos(a) * d);
+    const y = Math.round(cy + Math.sin(a) * d);
+    put(x, y, i % 2 === 0 ? P.barkD : P.leafD);
+    put(x + 1, y, i % 2 === 0 ? P.leaf : P.leafM);
+    if (i % 3 === 0) put(x, y + 1, P.barkL);
+  }
+  // Green flash instead of white
+  if (step < 2) disc(put, cx, cy, 6, P.entEye);
+}
+
 function add(scene: Phaser.Scene, key: string, canvas: HTMLCanvasElement) {
   if (scene.textures.exists(key)) scene.textures.remove(key);
   scene.textures.addCanvas(key, canvas);
@@ -1691,7 +2461,7 @@ function hexToRgb(hex: string): [number, number, number] {
   return c;
 }
 
-export function createGroundChunk(scene: Phaser.Scene, chunkX: number, chunkY: number, chunkSize: number, tileSize: number): string {
+export function createGroundChunk(scene: Phaser.Scene, chunkX: number, chunkY: number, chunkSize: number, tileSize: number, biome = 'grasslands'): string {
   const key = `gnd_chunk_${chunkX}_${chunkY}`;
   if (scene.textures.exists(key)) return key;
   const pxSize = chunkSize * tileSize; // e.g. 16 * 32 = 512
@@ -1707,7 +2477,7 @@ export function createGroundChunk(scene: Phaser.Scene, chunkX: number, chunkY: n
     for (let tx = 0; tx < chunkSize; tx++) {
       const worldTX = startTX + tx;
       const worldTY = startTY + ty;
-      const draw = drawGroundWorld(worldTX, worldTY);
+      const draw = biome === 'forest' ? drawGroundForest(worldTX, worldTY) : drawGroundWorld(worldTX, worldTY);
       const ox = tx * tileSize;
       const oy = ty * tileSize;
       const put: Put = (x, y, col) => {
@@ -1751,6 +2521,9 @@ export function generateAllArt(scene: Phaser.Scene) {
   const eFrames: EFrame[] = ['move0','move1','move2','move3','atk0','atk1','hit','die0','die1','die2','die3'];
   for (const f of eFrames) add(scene, `eb_${f}`, makeCanvas(32, drawEnemyBasic(f)));
   for (const f of eFrames) add(scene, `eh_${f}`, makeCanvas(32, drawEnemyHeavy(f)));
+  for (const f of eFrames) add(scene, `ew_${f}`, makeCanvas(32, drawEnemyWolf(f)));
+  for (const f of eFrames) add(scene, `ea_${f}`, makeCanvas(32, drawEnemyBear(f)));
+  for (const f of eFrames) add(scene, `es_${f}`, makeCanvas(32, drawEnemySpider(f)));
 
   // Shared helper to copy a loaded PNG texture to a new key
   const copyTex = (src: string, dst: string) => {
@@ -1884,6 +2657,48 @@ export function generateAllArt(scene: Phaser.Scene) {
   // Ground tiles are generated per-tile in GameScene.generateChunksAround()
   add(scene, 'foundation', makeCanvas(64, drawFoundation));
 
+  // Tree cluster sprites (one per pattern)
+  for (let i = 0; i < TREE_PATTERNS.length; i++) add(scene, `tree_cluster_${i}`, drawTreeClusterCanvas(i));
+
+  // Firefly particle (tiny yellow-green glow, 4x4 logical)
+  {
+    const c = document.createElement('canvas');
+    c.width = 4; c.height = 4;
+    const x = c.getContext('2d')!;
+    x.fillStyle = '#80c040';
+    x.fillRect(0, 0, 4, 4);
+    x.fillStyle = '#b0ff60';
+    x.fillRect(1, 1, 2, 2);
+    add(scene, 'firefly', c);
+  }
+
+  // Spider web texture (16x16 semi-transparent white circle)
+  {
+    const c = document.createElement('canvas');
+    c.width = 32; c.height = 32;
+    const x = c.getContext('2d')!;
+    x.globalAlpha = 0.4;
+    x.fillStyle = '#ffffff';
+    x.beginPath(); x.arc(16, 16, 14, 0, Math.PI * 2); x.fill();
+    // Cross lines for web look
+    x.globalAlpha = 0.5;
+    x.strokeStyle = '#ffffff';
+    x.lineWidth = 1;
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2;
+      x.beginPath();
+      x.moveTo(16, 16);
+      x.lineTo(16 + Math.cos(a) * 13, 16 + Math.sin(a) * 13);
+      x.stroke();
+    }
+    // Concentric rings
+    x.globalAlpha = 0.3;
+    for (const r of [5, 9, 12]) {
+      x.beginPath(); x.arc(16, 16, r, 0, Math.PI * 2); x.stroke();
+    }
+    add(scene, 'spider_web', c);
+  }
+
   // Boss (64x64 native — 2x2 tile footprint)
   const bossFrames: BossFrame[] = [
     'idle0','idle1',
@@ -1894,6 +2709,9 @@ export function generateAllArt(scene: Phaser.Scene) {
     'die0','die1','die2','die3','die4'
   ];
   for (const f of bossFrames) add(scene, `boss_${f}`, makeCanvas(64, drawBoss(f)));
+
+  // Forest boss (Ent) textures
+  for (const f of forestBossFrames) add(scene, `fboss_${f}`, makeCanvas(64, drawForestBoss(f)));
 }
 
 function framesFromKeys(keys: string[]): Phaser.Types.Animations.AnimationFrame[] {
@@ -1924,6 +2742,21 @@ export function registerAnimations(scene: Phaser.Scene) {
   mk('eh-hit',  ['eh_hit'], 8, 0);
   mk('eh-die',  ['eh_die0','eh_die1','eh_die2','eh_die3'], 8, 0);
 
+  mk('ew-move', ['ew_move0','ew_move1','ew_move2','ew_move3'], 10, -1);
+  mk('ew-atk',  ['ew_atk0','ew_atk1'], 10, -1);
+  mk('ew-hit',  ['ew_hit'], 10, 0);
+  mk('ew-die',  ['ew_die0','ew_die1','ew_die2','ew_die3'], 10, 0);
+
+  mk('ea-move', ['ea_move0','ea_move1','ea_move2','ea_move3'], 6, -1);
+  mk('ea-atk',  ['ea_atk0','ea_atk1'], 6, -1);
+  mk('ea-hit',  ['ea_hit'], 8, 0);
+  mk('ea-die',  ['ea_die0','ea_die1','ea_die2','ea_die3'], 8, 0);
+
+  mk('es-move', ['es_move0','es_move1','es_move2','es_move3'], 8, -1);
+  mk('es-atk',  ['es_atk0','es_atk1'], 8, -1);
+  mk('es-hit',  ['es_hit'], 10, 0);
+  mk('es-die',  ['es_die0','es_die1','es_die2','es_die3'], 10, 0);
+
   mk('tower-top-idle',  ['t_top_0'], 1, 0);
   mk('tower-top-shoot', ['t_top_1','t_top_0'], 14, 0);
   mk('cannon-top-idle',  ['c_top_0'], 1, 0);
@@ -1951,4 +2784,13 @@ export function registerAnimations(scene: Phaser.Scene) {
   mk('boss-hit',        ['boss_hit'], 10, 0);
   mk('boss-birth',      ['boss_birth0','boss_birth1','boss_birth2','boss_birth3','boss_birth4'], 4, 0);
   mk('boss-die',        ['boss_die0','boss_die1','boss_die2','boss_die3','boss_die4'], 6, 0);
+
+  // Forest boss (Ent) animations
+  mk('fboss-idle',       ['fboss_idle0','fboss_idle1'], 2, -1);
+  mk('fboss-move',       ['fboss_move0','fboss_move1','fboss_move2','fboss_move3'], 5, -1);
+  mk('fboss-atk',        ['fboss_atk0','fboss_atk1'], 4, 0);
+  mk('fboss-chargewind', ['fboss_chargeWind','fboss_idle0'], 6, -1);
+  mk('fboss-hit',        ['fboss_hit'], 10, 0);
+  mk('fboss-birth',      ['fboss_birth0','fboss_birth1','fboss_birth2','fboss_birth3','fboss_birth4'], 4, 0);
+  mk('fboss-die',        ['fboss_die0','fboss_die1','fboss_die2','fboss_die3','fboss_die4'], 6, 0);
 }

@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { Biome } from '../levels';
 
 export type BossState =
   | 'chase'
@@ -33,14 +34,19 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
 
   hpBar: Phaser.GameObjects.Graphics;
 
-  constructor(scene: Phaser.Scene, x: number, y: number) {
-    super(scene, x, y, 'boss_idle0');
+  // Animation prefix — 'boss' for meadow, 'fboss' for forest
+  animPrefix: string;
+
+  constructor(scene: Phaser.Scene, x: number, y: number, biome: Biome = 'grasslands') {
+    const prefix = biome === 'forest' ? 'fboss' : 'boss';
+    super(scene, x, y, `${prefix}_idle0`);
+    this.animPrefix = prefix;
     this.setScale(0.5);
     scene.add.existing(this);
     scene.physics.add.existing(this);
     this.setDepth(9);
     this.setSize(44, 44).setOffset(42, 52);
-    this.play('boss-idle');
+    this.play(`${prefix}-idle`);
 
     this.hpBar = scene.add.graphics().setDepth(20);
 
@@ -75,8 +81,9 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
       this.setVelocity(0, 0);
       (this.body as Phaser.Physics.Arcade.Body).enable = false;
       this.hpBar.destroy();
-      this.play('boss-die');
-      this.once('animationcomplete-boss-die', () => this.destroy());
+      const dieAnim = `${this.animPrefix}-die`;
+      this.play(dieAnim);
+      this.once(`animationcomplete-${dieAnim}`, () => this.destroy());
     }
   }
 }

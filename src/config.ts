@@ -48,7 +48,11 @@ export const CFG = {
   enemy: {
     basic:  { hp: 20, speed: 60,  dmg: 8,  coin: 1, color: 0xd9412b },
     heavy:  { hp: 30, speed: 40,  dmg: 10, coin: 2, color: 0x7a1d14 },
-    runner: { hp: 12, speed: 150, dmg: 5,  coin: 1, color: 0x6af078 }
+    runner: { hp: 12, speed: 150, dmg: 5,  coin: 1, color: 0x6af078 },
+    // Forest enemies
+    wolf:   { hp: 14, speed: 130, dmg: 6,  coin: 1, color: 0x8a8a8a },
+    bear:   { hp: 50, speed: 32,  dmg: 14, coin: 3, color: 0x5a3a1a },
+    spider: { hp: 18, speed: 55,  dmg: 7,  coin: 1, color: 0x2a2a2a }
   },
 
   coin: { magnetRange: 90, magnetSpeed: 420 },
@@ -69,6 +73,15 @@ export const CFG = {
     runnerPackSize: 5,      // runners per pack
     runnerPackCooldownMin: 7000,
     runnerPackCooldownMax: 12000
+  },
+
+  forest: {
+    treeClusterCount: 8,
+    wolfPackSize: 4,
+    wolfPackCooldownMin: 8000,
+    wolfPackCooldownMax: 14000,
+    spiderWebDuration: 4000,
+    spiderWebSlowFactor: 0.5
   },
 
   winKills: 200, // kills needed to trigger the boss; defeating the boss wins

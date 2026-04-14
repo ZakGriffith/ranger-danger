@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { CFG } from '../config';
 
-export type EnemyKind = 'basic' | 'heavy' | 'runner';
+export type EnemyKind = 'basic' | 'heavy' | 'runner' | 'wolf' | 'bear' | 'spider';
 
 export class Enemy extends Phaser.Physics.Arcade.Sprite {
   kind: EnemyKind;
@@ -20,12 +20,12 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
   targetRef: any = null; // current target object (player, tower, wall)
 
   constructor(scene: Phaser.Scene, x: number, y: number, kind: EnemyKind) {
-    const data =
-      kind === 'basic'  ? CFG.enemy.basic  :
-      kind === 'heavy'  ? CFG.enemy.heavy  :
-                          CFG.enemy.runner;
-    // Runner reuses basic's spritesheet/anims with a green tint + smaller scale.
-    const texPrefix = kind === 'heavy' ? 'eh' : 'eb';
+    const dataMap: Record<EnemyKind, typeof CFG.enemy.basic> = {
+      basic: CFG.enemy.basic, heavy: CFG.enemy.heavy, runner: CFG.enemy.runner,
+      wolf: CFG.enemy.wolf, bear: CFG.enemy.bear, spider: CFG.enemy.spider
+    };
+    const data = dataMap[kind];
+    const texPrefix = Enemy.texPrefix(kind);
     super(scene, x, y, `${texPrefix}_move0`);
     this.kind = kind;
     this.hp = data.hp;
@@ -34,37 +34,54 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.dmg = data.dmg;
     this.coin = data.coin;
 
-    if (kind === 'basic') {
-      this.setScale(0.5);
-    } else if (kind === 'heavy') {
-      this.setScale(0.5);
-    } else {
-      this.setScale(0.425);
-    }
-
     scene.add.existing(this);
     scene.physics.add.existing(this);
     this.setDepth(8);
 
-    if (kind === 'basic') {
-      this.setSize(24, 24).setOffset(20, 24);
-      this.play('eb-move');
-    } else if (kind === 'heavy') {
-      this.setSize(32, 32).setOffset(16, 20);
-      this.play('eh-move');
-    } else {
-      // runner
-      this.setSize(20, 20).setOffset(22, 26);
-      this.play('eb-move');
-      this.baseTint = 0x6af078;
-      this.setTint(this.baseTint);
+    switch (kind) {
+      case 'basic':
+        this.setScale(0.5).setSize(24, 24).setOffset(20, 24);
+        this.play('eb-move');
+        break;
+      case 'heavy':
+        this.setScale(0.5).setSize(32, 32).setOffset(16, 20);
+        this.play('eh-move');
+        break;
+      case 'runner':
+        this.setScale(0.425).setSize(20, 20).setOffset(22, 26);
+        this.play('eb-move');
+        this.baseTint = 0x6af078;
+        this.setTint(this.baseTint);
+        break;
+      case 'wolf':
+        this.setScale(0.45).setSize(22, 18).setOffset(21, 26);
+        this.play('ew-move');
+        break;
+      case 'bear':
+        this.setScale(0.55).setSize(30, 30).setOffset(17, 20);
+        this.play('ea-move');
+        break;
+      case 'spider':
+        this.setScale(0.45).setSize(24, 22).setOffset(20, 24);
+        this.play('es-move');
+        break;
+    }
+  }
+
+  static texPrefix(kind: EnemyKind): string {
+    switch (kind) {
+      case 'heavy': return 'eh';
+      case 'wolf': return 'ew';
+      case 'bear': return 'ea';
+      case 'spider': return 'es';
+      default: return 'eb';
     }
   }
 
   hurt(amount: number) {
     if (this.dying) return;
     this.hp -= amount;
-    const prefix = this.kind === 'heavy' ? 'eh' : 'eb';
+    const prefix = Enemy.texPrefix(this.kind);
     this.setTintFill(0xffffff);
     this.scene.time.delayedCall(60, () => {
       if (this.dying) return;

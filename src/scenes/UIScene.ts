@@ -78,7 +78,8 @@ export class UIScene extends Phaser.Scene {
     const x = (W - barW) / 2;
     const y = 84;
     if (this.bossBarBg) return;
-    this.bossLabel = this.add.text(W / 2, y - 16, 'THE BROOD MOTHER', {
+    const bossName = s?.biome === 'forest' ? 'THE FOREST GUARDIAN' : 'THE BROOD MOTHER';
+    this.bossLabel = this.add.text(W / 2, y - 16, bossName, {
       fontFamily: 'monospace', fontSize: '14px', color: '#ff6a6a',
       stroke: '#0b0f1a', strokeThickness: 3
     }).setOrigin(0.5);

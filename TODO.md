@@ -175,3 +175,25 @@
 - Show clear before/after values so the player knows what they're buying
 - Balance so upgrades feel impactful but no single stat becomes a must-buy
 - Could tie into the XP system from TODO #4 — XP is the currency for these upgrades
+
+## 10. Cloud Progress Save (Cache-Proof Persistence)
+- Currently medals are saved in localStorage — clearing browser cache wipes all progress
+- Add a lightweight backend so progress survives cache clears and can be restored via URL
+
+### How It Works
+1. First visit: generate a UUID, store in localStorage, append to URL as hash (e.g. `yourgame.com/#a3f8b2c1`)
+2. On medal earn: save to localStorage (primary, fast) AND PUT to backend (durable backup)
+3. On page load: check URL for ID → fetch progress from backend, merge with localStorage (take best of both)
+4. Cache cleared? URL still has the ID → backend restores everything
+
+### Backend
+- 2 endpoints: `GET /progress/:id` and `PUT /progress/:id`
+- Data is a small JSON blob: `{ medals: { "1": { easy: true, ... } } }`
+- No auth — the UUID is the key
+- ~30 lines of server code
+
+### Hosting Options (free tier)
+- Cloudflare Workers + KV
+- Vercel serverless + Upstash Redis
+- Supabase (free Postgres + REST API)
+- Firebase Realtime DB

@@ -66,7 +66,7 @@ export function findPath(
       prev[ni] = cur;
       queue.push(ni);
     }
-    // Diagonals — walls (1) block, towers (2) allow squeeze-through at corners
+    // Diagonals — walls (1) and trees (3) block, towers (2) allow squeeze-through at corners
     for (const [dx, dy] of diagonals) {
       const nx = cx + dx, ny = cy + dy;
       if (!inRange(nx, ny)) continue;
@@ -75,8 +75,10 @@ export function findPath(
       if (gridGet(g, nx, ny) >= 1) continue;
       const c1 = gridGet(g, cx + dx, cy);
       const c2 = gridGet(g, cx, cy + dy);
-      // Both blocked = no gap; any wall (1) = full-tile, no squeeze
-      if (c1 === 1 || c2 === 1 || (c1 >= 1 && c2 >= 1)) continue;
+      // Both blocked = no gap; wall (1) or tree (3) = full-tile, no squeeze
+      const solid1 = c1 === 1 || c1 === 3;
+      const solid2 = c2 === 1 || c2 === 3;
+      if (solid1 || solid2 || (c1 >= 1 && c2 >= 1)) continue;
       visited[ni] = 1;
       prev[ni] = cur;
       queue.push(ni);

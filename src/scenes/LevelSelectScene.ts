@@ -117,6 +117,18 @@ export class LevelSelectScene extends Phaser.Scene {
         g.fillStyle(0x4aaa3a, 1);
         g.fillCircle(cx - 1, cy - 5, 3);
         break;
+      case 'forest':
+        // Dense trees — two overlapping trees
+        g.fillStyle(0x3a2010, 1);
+        g.fillRect(cx - 4, cy, 3, 7);
+        g.fillRect(cx + 2, cy - 1, 3, 7);
+        g.fillStyle(0x1a4a18, 1);
+        g.fillCircle(cx - 3, cy - 3, 5);
+        g.fillCircle(cx + 3, cy - 4, 6);
+        g.fillStyle(0x2a6a22, 1);
+        g.fillCircle(cx - 2, cy - 4, 3);
+        g.fillCircle(cx + 4, cy - 5, 3);
+        break;
       case 'desert':
         // Pyramid
         g.fillStyle(0xd4a84a, 1);
