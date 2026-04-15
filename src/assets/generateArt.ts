@@ -1711,6 +1711,32 @@ function wnoise(wx: number, wy: number, scale: number): number {
        + oneOctave(wx + 1234, wy + 8765, scale * 0.25) * 0.15;
 }
 
+/**
+ * Precompute noise at reduced resolution and return a bilinear sampler.
+ * step=4 means compute every 4th pixel → 16x fewer wnoise calls.
+ */
+function precomputeNoise(tileX: number, tileY: number, offsetX: number, offsetY: number, scale: number, step = 4): (px: number, py: number) => number {
+  const size = 32;
+  const gridW = Math.ceil(size / step) + 2; // +2 for interpolation margin
+  const grid = new Float32Array(gridW * gridW);
+  const baseWx = tileX * 32 + offsetX;
+  const baseWy = tileY * 32 + offsetY;
+  for (let gy = 0; gy < gridW; gy++) {
+    for (let gx = 0; gx < gridW; gx++) {
+      grid[gy * gridW + gx] = wnoise(baseWx + gx * step, baseWy + gy * step, scale);
+    }
+  }
+  return (px: number, py: number) => {
+    const fx = px / step, fy = py / step;
+    const ix = Math.floor(fx), iy = Math.floor(fy);
+    const tx = fx - ix, ty = fy - iy;
+    const ix1 = Math.min(ix + 1, gridW - 1), iy1 = Math.min(iy + 1, gridW - 1);
+    const tl = grid[iy * gridW + ix], tr = grid[iy * gridW + ix1];
+    const bl = grid[iy1 * gridW + ix], br = grid[iy1 * gridW + ix1];
+    return tl * (1 - tx) * (1 - ty) + tr * tx * (1 - ty) + bl * (1 - tx) * ty + br * tx * ty;
+  };
+}
+
 // Grasslands ground — gradient transitions between green shades like Bounty of One
 // Dark green → medium green → light green → yellow-green in large smooth zones
 function drawGroundWorld(tileX: number, tileY: number) {
@@ -1743,12 +1769,12 @@ function drawGroundWorld(tileX: number, tileY: number) {
     const midW  = 0.03;  // thin solid band of the midpoint color
     const totalW = fadeW + midW + fadeW; // full transition zone width
 
+    // Precompute noise at 1/4 resolution for performance
+    const sampleN = precomputeNoise(tileX, tileY, 8000, 1000, 400);
+
     for (let py = 0; py < 32; py++) {
       for (let px = 0; px < 32; px++) {
-        const wx = tileX * 32 + px;
-        const wy = tileY * 32 + py;
-
-        const n = wnoise(wx + 8000, wy + 1000, 400);
+        const n = sampleN(px, py);
 
         // Continuous position within shade space (0..4 mapped to 4 shades)
         const pos = Math.min(3.999, n * 4);
@@ -1830,13 +1856,17 @@ function drawGroundForest(tileX: number, tileY: number) {
     // Dither zone width (fraction of shade range where mixing occurs)
     const ditherW = 0.06;
 
+    // Precompute both noise layers at 1/4 resolution
+    const sampleN = precomputeNoise(tileX, tileY, 8000, 1000, 400);
+    const sampleDirt = precomputeNoise(tileX, tileY, 5000, 2000, 300);
+
     for (let py = 0; py < 32; py++) {
       for (let px = 0; px < 32; px++) {
         const wx = tileX * 32 + px;
         const wy = tileY * 32 + py;
 
-        const n = wnoise(wx + 8000, wy + 1000, 400);
-        const dirtN = wnoise(wx + 5000, wy + 2000, 300);
+        const n = sampleN(px, py);
+        const dirtN = sampleDirt(px, py);
         const h = pxHash(wx, wy); // 0..1 random per pixel
 
         // Jitter the dirt threshold per-pixel for ragged edges

@@ -27,6 +27,8 @@ export class GameScene extends Phaser.Scene {
   gridVersion = 0;
   generatedChunks = new Set<string>();
   pendingChunks: { cx: number; cy: number }[] = [];
+  lastChunkCx = -9999;
+  lastChunkCy = -9999;
   loadingDone = false;
 
   keys!: any;
@@ -95,6 +97,8 @@ export class GameScene extends Phaser.Scene {
     this.gridVersion = 0;
     this.generatedChunks = new Set();
     this.pendingChunks = [];
+    this.lastChunkCx = -9999;
+    this.lastChunkCy = -9999;
     this.loadingDone = false;
     this.buildKind = 'none';
     this.buildTowerKind = 'arrow';
@@ -190,9 +194,9 @@ export class GameScene extends Phaser.Scene {
     if (this.difficulty === 'medium') this.player.money = 100;
     else if (this.difficulty === 'hard' || this.difficulty === 'oneHP') this.player.money = 80;
 
-    // Generate all initial ground chunks before the game starts
+    // Generate all initial ground chunks before the game starts (no time limit)
     this.generateChunksAround(0, 0);
-    this.processChunkQueue(this.pendingChunks.length);
+    this.processChunkQueue(0);
 
     // Place trees in the initial chunks around spawn
     if (this.biome === 'forest') {
@@ -698,12 +702,16 @@ export class GameScene extends Phaser.Scene {
   }
 
   // Queue ground chunks around a world position (deferred generation)
-  generateChunksAround(wx: number, wy: number) {
+  generateChunksAround(wx: number, wy: number, force = false) {
     const cs = CFG.chunkSize;
     const tile = CFG.tile;
     const cx = Math.floor(wx / (cs * tile));
     const cy = Math.floor(wy / (cs * tile));
-    const radius = 3; // generate well ahead of viewport
+    // Skip if player is still in the same chunk (unless forced at startup)
+    if (!force && cx === this.lastChunkCx && cy === this.lastChunkCy) return;
+    this.lastChunkCx = cx;
+    this.lastChunkCy = cy;
+    const radius = 5; // generate well ahead of viewport
     for (let dy = -radius; dy <= radius; dy++) {
       for (let dx = -radius; dx <= radius; dx++) {
         const key = `${cx + dx},${cy + dy}`;
@@ -718,19 +726,23 @@ export class GameScene extends Phaser.Scene {
     );
   }
 
-  // Process up to N pending chunks per frame
-  processChunkQueue(max: number) {
+  /**
+   * Process pending chunks with a time budget.
+   * @param budgetMs max milliseconds to spend (0 = unlimited, process all)
+   */
+  processChunkQueue(budgetMs: number) {
     const cs = CFG.chunkSize;
     const tile = CFG.tile;
     const chunkPx = cs * tile;
-    let n = 0;
-    while (this.pendingChunks.length > 0 && n < max) {
+    const start = performance.now();
+    while (this.pendingChunks.length > 0) {
+      // Time-budget check (skip on unlimited/startup)
+      if (budgetMs > 0 && performance.now() - start >= budgetMs) break;
       const { cx: ccx, cy: ccy } = this.pendingChunks.shift()!;
       const texKey = createGroundChunk(this, ccx, ccy, cs, 32, this.biome);
       this.add.image(ccx * chunkPx + chunkPx / 2, ccy * chunkPx + chunkPx / 2, texKey).setDepth(0);
       // Generate trees for this chunk if forest biome
       if (this.biome === 'forest') this.placeTreesInChunk(ccx, ccy);
-      n++;
     }
   }
 
@@ -799,9 +811,9 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    // Generate ground chunks around player as they move
+    // Generate ground chunks around player as they move (4ms budget per frame)
     this.generateChunksAround(this.player.x, this.player.y);
-    this.processChunkQueue(2);
+    this.processChunkQueue(4);
 
     // Redraw grid overlay around the camera if building
     if (this.buildKind !== 'none') this.redrawGridOverlay();
@@ -2441,7 +2453,8 @@ export class GameScene extends Phaser.Scene {
     if (side === 2) { cx = px - spawnR; cy = py + Phaser.Math.Between(-spawnR, spawnR); }
     if (side === 3) { cx = px + spawnR; cy = py + Phaser.Math.Between(-spawnR, spawnR); }
     const isForest = this.biome === 'forest';
-    const n = isForest ? CFG.forest.wolfPackSize : CFG.spawn.runnerPackSize;
+    const base = isForest ? CFG.forest.wolfPackSize : CFG.spawn.runnerPackSize;
+    const n = isForest ? base + Phaser.Math.Between(0, 5) : base;
     const spread = isForest ? 20 : 28;
     const packKind: EnemyKind = isForest ? 'wolf' : 'runner';
     for (let i = 0; i < n && this.waveSpawned < waveSize; i++) {
