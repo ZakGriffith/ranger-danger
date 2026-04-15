@@ -1002,8 +1002,8 @@ export class GameScene extends Phaser.Scene {
   placeTreeClusters() {
     const t = CFG.tile;
     const count = CFG.forest.treeClusterCount;
-    // Seeded RNG from levelId for deterministic layout
-    let seed = this.levelId * 54321 + 9999;
+    // Random seed each playthrough so tree placement varies
+    let seed = (this.levelId * 54321 + Math.floor(Math.random() * 2147483647)) >>> 0 || 1;
     const rng = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
 
     const ptx = Math.floor(this.player.x / t);
@@ -1034,8 +1034,8 @@ export class GameScene extends Phaser.Scene {
         gridSet(this.grid, ox + tile.dx, oy + tile.dy, 3);
       }
 
-      // Verify enemies can still reach from all spawn directions
-      if (!canReachFromSpawnDirections(this.grid, ptx, pty, CFG.spawnDist)) {
+      // Verify enemies can still reach from most spawn directions (stricter for trees)
+      if (!canReachFromSpawnDirections(this.grid, ptx, pty, CFG.spawnDist, 3)) {
         // Revert
         for (const tile of pattern.tiles) {
           gridSet(this.grid, ox + tile.dx, oy + tile.dy, 0);

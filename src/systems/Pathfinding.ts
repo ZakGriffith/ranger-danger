@@ -97,10 +97,10 @@ export function findPath(
   return path;
 }
 
-// Check that enemies can reach the player from spawn distance in all 4 directions.
-// Instead of fixed world edges, checks from points at spawn distance around the player.
+// Check that enemies can reach the player from spawn distance in enough directions.
+// Requires at least minReachable of 4 cardinal spawn directions to have a valid path.
 export function canReachFromSpawnDirections(
-  g: SparseGrid, px: number, py: number, spawnDist: number
+  g: SparseGrid, px: number, py: number, spawnDist: number, minReachable = 2
 ): boolean {
   // Test 4 cardinal spawn points at spawnDist tiles from the player
   const testPoints = [
@@ -110,6 +110,7 @@ export function canReachFromSpawnDirections(
     { x: px + spawnDist, y: py },  // right
   ];
 
+  let reachable = 0;
   for (const tp of testPoints) {
     // Find nearest walkable tile to the spawn point
     let found = false;
@@ -125,7 +126,7 @@ export function canReachFromSpawnDirections(
         }
       }
     }
-    if (!found) return false;
+    if (found) reachable++;
   }
-  return true;
+  return reachable >= minReachable;
 }
