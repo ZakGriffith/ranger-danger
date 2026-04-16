@@ -2121,15 +2121,16 @@ export class GameScene extends Phaser.Scene {
     spark.once('animationcomplete', () => spark.destroy());
     pr.destroy();
     this.game.events.emit('boss-hp', { hp: b.hp, maxHp: b.maxHp });
-    if (b.dying) {
-      // boss drops a big pile of gold
-      const drops = 12;
-      for (let i = 0; i < drops; i++) {
-        const a = (i / drops) * Math.PI * 2;
-        const d = Phaser.Math.Between(6, 22);
-        const coin = new Coin(this, b.x + Math.cos(a) * d, b.y + Math.sin(a) * d, 'gold');
-        this.coins.add(coin);
-      }
+    if (b.dying) this.dropBossLoot(b);
+  }
+
+  dropBossLoot(b: Boss) {
+    const drops = 12;
+    for (let i = 0; i < drops; i++) {
+      const a = (i / drops) * Math.PI * 2;
+      const d = Phaser.Math.Between(6, 22);
+      const coin = new Coin(this, b.x + Math.cos(a) * d, b.y + Math.sin(a) * d, 'gold');
+      this.coins.add(coin);
     }
   }
 
@@ -2289,7 +2290,11 @@ export class GameScene extends Phaser.Scene {
     // Also chip the boss if in range
     if (this.boss && this.boss.active && !this.boss.dying) {
       const dx = this.boss.x - x, dy = this.boss.y - y;
-      if (dx * dx + dy * dy <= r2) this.boss.hurt(Math.floor(dmg * 0.6));
+      if (dx * dx + dy * dy <= r2) {
+        this.boss.hurt(Math.floor(dmg * 0.6));
+        this.game.events.emit('boss-hp', { hp: this.boss.hp, maxHp: this.boss.maxHp });
+        if (this.boss.dying) this.dropBossLoot(this.boss);
+      }
     }
   }
 
