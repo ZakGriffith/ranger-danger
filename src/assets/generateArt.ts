@@ -1988,22 +1988,23 @@ function drawGroundForest(tileX: number, tileY: number) {
 // Tree cluster patterns — each defines which tiles are occupied
 // Coordinates are relative (dx, dy) from the top-left of the cluster
 export const TREE_PATTERNS: { tiles: { dx: number; dy: number }[]; w: number; h: number }[] = [
-  // Pattern 0: L-shape (3 trees)
-  { tiles: [{ dx: 0, dy: 0 }, { dx: 0, dy: 1 }, { dx: 1, dy: 1 }], w: 2, h: 2 },
-  // Pattern 1: Vertical bar (3 trees)
+  // All convex shapes — no internal pockets that enemies can get stuck in
+  // Pattern 0: Pair horizontal (2 trees)
+  { tiles: [{ dx: 0, dy: 0 }, { dx: 1, dy: 0 }], w: 2, h: 1 },
+  // Pattern 1: Pair vertical (2 trees)
+  { tiles: [{ dx: 0, dy: 0 }, { dx: 0, dy: 1 }], w: 1, h: 2 },
+  // Pattern 2: Vertical bar (3 trees)
   { tiles: [{ dx: 0, dy: 0 }, { dx: 0, dy: 1 }, { dx: 0, dy: 2 }], w: 1, h: 3 },
-  // Pattern 2: Horizontal bar (3 trees)
+  // Pattern 3: Horizontal bar (3 trees)
   { tiles: [{ dx: 0, dy: 0 }, { dx: 1, dy: 0 }, { dx: 2, dy: 0 }], w: 3, h: 1 },
-  // Pattern 3: T-shape (4 trees)
-  { tiles: [{ dx: 0, dy: 0 }, { dx: 1, dy: 0 }, { dx: 2, dy: 0 }, { dx: 1, dy: 1 }], w: 3, h: 2 },
-  // Pattern 4: Square (4 trees)
+  // Pattern 4: Diagonal step right (2 trees)
+  { tiles: [{ dx: 0, dy: 0 }, { dx: 1, dy: 1 }], w: 2, h: 2 },
+  // Pattern 5: Diagonal step left (2 trees)
+  { tiles: [{ dx: 1, dy: 0 }, { dx: 0, dy: 1 }], w: 2, h: 2 },
+  // Pattern 6: Square (4 trees)
   { tiles: [{ dx: 0, dy: 0 }, { dx: 1, dy: 0 }, { dx: 0, dy: 1 }, { dx: 1, dy: 1 }], w: 2, h: 2 },
-  // Pattern 5: Z-shape (4 trees)
-  { tiles: [{ dx: 0, dy: 0 }, { dx: 1, dy: 0 }, { dx: 1, dy: 1 }, { dx: 2, dy: 1 }], w: 3, h: 2 },
-  // Pattern 6: Big L (5 trees)
-  { tiles: [{ dx: 0, dy: 0 }, { dx: 0, dy: 1 }, { dx: 0, dy: 2 }, { dx: 1, dy: 2 }, { dx: 2, dy: 2 }], w: 3, h: 3 },
-  // Pattern 7: Cross (5 trees)
-  { tiles: [{ dx: 1, dy: 0 }, { dx: 0, dy: 1 }, { dx: 1, dy: 1 }, { dx: 2, dy: 1 }, { dx: 1, dy: 2 }], w: 3, h: 3 },
+  // Pattern 7: L-shape (3 trees)
+  { tiles: [{ dx: 0, dy: 0 }, { dx: 0, dy: 1 }, { dx: 1, dy: 1 }], w: 2, h: 2 },
 ];
 
 // Draw a WC2-style conifer tree cluster — triangular tiered pine trees packed tightly

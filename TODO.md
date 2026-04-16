@@ -200,3 +200,35 @@
   2. Tell player they shoot at half speed while moving (stand still to maximize DPS)
   3. Walk through building an arrow tower (open build menu → select arrow → place)
   4. Walk through upgrading the arrow tower (click tower → upgrade panel)
+
+## 14. Mobile Support
+- Detect mobile devices and adapt UI accordingly
+- Virtual joystick for player movement (touch-based)
+- Larger tap targets for build buttons, tower selection, upgrade panel
+- Compact HUD layout to save screen space on smaller screens
+- Touch-friendly tower placement and wall building
+- Responsive canvas scaling for various screen sizes/orientations
+
+## 15. Achievements System
+- Accessible from the level select map via an "ACHIEVEMENTS" button
+- In-game popup notification when an achievement is unlocked
+- Dedicated achievement screen showing all achievements (locked and unlocked)
+- Persist unlocked achievements in localStorage
+
+### Example Achievements
+- **Pacifist** — Beat a level on Hard without building any towers
+- **Architect** — Build 10 towers in a single level
+- **Untouchable** — Beat a level without taking any damage
+- **Speedrunner** — Beat a level in under 3 minutes
+- **Hoarder** — Finish a level with 500+ unspent gold
+- **Exterminator** — Kill 1000 total enemies across all levels
+- **Diamond Collector** — Earn a Diamond medal on any level
+- **Full Clear** — Earn all 4 medals on a single level
+- **Wall Street** — Build 50 walls in a single level
+- **Boss Rush** — Defeat 5 bosses total
+
+### Design Notes
+- Each achievement has: icon, name, description, unlock condition, locked/unlocked state
+- Achievement popup slides in from the top during gameplay, auto-dismisses after a few seconds
+- Achievement screen: grid of cards, unlocked ones are bright/colored, locked ones are dimmed/silhouetted
+- Track progress toward multi-step achievements (e.g. "Exterminator: 342/1000")

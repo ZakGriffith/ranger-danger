@@ -48,7 +48,8 @@ export class GameScene extends Phaser.Scene {
   waveSpawned = 0;        // enemies spawned in the current wave
   waveKills = 0;          // kills counted for the current wave
   waveBreakUntil = 0;     // timestamp when the inter-wave build break ends
-  countdownText!: Phaser.GameObjects.Text;
+  countdownMsg = '';
+  countdownColor = '#7cc4ff';
 
   // Virtual / scalable game time so the "speed up" button affects all
   // cooldown / spawn logic, not just physics and animations.
@@ -254,10 +255,8 @@ export class GameScene extends Phaser.Scene {
 
     // pre-wave build phase
     this.waveStartAt = CFG.spawn.startDelay;
-    this.countdownText = this.add.text(CFG.width / 2, 36, '', {
-      fontFamily: 'monospace', fontSize: '20px', color: '#7cc4ff',
-      stroke: '#0b0f1a', strokeThickness: 4
-    }).setOrigin(0.5).setDepth(500).setScrollFactor(0);
+    this.countdownMsg = '';
+    this.countdownColor = '#7cc4ff';
 
     // Biome atmosphere effects
     if (this.biome === 'forest') {
@@ -294,7 +293,14 @@ export class GameScene extends Phaser.Scene {
       kills: this.player?.kills ?? 0,
       target: this.killsTarget,
       build: this.buildKind === 'tower' ? this.buildTowerKind : this.buildKind,
-      bossSpawned: this.bossSpawned
+      bossSpawned: this.bossSpawned,
+      wave: this.wave + 1,
+      waveKills: this.waveKills,
+      waveSize: CFG.spawn.waveSize,
+      waveBreakUntil: this.waveBreakUntil,
+      vTime: this.vTime,
+      countdownMsg: this.countdownMsg,
+      countdownColor: this.countdownColor,
     };
   }
 
@@ -2015,10 +2021,12 @@ export class GameScene extends Phaser.Scene {
     this.physics.add.collider(this.boss, this.towerGroup, onStructureHit);
     this.game.events.emit('boss-spawn', { hp: this.boss.hp, maxHp: this.boss.maxHp, biome: this.biome });
     const bossTitle = this.biome === 'forest' ? 'THE FOREST GUARDIAN' : 'THE BROOD MOTHER';
-    this.countdownText.setText(`${bossTitle} APPROACHES`);
-    this.countdownText.setColor('#ff5050');
+    this.countdownMsg = `${bossTitle} APPROACHES`;
+    this.countdownColor = '#ff5050';
+    this.pushHud();
     this.time.delayedCall(3000, () => {
-      if (this.countdownText) this.countdownText.setText('');
+      this.countdownMsg = '';
+      this.pushHud();
     });
     this.cameras.main.shake(600, 0.012);
   }
@@ -2359,8 +2367,9 @@ export class GameScene extends Phaser.Scene {
     // initial build phase — show countdown, don't spawn anything yet
     if (time < this.waveStartAt) {
       const secs = Math.ceil((this.waveStartAt - time) / 1000);
-      this.countdownText.setText(`BUILD PHASE — wave 1 in ${secs}`);
-      this.countdownText.setColor('#7cc4ff');
+      this.countdownMsg = `BUILD PHASE — ${secs}s`;
+      this.countdownColor = '#7cc4ff';
+      this.pushHud();
       return;
     }
 
@@ -2370,15 +2379,14 @@ export class GameScene extends Phaser.Scene {
 
     // Boss already out — nothing to show/spawn here
     if (this.bossSpawned) {
-      if (this.countdownText.text) this.countdownText.setText('');
+      if (this.countdownMsg) { this.countdownMsg = ''; this.pushHud(); }
       return;
     }
 
-    // Between-wave build break
+    // Between-wave build break (wave bar shows countdown via hudState)
     if (time < this.waveBreakUntil) {
-      const secs = Math.ceil((this.waveBreakUntil - time) / 1000);
-      this.countdownText.setText(`WAVE ${this.wave + 1} IN ${secs}`);
-      this.countdownText.setColor('#7cc4ff');
+      if (this.countdownMsg) { this.countdownMsg = ''; }
+      this.pushHud();
       return;
     }
 
@@ -2387,8 +2395,9 @@ export class GameScene extends Phaser.Scene {
       const live = this.liveEnemyCount();
       const left = Math.max(live, waveSize - this.waveKills);
       if (left > 0) {
-        this.countdownText.setText(`KILL THE STRAGGLERS — ${left} LEFT`);
-        this.countdownText.setColor('#ff9a4a');
+        this.countdownMsg = `KILL THE STRAGGLERS — ${left} LEFT`;
+        this.countdownColor = '#ff9a4a';
+        this.pushHud();
       } else {
         if (this.bossCountdownUntil === 0) {
           this.bossCountdownUntil = time + CFG.boss.prepTime;
@@ -2399,8 +2408,9 @@ export class GameScene extends Phaser.Scene {
         }
         const secs = Math.ceil((this.bossCountdownUntil - time) / 1000);
         const bossName = this.biome === 'forest' ? 'FOREST GUARDIAN' : 'BROOD MOTHER';
-        this.countdownText.setText(`${bossName} SPAWNING IN ${secs}`);
-        this.countdownText.setColor('#ff5050');
+        this.countdownMsg = `${bossName} SPAWNING IN ${secs}`;
+        this.countdownColor = '#ff5050';
+        this.pushHud();
       }
       return;
     }
@@ -2414,9 +2424,8 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    // Active wave — show progress banner.
-    this.countdownText.setText(`WAVE ${this.wave + 1} — ${this.waveKills}/${waveSize}`);
-    this.countdownText.setColor('#eee');
+    // Active wave — clear countdown text, wave bar shows progress
+    if (this.countdownMsg) { this.countdownMsg = ''; this.pushHud(); }
 
     // Ramp difficulty, spawn until this wave's quota is met.
     this.spawnTimer += delta;
@@ -2458,15 +2467,26 @@ export class GameScene extends Phaser.Scene {
     const isForest = this.biome === 'forest';
     const base = isForest ? CFG.forest.wolfPackSize : CFG.spawn.runnerPackSize;
     const n = isForest ? base + Phaser.Math.Between(0, 5) : base;
-    const spread = isForest ? 20 : 28;
     const packKind: EnemyKind = isForest ? 'wolf' : 'runner';
-    for (let i = 0; i < n && this.waveSpawned < waveSize; i++) {
-      const ox = Phaser.Math.Between(-spread, spread);
-      const oy = Phaser.Math.Between(-spread, spread);
-      const e = new Enemy(this, cx + ox, cy + oy, packKind);
-      this.applyEnemyDifficulty(e);
-      this.enemies.add(e);
+    // Stagger spawns with small delays to create a snake-line formation
+    const delay = 150; // ms between each mob in the pack
+    const toSpawn = Math.min(n, waveSize - this.waveSpawned);
+    for (let i = 0; i < toSpawn; i++) {
       this.waveSpawned++;
+      if (i === 0) {
+        // First mob spawns immediately
+        const e = new Enemy(this, cx, cy, packKind);
+        this.applyEnemyDifficulty(e);
+        this.enemies.add(e);
+      } else {
+        // Subsequent mobs spawn with increasing delay, slightly offset along the spawn edge
+        this.time.delayedCall(delay * i, () => {
+          if (this.gameOver) return;
+          const e = new Enemy(this, cx + Phaser.Math.Between(-8, 8), cy + Phaser.Math.Between(-8, 8), packKind);
+          this.applyEnemyDifficulty(e);
+          this.enemies.add(e);
+        });
+      }
     }
   }
 
@@ -2521,14 +2541,15 @@ export class GameScene extends Phaser.Scene {
       // Start a collection window so the player can grab coins
       if (this.winDelayUntil === 0) {
         this.winDelayUntil = this.vTime + 12000;
-        this.countdownText.setColor('#7cf29a');
+        this.countdownColor = '#7cf29a';
         // Kill all remaining enemies when the boss dies
         for (const e of this.enemies.getChildren() as Enemy[]) {
           if (!e.dying && e.active) e.hurt(9999);
         }
       }
       const remaining = Math.max(0, Math.ceil((this.winDelayUntil - this.vTime) / 1000));
-      this.countdownText.setText(`VICTORY! Collect your loot! ${remaining}s`);
+      this.countdownMsg = `VICTORY! Collect your loot! ${remaining}s`;
+      this.pushHud();
       if (this.vTime >= this.winDelayUntil) {
         this.win();
       } else if (this.coins.countActive() === 0 && this.winCollectedAt === 0) {
