@@ -151,6 +151,10 @@ export class GameScene extends Phaser.Scene {
     generateAllArt(this);
     registerAnimations(this);
 
+    // Fill viewport during gameplay (no black bars)
+    this.scale.scaleMode = Phaser.Scale.ScaleModes.ENVELOP;
+    this.scale.refresh();
+
     // Resume physics in case previous run ended with physics.pause()
     this.physics.resume();
 

@@ -6,6 +6,7 @@ import cannonBaseImg from '../assets/sprites/cannon_base.png';
 import cannonBase1Img from '../assets/sprites/cannon_base_1.png';
 import cannonBase2Img from '../assets/sprites/cannon_base_2.png';
 import levelMapBgImg from '../assets/sprites/level_map_bg.png';
+import greenCheckImg from '../assets/sprites/green_check.png';
 
 export class BootScene extends Phaser.Scene {
   constructor() { super('Boot'); }
@@ -18,6 +19,7 @@ export class BootScene extends Phaser.Scene {
     this.load.image('c_base_1_png', cannonBase1Img);
     this.load.image('c_base_2_png', cannonBase2Img);
     this.load.image('level_map_bg', levelMapBgImg);
+    this.load.image('green_check', greenCheckImg);
     this.load.spritesheet('bearsheet', 'bearsprites.png', { frameWidth: 32, frameHeight: 32 });
   }
 

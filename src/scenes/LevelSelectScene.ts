@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { CFG } from '../config';
 import {
   LEVELS, LevelDef, Difficulty, DIFFICULTY_ORDER, DIFFICULTY_LABELS,
   MEDAL_COLORS, BIOME_COLORS, loadMedals, totalMedals, isLevelUnlocked, MedalStore
@@ -18,6 +19,11 @@ export class LevelSelectScene extends Phaser.Scene {
   constructor() { super('LevelSelect'); }
 
   create() {
+    // Restore FIT scaling for map screen (no cropping)
+    this.scale.scaleMode = Phaser.Scale.ScaleModes.FIT;
+    this.scale.setGameSize(CFG.width, CFG.height);
+    this.scale.refresh();
+
     this.medalStore = loadMedals();
     this.medalCount = totalMedals(this.medalStore);
     this.selectedLevel = null;
@@ -332,9 +338,10 @@ export class LevelSelectScene extends Phaser.Scene {
     const pw = 300, ph = 360;
     const px = W / 2, py = H / 2;
 
-    // Backdrop
+    // Backdrop — click outside panel to dismiss
     const backdrop = this.add.rectangle(0, 0, W, H, 0x000000, 0.65)
       .setInteractive();
+    backdrop.on('pointerdown', () => this.closeDifficultyPanel());
 
     // Panel box with double border
     const outerBox = this.add.graphics();
@@ -395,13 +402,6 @@ export class LevelSelectScene extends Phaser.Scene {
         stroke: '#000', strokeThickness: 1
       }).setOrigin(0, 0.5);
 
-      // Green checkmark for completed difficulties (added to scene, not container)
-      if (earned) {
-        const chk = this.add.sprite(px + btnW / 2 - 24, py + by, 'ui_check')
-          .setScale(1.2).setDepth(51);
-        this.panelExtras.push(chk);
-      }
-
       hitRect.on('pointerover', () => {
         btnBg.clear();
         btnBg.fillStyle(0x2a3760, 1);
@@ -434,6 +434,17 @@ export class LevelSelectScene extends Phaser.Scene {
 
       this.diffButtons.push({ bg: btnBg, text: label, diff });
       items.push(btnBg, hitRect, label);
+    }
+
+    // Green checkmarks for completed difficulties (rendered on top of buttons)
+    for (let i = 0; i < DIFFICULTY_ORDER.length; i++) {
+      const diff = DIFFICULTY_ORDER[i];
+      const earned = medals?.[diff] ?? false;
+      if (earned) {
+        const by = btnStartY + i * (btnH + 6);
+        const chk = this.add.image(btnW / 2 - 24, by, 'green_check').setOrigin(0.5).setDisplaySize(28, 28);
+        items.push(chk);
+      }
     }
 
     // START button
