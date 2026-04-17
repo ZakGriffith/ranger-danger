@@ -34,6 +34,7 @@ export class GameScene extends Phaser.Scene {
   keys!: any;
   buildKind: BuildKind = 'none';
   buildTowerKind: TowerKind = 'arrow';
+  buildPaused = false;
   nextRunnerPack = 0;
   playerStoppedAt = 0;
   ghost!: Phaser.GameObjects.Sprite;
@@ -104,6 +105,7 @@ export class GameScene extends Phaser.Scene {
     this.loadingDone = false;
     this.buildKind = 'none';
     this.buildTowerKind = 'arrow';
+    this.buildPaused = false;
     this.nextRunnerPack = 0;
     this.playerStoppedAt = 0;
     this.spawnTimer = 0;
@@ -230,9 +232,9 @@ export class GameScene extends Phaser.Scene {
 
     // input
     this.keys = this.input.keyboard!.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT,ONE,TWO,THREE,X,ESC');
-    this.input.keyboard!.on('keydown-ONE', () => this.setBuild('tower', 'arrow'));
-    this.input.keyboard!.on('keydown-TWO', () => this.setBuild('tower', 'cannon'));
-    this.input.keyboard!.on('keydown-THREE', () => this.setBuild('wall'));
+    this.input.keyboard!.on('keydown-ONE', () => this.toggleBuild('tower', 'arrow'));
+    this.input.keyboard!.on('keydown-TWO', () => this.toggleBuild('tower', 'cannon'));
+    this.input.keyboard!.on('keydown-THREE', () => this.toggleBuild('wall'));
     this.input.keyboard!.on('keydown-ESC', () => {
       if (this.selectedTower) this.deselectTower();
       else this.setBuild('none');
@@ -253,7 +255,7 @@ export class GameScene extends Phaser.Scene {
 
     // events from UI
     this.events.emit('hud', this.hudState());
-    this.game.events.on('ui-build', (k: BuildKind, tk?: TowerKind) => this.setBuild(k, tk));
+    this.game.events.on('ui-build', (k: BuildKind, tk?: TowerKind) => this.toggleBuild(k, tk));
     this.game.events.on('ui-sell', () => this.setBuild('none'));
     this.game.events.on('ui-speed', (mult: number) => this.setTimeScale(mult));
 
@@ -356,6 +358,19 @@ export class GameScene extends Phaser.Scene {
     this.time.timeScale = mult;
   }
 
+  toggleBuild(k: BuildKind, towerKind?: TowerKind) {
+    // If same build mode is already active, cancel it (toggle off)
+    if (k === 'wall' && this.buildKind === 'wall') {
+      this.setBuild('none');
+      return;
+    }
+    if (k === 'tower' && this.buildKind === 'tower' && towerKind === this.buildTowerKind) {
+      this.setBuild('none');
+      return;
+    }
+    this.setBuild(k, towerKind);
+  }
+
   setBuild(k: BuildKind, towerKind?: TowerKind) {
     this.buildKind = k;
     if (k === 'tower' && towerKind) this.buildTowerKind = towerKind;
@@ -363,7 +378,6 @@ export class GameScene extends Phaser.Scene {
     if (this.gridOverlay) this.gridOverlay.setVisible(k !== 'none');
     if (k === 'tower') {
       this.ghost.setTexture(this.buildTowerKind === 'cannon' ? 'c_base' : 't_base');
-      // pre-tint the ghost so player sees which kind they're placing
       const baseTint = Tower.TIER_TINT[this.buildTowerKind][0];
       this.ghost.setTint(baseTint);
     }
@@ -372,6 +386,18 @@ export class GameScene extends Phaser.Scene {
       this.ghost.clearTint();
     }
     if (k !== 'none') this.deselectTower();
+
+    // Pause/unpause game world for build mode
+    if (k !== 'none' && !this.buildPaused) {
+      this.buildPaused = true;
+      this.physics.pause();
+      this.tweens.pauseAll();
+    } else if (k === 'none' && this.buildPaused) {
+      this.buildPaused = false;
+      this.physics.resume();
+      this.tweens.resumeAll();
+    }
+
     this.pushHud();
   }
 
@@ -817,18 +843,7 @@ export class GameScene extends Phaser.Scene {
     if (this.gameOver) return;
     if (!this.loadingDone) return;
 
-    // Virtual time advances at timeMult speed; all downstream systems use it.
-    const vd = delta * this.timeMult;
-    this.vTime += vd;
-    const time = this.vTime;
-
-    // While dying, keep the world alive for the death animation but skip player input
-    if (this.dying) {
-      // World freezes — just let tweens/timers run for the death animation
-      return;
-    }
-
-    // Ghost follow pointer
+    // Ghost follow pointer (runs even while build-paused)
     if (this.buildKind !== 'none') {
       const p = this.input.activePointer;
       const tx = Math.floor(p.worldX / CFG.tile);
@@ -865,6 +880,17 @@ export class GameScene extends Phaser.Scene {
 
     // Redraw grid overlay around the camera if building
     if (this.buildKind !== 'none') this.redrawGridOverlay();
+
+    // When build-paused, only update ghost/grid — skip all game simulation
+    if (this.buildPaused) return;
+
+    // Virtual time advances at timeMult speed; all downstream systems use it.
+    const vd = delta * this.timeMult;
+    this.vTime += vd;
+    const time = this.vTime;
+
+    // While dying, keep the world alive for the death animation but skip player input
+    if (this.dying) return;
 
     this.updatePlayer(time, vd);
     this.updateTowers(time);
