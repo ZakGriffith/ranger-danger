@@ -89,13 +89,21 @@ export const CFG = {
     wolfPackCooldownMin: 8000,
     wolfPackCooldownMax: 14000,
     spiderWebDuration: 4000,
-    spiderWebSlowFactor: 0.5
+    spiderWebSlowFactor: 0.5,
+    spiderClusterMin: 2,        // spiders spawn in clusters of 2-4
+    spiderClusterMax: 4,
+    spiderClusterSpread: 20,    // px spread within the cluster
   },
 
   infected: {
     runnerPackSize: 5,
     runnerPackCooldownMin: 6000,
     runnerPackCooldownMax: 11000,
+    clusterMin: 2,              // infected enemies spawn in groups of 2-3
+    clusterMax: 3,
+    clusterSpread: 24,          // px spread within the cluster
+    rampFactor: 0.88,           // faster ramp than normal (0.93)
+    minInterval: 250,           // tighter floor than normal (350)
   },
 
   river: {

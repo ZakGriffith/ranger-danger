@@ -20,7 +20,7 @@ export class BootScene extends Phaser.Scene {
     this.load.image('c_base_2_png', cannonBase2Img);
     this.load.image('level_map_bg', levelMapBgImg);
     this.load.image('green_check', greenCheckImg);
-    this.load.spritesheet('bearsheet', 'bearsprites.png', { frameWidth: 32, frameHeight: 32 });
+
   }
 
   create() {

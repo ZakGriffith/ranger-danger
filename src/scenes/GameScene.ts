@@ -3036,7 +3036,9 @@ export class GameScene extends Phaser.Scene {
     this.rampTimer += delta;
     if (this.rampTimer > CFG.spawn.rampEvery) {
       this.rampTimer = 0;
-      this.spawnInterval = Math.max(CFG.spawn.minInterval, this.spawnInterval * CFG.spawn.rampFactor);
+      const rampF = this.biome === 'infected' ? CFG.infected.rampFactor : CFG.spawn.rampFactor;
+      const minI = this.biome === 'infected' ? CFG.infected.minInterval : CFG.spawn.minInterval;
+      this.spawnInterval = Math.max(minI, this.spawnInterval * rampF);
       this.heavyChance = Math.min(CFG.spawn.heavyChanceMax, this.heavyChance + CFG.spawn.heavyChanceStep);
     }
     if (this.spawnTimer > this.spawnInterval && this.waveSpawned < waveSize) {
@@ -3138,6 +3140,41 @@ export class GameScene extends Phaser.Scene {
     } else {
       kind = Math.random() < this.heavyChance ? 'deer' : 'snake';
     }
+
+    // Forest spiders spawn in small clusters
+    if (this.biome === 'forest' && kind === 'spider') {
+      const n = Phaser.Math.Between(CFG.forest.spiderClusterMin, CFG.forest.spiderClusterMax);
+      const spread = CFG.forest.spiderClusterSpread;
+      const waveSize = CFG.spawn.waveSize;
+      const toSpawn = Math.min(n, waveSize - this.waveSpawned);
+      for (let i = 0; i < toSpawn; i++) {
+        const sx = x + Phaser.Math.Between(-spread, spread);
+        const sy = y + Phaser.Math.Between(-spread, spread);
+        const se = new Enemy(this, sx, sy, 'spider');
+        this.applyEnemyDifficulty(se);
+        this.enemies.add(se);
+        if (i > 0) this.waveSpawned++;
+      }
+      return;
+    }
+
+    // Infected enemies spawn in tight groups
+    if (this.biome === 'infected') {
+      const n = Phaser.Math.Between(CFG.infected.clusterMin, CFG.infected.clusterMax);
+      const spread = CFG.infected.clusterSpread;
+      const waveSize = CFG.spawn.waveSize;
+      const toSpawn = Math.min(n, waveSize - this.waveSpawned);
+      for (let i = 0; i < toSpawn; i++) {
+        const sx = x + Phaser.Math.Between(-spread, spread);
+        const sy = y + Phaser.Math.Between(-spread, spread);
+        const se = new Enemy(this, sx, sy, kind);
+        this.applyEnemyDifficulty(se);
+        this.enemies.add(se);
+        if (i > 0) this.waveSpawned++;
+      }
+      return;
+    }
+
     const e = new Enemy(this, x, y, kind);
     this.applyEnemyDifficulty(e);
     this.enemies.add(e);

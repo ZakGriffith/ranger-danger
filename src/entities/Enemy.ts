@@ -78,10 +78,22 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
         this.setScale(0.55).setSize(30, 30).setOffset(17, 20);
         this.play('ear-move');
         break;
-      case 'spider':
+      case 'spider': {
         this.setScale(0.45).setSize(24, 22).setOffset(20, 24);
         this.play('es-move');
+        // Random forest spider color variety
+        const spiderTints = [
+          0xffffff, // default black
+          0xb09070, // brown recluse
+          0x80a060, // green garden spider
+          0xc0a040, // golden orb weaver
+          0xa07050, // wood spider
+          0x90b0a0, // grey-green
+        ];
+        this.baseTint = spiderTints[Math.floor(Math.random() * spiderTints.length)];
+        if (this.baseTint !== 0xffffff) this.setTint(this.baseTint);
         break;
+      }
       case 'infected_basic':
         this.setScale(0.5).setSize(24, 24).setOffset(20, 24);
         this.play('eib-move');

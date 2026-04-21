@@ -1139,9 +1139,8 @@ function drawEnemyWolf(f: EFrame) {
 }
 
 // ==================================================================
-//  ENEMY BEAR (32x32) — tanky brown brute
+//  ENEMY BEAR (32x32) — Classic Brown Bear (realistic grizzly)
 // ==================================================================
-// Bear frame type — Option C Bulky Brute, 8-frame walk, 5-frame attack
 type BearFrame =
   | 'move0' | 'move1' | 'move2' | 'move3' | 'move4' | 'move5' | 'move6' | 'move7'
   | 'atk0' | 'atk1' | 'atk2' | 'atk3' | 'atk4'
@@ -1155,242 +1154,154 @@ const bearFrames: BearFrame[] = [
   'die0','die1','die2','die3'
 ];
 
-// Warm bear palette (Option C)
 const PB = {
-  outline: '#000000',
-  body:    '#C1673D',
-  bodyD:   '#9E5533',
-  bodyM:   '#D27549',
-  bodyL:   '#DF9F7E',
-  nose:    '#4A2311',
-  eye:     '#ff2222',
-  mouth:   '#4a1008',
+  fur:    '#6a4a28',
+  furD:   '#3e2810',
+  furM:   '#5a3a1c',
+  furL:   '#8a6a3e',
+  belly:  '#7a5a34',
+  nose:   '#1a0e06',
+  eye:    '#1a1008',
+  eyeM:   '#332210',
 };
 
-// Draw bear facing RIGHT — Option C Bulky Brute style
-function drawBearRight(f: BearFrame) {
+// Draw bear facing a given direction — realistic grizzly
+function drawBearDir(f: BearFrame, dir: 'r' | 'l') {
   return (put: Put) => {
     if (f.startsWith('die')) {
       const step = parseInt(f.slice(3));
       const r = 10 - step * 2;
       if (r <= 0) return;
-      disc(put, 16, 18, r, PB.body);
-      disc(put, 16, 18, Math.max(0, r - 1), PB.bodyM);
+      disc(put, 16, 18, r, PB.fur);
+      disc(put, 16, 18, Math.max(0, r - 1), PB.furM);
       for (let i = 0; i < 8; i++) {
         const a = (i / 8) * Math.PI * 2 + step * 0.3;
-        const d = step * 3 + 4;
-        put(Math.round(16 + Math.cos(a) * d), Math.round(18 + Math.sin(a) * d), PB.bodyD);
+        const dd = step * 3 + 4;
+        put(Math.round(16 + Math.cos(a) * dd), Math.round(18 + Math.sin(a) * dd), PB.furD);
       }
       return;
     }
 
     const flash = f === 'hit';
-    const o  = flash ? P.white : PB.outline;
-    const b  = flash ? P.white : PB.body;
-    const bd = flash ? P.white : PB.bodyD;
-    const bm = flash ? P.white : PB.bodyM;
-    const bl = flash ? P.white : PB.bodyL;
+    const o   = flash ? P.white : P.outline;
+    const fur = flash ? P.white : PB.fur;
+    const furD= flash ? P.white : PB.furD;
+    const furM= flash ? P.white : PB.furM;
+    const furL= flash ? P.white : PB.furL;
+    const belly= flash ? P.white : PB.belly;
+
+    const d = dir === 'l' ? -1 : 1;
+    const cx = 16;
 
     // Walk params
     const isMove = f.startsWith('move');
     const moveIdx = isMove ? parseInt(f.slice(4)) : 0;
     const phase = isMove ? (moveIdx / 8) * Math.PI * 2 : 0;
-    const bodyBob = isMove ? Math.round(Math.sin(phase * 2) * 1) : 0;
-    // Leg offsets — sinusoidal, front/back pairs offset by half cycle
-    const fl = isMove ? Math.round(Math.sin(phase) * 3) : 0;
-    const fr = isMove ? Math.round(Math.sin(phase + Math.PI) * 3) : 0;
-    const blg = isMove ? Math.round(Math.sin(phase + Math.PI) * 3) : 0;
-    const br = isMove ? Math.round(Math.sin(phase) * 3) : 0;
+    const bob = isMove ? Math.round(Math.sin(phase * 2)) : 0;
+    const fl = isMove ? Math.round(Math.sin(phase) * 2) : 0;
+    const bl = isMove ? Math.round(Math.sin(phase + Math.PI) * 2) : 0;
 
     // Attack params: 0=windup, 1=lunge, 2=bite, 3=hold, 4=recover
     const isAtk = f.startsWith('atk');
     const atkStage = isAtk ? parseInt(f.slice(3)) : -1;
-    const headLunge = atkStage === 1 ? 3 : atkStage === 2 ? 4 : atkStage === 3 ? 2 : atkStage === 0 ? -1 : 0;
+    const headX = isAtk ? [0, 2, 3, 2, 0][atkStage] : 0;
     const jawOpen = atkStage >= 1 && atkStage <= 3;
     const bigBite = atkStage === 2;
-    const bodyRecoil = atkStage === 0 ? 1 : atkStage === 4 ? -1 : 0;
 
-    const by = 18 + bodyBob + bodyRecoil;
+    const by = 17 + bob;
 
     // Shadow
-    for (let dx = -10; dx <= 10; dx++)
-      for (let dy = -1; dy <= 1; dy++)
-        if ((dx * dx) / 100 + (dy * dy) / 1 <= 1) put(16 + dx, 29 + dy, P.shadow);
+    for (let sx = -10; sx <= 10; sx++)
+      for (let sy = -1; sy <= 1; sy++)
+        if ((sx * sx) / 100 + (sy * sy) <= 1) put(cx + sx, 29 + sy, P.shadow);
 
-    // === FAR LEGS (behind body, darker) ===
-    // Far back leg
-    rect(put, 7, by + 5 + blg, 5, 6, o); rect(put, 8, by + 6 + blg, 3, 4, bd);
-    // Far front leg
-    rect(put, 20 + headLunge, by + 5 + fl, 5, 6, o); rect(put, 21 + headLunge, by + 6 + fl, 3, 4, bd);
+    // Far legs (darker, behind body)
+    rect(put, cx + d * (-7), by + 4 + bl, 4, 6, furD);
+    rect(put, cx + d * 5 + headX * d, by + 4 + fl, 4, 6, furD);
 
-    // === BODY — big oval ===
-    for (let y = -8; y <= 7; y++)
-      for (let x = -12; x <= 10; x++)
-        if ((x * x) / 144 + (y * y) / 64 <= 1) put(16 + x, by + y, o);
-    for (let y = -7; y <= 6; y++)
-      for (let x = -11; x <= 9; x++)
-        if ((x * x) / 121 + (y * y) / 49 <= 1) put(16 + x, by + y, bd);
-    for (let y = -6; y <= 5; y++)
-      for (let x = -10; x <= 8; x++)
-        if ((x * x) / 100 + (y * y) / 36 <= 1) put(16 + x, by + y, b);
-    // Upper highlight
-    for (let y = -5; y <= -1; y++)
-      for (let x = -8; x <= 2; x++)
-        if ((x * x) / 64 + (y * y) / 25 <= 1) put(15 + x, by - 1 + y, bm);
+    // Body — large oval
+    for (let yy = -7; yy <= 7; yy++)
+      for (let xx = -11; xx <= 11; xx++)
+        if ((xx * xx) / 121 + (yy * yy) / 49 <= 1) put(cx + xx, by + yy, o);
+    for (let yy = -6; yy <= 6; yy++)
+      for (let xx = -10; xx <= 10; xx++)
+        if ((xx * xx) / 100 + (yy * yy) / 36 <= 1) put(cx + xx, by + yy, furD);
+    for (let yy = -5; yy <= 5; yy++)
+      for (let xx = -9; xx <= 9; xx++)
+        if ((xx * xx) / 81 + (yy * yy) / 25 <= 1) put(cx + xx, by + yy, fur);
 
-    // === NEAR LEGS (in front of body, lighter) ===
-    // Near back leg
-    rect(put, 10, by + 5 + br, 5, 6, o); rect(put, 11, by + 6 + br, 3, 4, b);
-    put(11, by + 6 + br, bm); put(12, by + 6 + br, bm);
-    // Near front leg
-    rect(put, 18 + headLunge, by + 5 + fr, 5, 6, o); rect(put, 19 + headLunge, by + 6 + fr, 3, 4, b);
-    put(19 + headLunge, by + 6 + fr, bm); put(20 + headLunge, by + 6 + fr, bm);
+    // Shoulder hump
+    disc(put, cx + d * 2, by - 4, 4, furD);
+    disc(put, cx + d * 2, by - 4, 3, fur);
+    disc(put, cx + d * 1, by - 5, 2, furM);
+    // Belly
+    for (let yy = 0; yy <= 3; yy++)
+      for (let xx = -6; xx <= 6; xx++)
+        if ((xx * xx) / 36 + (yy * yy) / 9 <= 1) put(cx - d + xx, by + 2 + yy, belly);
 
-    // === HEAD ===
-    const hx = 24 + headLunge, hy = by - 5;
+    // Near legs (lighter, in front)
+    rect(put, cx + d * (-5), by + 4 + bl, 4, 6, o);
+    rect(put, cx + d * (-4), by + 5 + bl, 2, 4, fur);
+    put(cx + d * (-4), by + 5 + bl, furM);
+    put(cx + d * (-3), by + 5 + bl, furM);
+    // Paw
+    put(cx + d * (-5), by + 9 + bl, furD);
+    rect(put, cx + d * 7 + headX * d, by + 4 + fl, 4, 6, o);
+    rect(put, cx + d * 8 + headX * d, by + 5 + fl, 2, 4, fur);
+    put(cx + d * 8 + headX * d, by + 5 + fl, furM);
+    put(cx + d * 9 + headX * d, by + 5 + fl, furM);
+    put(cx + d * 7 + headX * d, by + 9 + fl, furD);
+
+    // Head
+    const hx = cx + d * 9 + headX * d, hy = by - 3;
     disc(put, hx, hy, 5, o);
-    disc(put, hx, hy, 4, bd);
-    disc(put, hx, hy, 3, b);
-    disc(put, hx + 1, hy - 1, 2, bm);
+    disc(put, hx, hy, 4, furD);
+    disc(put, hx, hy, 3, fur);
+    disc(put, hx + d, hy - 1, 2, furM);
     // Ears
-    disc(put, hx - 2, hy - 5, 2, o); put(hx - 2, hy - 5, bd);
-    disc(put, hx + 2, hy - 5, 2, o); put(hx + 2, hy - 5, bd);
+    disc(put, hx - d * 2, hy - 4, 2, o);
+    put(hx - d * 2, hy - 4, furD);
+    put(hx - d * 2, hy - 3, fur);
+    disc(put, hx + d, hy - 5, 2, o);
+    put(hx + d, hy - 5, furD);
     // Snout
-    rect(put, hx + 4, hy - 1, 3, 3, o);
-    rect(put, hx + 4, hy, 2, 2, bl);
-    put(hx + 6, hy, flash ? P.white : PB.nose); // nose
+    rect(put, hx + d * 3, hy - 1, d > 0 ? 3 : -3, 3, o);
+    rect(put, hx + d * 3, hy, d > 0 ? 2 : -2, 2, furL);
+    put(hx + d * 5, hy, flash ? P.white : PB.nose);
     // Eye
-    put(hx + 1, hy - 2, flash ? P.white : PB.eye);
+    put(hx + d, hy - 2, flash ? P.white : PB.eye);
+    put(hx + d, hy - 1, flash ? P.white : PB.eyeM);
 
     // Mouth
     if (jawOpen) {
       const jawH = bigBite ? 3 : 2;
-      rect(put, hx + 3, hy + 2, 5, jawH, o);
-      rect(put, hx + 4, hy + 2, 3, jawH - 1, flash ? P.white : PB.mouth);
-      // Upper fangs
-      put(hx + 4, hy + 2, P.white);
-      put(hx + 6, hy + 2, P.white);
-      // Lower fangs on big bite
+      rect(put, hx + d * 2, hy + 2, d > 0 ? 4 : -4, jawH, o);
+      rect(put, hx + d * 3, hy + 2, d > 0 ? 2 : -2, jawH - 1, flash ? P.white : '#3a0808');
+      put(hx + d * 3, hy + 2, P.white);
+      put(hx + d * 5, hy + 2, P.white);
       if (bigBite) {
-        put(hx + 4, hy + 4, P.white);
-        put(hx + 6, hy + 4, P.white);
+        put(hx + d * 3, hy + 4, P.white);
+        put(hx + d * 5, hy + 4, P.white);
       }
     } else {
-      rect(put, hx + 3, hy + 2, 4, 1, o);
+      rect(put, hx + d * 2, hy + 2, d > 0 ? 4 : -4, 1, o);
       if (atkStage === 0) {
-        // Snarl on windup
-        put(hx + 4, hy + 3, P.white); put(hx + 6, hy + 3, P.white);
+        put(hx + d * 3, hy + 3, P.white);
+        put(hx + d * 5, hy + 3, P.white);
       }
     }
 
     // Tail stub
-    put(3 - bodyRecoil, by - 2, bd);
-    put(2 - bodyRecoil, by - 3, bd);
+    put(cx - d * 10, by - 1, furD);
+    put(cx - d * 11, by - 2, furD);
   };
 }
 
-// Mirror a canvas horizontally for left-facing version
-function mirrorCanvas(src: HTMLCanvasElement): HTMLCanvasElement {
-  const dst = document.createElement('canvas');
-  dst.width = src.width;
-  dst.height = src.height;
-  const ctx = dst.getContext('2d')!;
-  ctx.translate(dst.width, 0);
-  ctx.scale(-1, 1);
-  ctx.drawImage(src, 0, 0);
-  return dst;
-}
-
-// Extract a 32x32 cell from the bear sprite sheet, strip grey bg, return canvas
-function extractBearCell(sheet: HTMLCanvasElement | HTMLImageElement, row: number, col: number): HTMLCanvasElement {
-  const c = document.createElement('canvas');
-  c.width = 32; c.height = 32;
-  const ctx = c.getContext('2d')!;
-  ctx.drawImage(sheet, col * 32, row * 32, 32, 32, 0, 0, 32, 32);
-  // Strip grey background (#4D4D4D) — make transparent
-  const id = ctx.getImageData(0, 0, 32, 32);
-  const d = id.data;
-  for (let i = 0; i < d.length; i += 4) {
-    const r = d[i], g = d[i + 1], b = d[i + 2];
-    // Match the grey bg (77,77,77) with some tolerance
-    if (Math.abs(r - 77) < 8 && Math.abs(g - 77) < 8 && Math.abs(b - 77) < 8) {
-      d[i + 3] = 0; // make transparent
-    }
-  }
-  ctx.putImageData(id, 0, 0);
-  return c;
-}
-
-// Scale2x upscale a small canvas (for consistency with other sprites)
-function scale2xCanvas(src: HTMLCanvasElement): HTMLCanvasElement {
-  const sw = src.width, sh = src.height;
-  const dst = document.createElement('canvas');
-  dst.width = sw * 2; dst.height = sh * 2;
-  const ctx = dst.getContext('2d')!;
-  ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(src, 0, 0, sw * 2, sh * 2);
-  return dst;
-}
-
-// Extract all bear frames from the loaded spritesheet and register as textures
+// Generate all bear frames procedurally (right + left facing)
 function extractBearFrames(scene: Phaser.Scene) {
-  const sheetTex = scene.textures.get('bearsheet');
-  const sheetImg = sheetTex.getSourceImage() as HTMLImageElement;
-
-  // Frame map: spritesheet [row, col] -> animation frame
-  // Walk right: row1-col0, row1-col2, row2-col2, row2-col3 (4 frames)
-  const walkRight: [number, number][] = [[1,0], [1,2], [2,2], [2,3]];
-  // Walk left: row1-col1, row1-col3, row2-col1, row2-col0 (4 frames)
-  const walkLeft: [number, number][] = [[1,1], [1,3], [2,1], [2,0]];
-  // Attack right: row3-col0 (rear up), row0-col2 (mid), row3-col2 (lunge) (3 frames)
-  const atkRight: [number, number][] = [[3,0], [0,2], [3,2]];
-  // Attack left: row3-col3 (rear up), row0-col1 (mid), row3-col1 (lunge) (3 frames)
-  const atkLeft: [number, number][] = [[3,3], [0,1], [3,1]];
-  // Hit: row0-col0 (standing front)
-  const hitFrame: [number, number] = [0,0];
-
-  // Extract, scale, and register each frame
-  const reg = (key: string, row: number, col: number) => {
-    const cell = extractBearCell(sheetImg, row, col);
-    const scaled = scale2xCanvas(cell);
-    add(scene, key, scaled);
-  };
-
-  // Walk right frames
-  walkRight.forEach((rc, i) => reg(`ear_move${i}`, rc[0], rc[1]));
-  // Duplicate as move4-7 for an 8-frame cycle (ping-pong: 0,1,2,3,2,1,0,3)
-  reg('ear_move4', walkRight[2][0], walkRight[2][1]);
-  reg('ear_move5', walkRight[1][0], walkRight[1][1]);
-  reg('ear_move6', walkRight[0][0], walkRight[0][1]);
-  reg('ear_move7', walkRight[3][0], walkRight[3][1]);
-
-  // Walk left frames
-  walkLeft.forEach((rc, i) => reg(`eal_move${i}`, rc[0], rc[1]));
-  reg('eal_move4', walkLeft[2][0], walkLeft[2][1]);
-  reg('eal_move5', walkLeft[1][0], walkLeft[1][1]);
-  reg('eal_move6', walkLeft[0][0], walkLeft[0][1]);
-  reg('eal_move7', walkLeft[3][0], walkLeft[3][1]);
-
-  // Attack right frames
-  atkRight.forEach((rc, i) => reg(`ear_atk${i}`, rc[0], rc[1]));
-  // Pad to 5 frames: hold + recover
-  reg('ear_atk3', atkRight[2][0], atkRight[2][1]); // hold = repeat lunge
-  reg('ear_atk4', atkRight[0][0], atkRight[0][1]); // recover = back to rear
-
-  // Attack left frames
-  atkLeft.forEach((rc, i) => reg(`eal_atk${i}`, rc[0], rc[1]));
-  reg('eal_atk3', atkLeft[2][0], atkLeft[2][1]);
-  reg('eal_atk4', atkLeft[0][0], atkLeft[0][1]);
-
-  // Hit frame (same for both directions)
-  reg('ear_hit', hitFrame[0], hitFrame[1]);
-  reg('eal_hit', hitFrame[0], hitFrame[1]);
-
-  // Die frames — use procedural (the bear dissolves, direction doesn't matter)
-  for (let i = 0; i < 4; i++) {
-    const rightCanvas = makeCanvas(32, drawBearRight(`die${i}` as BearFrame));
-    add(scene, `ear_die${i}`, rightCanvas);
-    add(scene, `eal_die${i}`, rightCanvas);
+  for (const f of bearFrames) {
+    add(scene, `ear_${f}`, makeCanvas(32, drawBearDir(f, 'r')));
+    add(scene, `eal_${f}`, makeCanvas(32, drawBearDir(f, 'l')));
   }
 }
 
