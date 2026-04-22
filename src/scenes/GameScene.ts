@@ -2612,7 +2612,7 @@ export class GameScene extends Phaser.Scene {
       this.countdownMsg = '';
       this.pushHud();
     });
-    this.cameras.main.shake(600, 0.012);
+    this.cameras.main.shake(300, 0.005);
   }
 
   enemyHitsPlayer(e: Enemy) {
@@ -2891,7 +2891,7 @@ export class GameScene extends Phaser.Scene {
     // 7) Permanent dirt crater on the ground
     this.spawnCrater(x, y, radius);
 
-    this.cameras.main.shake(140, 0.006);
+    this.cameras.main.shake(80, 0.003);
 
     // Damage all enemies in radius
     const r2 = radius * radius;
@@ -3182,6 +3182,23 @@ export class GameScene extends Phaser.Scene {
     if (this.biome === 'infected') {
       const n = Phaser.Math.Between(CFG.infected.clusterMin, CFG.infected.clusterMax);
       const spread = CFG.infected.clusterSpread;
+      const waveSize = CFG.spawn.waveSize;
+      const toSpawn = Math.min(n, waveSize - this.waveSpawned);
+      for (let i = 0; i < toSpawn; i++) {
+        const sx = x + Phaser.Math.Between(-spread, spread);
+        const sy = y + Phaser.Math.Between(-spread, spread);
+        const se = new Enemy(this, sx, sy, kind);
+        this.applyEnemyDifficulty(se);
+        this.enemies.add(se);
+        if (i > 0) this.waveSpawned++;
+      }
+      return;
+    }
+
+    // River enemies spawn in loose groups
+    if (this.biome === 'river') {
+      const n = Phaser.Math.Between(CFG.river.clusterMin, CFG.river.clusterMax);
+      const spread = CFG.river.clusterSpread;
       const waveSize = CFG.spawn.waveSize;
       const toSpawn = Math.min(n, waveSize - this.waveSpawned);
       for (let i = 0; i < toSpawn; i++) {

@@ -115,6 +115,9 @@ export const CFG = {
     dragonflyPackSize: 4,
     dragonflyPackCooldownMin: 7000,
     dragonflyPackCooldownMax: 12000,
+    clusterMin: 2,
+    clusterMax: 4,
+    clusterSpread: 60, // looser than infected (40) but still grouped
   },
 
   winKills: 200, // kills needed to trigger the boss; defeating the boss wins

@@ -32,7 +32,7 @@ export type SfxKey = typeof SFX_KEYS[number];
 // Supported formats: .wav, .mp3, .ogg
 const AUDIO_FILES: Partial<Record<SfxKey, string>> = {
   arrowShoot: '/audio/arrow_1.wav',
-  // cannonShoot: '/audio/cannonShoot.wav',
+  cannonShoot: '/audio/cannonfire.flac',
   hit: '/audio/arrowhit.wav',
   // coin: '/audio/coin.wav',
   // towerPlace: '/audio/towerPlace.wav',
@@ -85,6 +85,10 @@ class SfxManager {
     arrowShoot: 60,
     cannonShoot: 100,
     wallPlace: 80,
+  };
+  /** Per-sound volume multipliers (0–1, default 1) */
+  private volumes: Partial<Record<SfxKey, number>> = {
+    cannonShoot: 0.75,
   };
 
   /** Call once at boot. Preloads all audio into AudioBuffers for zero-latency playback. */
@@ -220,7 +224,15 @@ class SfxManager {
 
     const source = this.ctx.createBufferSource();
     source.buffer = buf;
-    source.connect(this.gainNode);
+    const vol = this.volumes[key];
+    if (vol !== undefined && vol < 1) {
+      const g = this.ctx.createGain();
+      g.gain.value = vol;
+      source.connect(g);
+      g.connect(this.gainNode);
+    } else {
+      source.connect(this.gainNode);
+    }
     source.start(0);
   }
 
