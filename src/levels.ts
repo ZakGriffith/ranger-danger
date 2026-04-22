@@ -14,10 +14,10 @@ export interface LevelDef {
 
 export const LEVELS: LevelDef[] = [
   // Grasslands — top-left (castle & forest area)
-  { id: 1,  name: 'The Meadow',    biome: 'grasslands', x: 150, y: 345, connectsTo: [2],    unlockCost: 0,  implemented: true },
+  { id: 1,  name: 'Meadow',        biome: 'grasslands', x: 150, y: 345, connectsTo: [2],    unlockCost: 0,  implemented: true },
   { id: 2,  name: 'Forest',        biome: 'forest',     x: 265, y: 425, connectsTo: [3],    unlockCost: 1,  implemented: true },
-  { id: 3,  name: 'Infected Forest',     biome: 'infected', x: 410, y: 320, connectsTo: [4],    unlockCost: 3,  implemented: true },
-  { id: 4,  name: 'River',         biome: 'river',      x: 168, y: 200, connectsTo: [5],    unlockCost: 4,  implemented: true },
+  { id: 3,  name: 'Infected Lands',      biome: 'infected', x: 410, y: 320, connectsTo: [4],    unlockCost: 3,  implemented: true },
+  { id: 4,  name: 'Rivers',        biome: 'river',      x: 168, y: 200, connectsTo: [5],    unlockCost: 4,  implemented: true },
   { id: 5,  name: 'The Castle',    biome: 'grasslands', x: 145, y: 95, connectsTo: [6],    unlockCost: 5,  implemented: false },
   // Desert — top-center/right (ruins & dunes)
   { id: 6,  name: 'Oasis',         biome: 'desert',     x: 430, y: 170, connectsTo: [7],    unlockCost: 7,  implemented: false },

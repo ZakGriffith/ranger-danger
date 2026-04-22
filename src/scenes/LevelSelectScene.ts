@@ -240,7 +240,7 @@ export class LevelSelectScene extends Phaser.Scene {
       // Biome icon or lock icon
       const iconG = this.add.graphics().setDepth(4);
       if (unlocked) {
-        this.drawBiomeIcon(iconG, cx, cy - this.p(3), level.name === 'River' ? 'river' : level.biome);
+        this.drawBiomeIcon(iconG, cx, cy - this.p(3), level.name === 'Rivers' ? 'river' : level.biome);
       } else {
         iconG.fillStyle(0x666666, 0.8);
         iconG.fillRoundedRect(cx - this.p(6), cy - this.p(2), this.p(12), this.p(9), this.p(2));
