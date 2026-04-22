@@ -153,7 +153,7 @@ class SfxManager {
     const ch = buf.getChannelData(0);
     const f1 = 988;  // B5
     const f2 = 1319; // E6 (the iconic Mario coin interval)
-    const vol = 0.3;
+    const vol = 0.15;
     // First note
     for (let i = 0; i < noteLen; i++) {
       const t = i / sr;

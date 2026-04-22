@@ -93,7 +93,27 @@ export class UIScene extends Phaser.Scene {
     this.btnCannon = this.makeHotbarSlot(slotX(1), hotbarY, slotSize, slotSize, '2', 'cannon', 'CANNON', '$60',
       () => this.game.events.emit('ui-build', 'tower', 'cannon'));
     this.btnMage = this.makeHotbarSlot(slotX(2), hotbarY, slotSize, slotSize, '3', 'mage', 'MAGE', '$80',
-      () => this.game.events.emit('ui-build', 'tower', 'mage'));
+      () => { /* locked — mage tower not yet implemented */ });
+    // Lock overlay on mage slot
+    const lockG = this.add.graphics();
+    const ls = this.sf;
+    // Dim overlay
+    lockG.fillStyle(0x000000, 0.5);
+    lockG.fillRoundedRect(-slotSize / 2, -slotSize / 2, slotSize, slotSize, this.p(3));
+    // Padlock body
+    const lx = 0, ly = this.p(2);
+    lockG.fillStyle(0x8a8a8a, 0.9);
+    lockG.fillRoundedRect(lx - this.p(7), ly, this.p(14), this.p(10), this.p(2));
+    // Shackle
+    lockG.lineStyle(this.p(2.5), 0x8a8a8a, 0.9);
+    lockG.beginPath();
+    lockG.arc(lx, ly - this.p(1), this.p(5), Math.PI, 0, false);
+    lockG.strokePath();
+    // Keyhole
+    lockG.fillStyle(0x222222, 1);
+    lockG.fillCircle(lx, ly + this.p(4), this.p(2));
+    lockG.fillRect(lx - this.p(1), ly + this.p(5), this.p(2), this.p(3));
+    this.btnMage.add(lockG);
     this.btnWall = this.makeHotbarSlot(slotX(3), hotbarY, slotSize, slotSize, '4', 'wall', 'WALL', '$5',
       () => this.game.events.emit('ui-build', 'wall'));
     this.btnSpeed = this.makeHotbarSlot(slotX(4), hotbarY, slotSize, slotSize, 'SPC', 'speed', 'SPEED', '',

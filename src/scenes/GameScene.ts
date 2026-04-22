@@ -249,6 +249,8 @@ export class GameScene extends Phaser.Scene {
     this.physics.add.overlap(this.player, this.enemies, (_p, e) => this.enemyHitsPlayer(e as Enemy));
     this.physics.add.overlap(this.projectiles, this.enemies, (pr, en) => this.projectileHitsEnemy(pr as Projectile, en as Enemy));
     this.physics.add.overlap(this.player, this.enemyDarts, (_p, d) => this.enemyDartHitsPlayer(d as Phaser.Physics.Arcade.Sprite));
+    this.physics.add.overlap(this.enemyDarts, this.wallGroup, (_d, _w) => { (_d as Phaser.Physics.Arcade.Sprite).destroy(); });
+    this.physics.add.overlap(this.enemyDarts, this.towerGroup, (_d, _t) => { (_d as Phaser.Physics.Arcade.Sprite).destroy(); });
     // boss overlaps set up when boss spawns (since it's created later)
 
     // input
