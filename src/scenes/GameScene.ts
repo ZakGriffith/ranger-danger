@@ -2622,13 +2622,13 @@ export class GameScene extends Phaser.Scene {
     const dart = this.physics.add.sprite(x, y, 'mdart_0').setScale(0.7).setDepth(9);
     dart.play('mdart-spin');
     dart.setSize(12, 12).setOffset(2, 2);
+    this.enemyDarts.add(dart);
     const angle = Math.atan2(ty - y, tx - x);
     const spd = CFG.river.mosquitoDartSpeed;
     dart.setVelocity(Math.cos(angle) * spd, Math.sin(angle) * spd);
     dart.setRotation(angle);
     (dart as any)._born = this.vTime;
     (dart as any)._dmg = CFG.river.mosquitoDartDmg;
-    this.enemyDarts.add(dart);
   }
 
   enemyDartHitsPlayer(dart: Phaser.Physics.Arcade.Sprite) {
