@@ -94,6 +94,8 @@ export class GameScene extends Phaser.Scene {
   squiggleTimer = 0;
   treeSeed = 0;
   sf = 1; // native resolution scale factor
+  _wallCheckCache = { key: '', valid: false };
+  _lastWallCheckPlayerTile = '';
 
   constructor() { super('Game'); }
 
@@ -491,7 +493,7 @@ export class GameScene extends Phaser.Scene {
       this.towers.push(t);
       this.towerGroup.add(t);
       for (let j = 0; j < s; j++) for (let i = 0; i < s; i++) gridSet(this.grid, ox + i, oy + j, 2);
-      this.gridVersion++; this.rebuildGapBlockers(); this.rebuildGapBlockers();
+      this.gridVersion++; this._wallCheckCache = { key: '', valid: false }; this.rebuildGapBlockers(); this.rebuildGapBlockers();
       this.pushHud();
       SFX.play('towerPlace');
       return;
@@ -501,11 +503,12 @@ export class GameScene extends Phaser.Scene {
     if (gridGet(this.grid, tx, ty) !== 0) return;
     if (this.player.money < CFG.wall.cost) return;
     const pt = this.worldToTile(this.player.x, this.player.y);
-    // Check placing this wall won't block all paths from spawn directions to player
+    // Check placing this wall won't reduce reachable spawn directions below minimum
+    const beforeReach = this.countReachableDirections(pt.x, pt.y);
     gridSet(this.grid, tx, ty, 1);
-    const wallOk = canReachFromSpawnDirections(this.grid, pt.x, pt.y, CFG.spawnDist);
+    const afterReach = this.countReachableDirections(pt.x, pt.y);
     gridSet(this.grid, tx, ty, 0);
-    if (!wallOk) return;
+    if (afterReach < Math.min(beforeReach, 2)) return;
     this.player.money -= CFG.wall.cost;
     const w = new Wall(this, tx, ty);
     this.walls.push(w);
@@ -513,7 +516,7 @@ export class GameScene extends Phaser.Scene {
     gridSet(this.grid, tx, ty, 1);
     this.syncWallTile(tx, ty, true);
     this.updateWallNeighbors(tx, ty);
-    this.gridVersion++; this.rebuildGapBlockers();
+    this.gridVersion++; this._wallCheckCache = { key: '', valid: false }; this.rebuildGapBlockers();
     this.pushHud();
     SFX.play('wallPlace');
   }
@@ -641,7 +644,7 @@ export class GameScene extends Phaser.Scene {
       this.updateWallNeighbors(w.tileX, w.tileY);
       w.destroy();
     }
-    this.gridVersion++; this.rebuildGapBlockers();
+    this.gridVersion++; this._wallCheckCache = { key: '', valid: false }; this.rebuildGapBlockers();
     this.pushHud();
   }
 
@@ -817,6 +820,36 @@ export class GameScene extends Phaser.Scene {
     return { x: Math.floor(x / CFG.tile), y: Math.floor(y / CFG.tile) };
   }
 
+  /** Count how many of the 4 cardinal spawn directions can reach (px, py). */
+  countReachableDirections(px: number, py: number): number {
+    const dist = CFG.spawnDist;
+    const testPoints = [
+      { x: px, y: py - dist },
+      { x: px, y: py + dist },
+      { x: px - dist, y: py },
+      { x: px + dist, y: py },
+    ];
+    let reachable = 0;
+    for (const tp of testPoints) {
+      let found = false;
+      for (let r = 0; r <= 3 && !found; r++) {
+        for (let dy = -r; dy <= r && !found; dy++) {
+          for (let dx = -r; dx <= r && !found; dx++) {
+            if (Math.abs(dx) !== r && Math.abs(dy) !== r) continue;
+            const sx = tp.x + dx, sy = tp.y + dy;
+            const sv = gridGet(this.grid, sx, sy);
+            if (sv === 0 || sv === 5) {
+              const path = findPath(this.grid, sx, sy, px, py);
+              if (path.length > 0) found = true;
+            }
+          }
+        }
+      }
+      if (found) reachable++;
+    }
+    return reachable;
+  }
+
   // Queue ground chunks around a world position (deferred generation)
   generateChunksAround(wx: number, wy: number, force = false) {
     const cs = CFG.chunkSize;
@@ -935,12 +968,31 @@ export class GameScene extends Phaser.Scene {
         this.ghost.setTint(this.canPlaceTower(ox, oy) && canAffordTower ? 0x88ff88 : 0xff8888);
       } else {
         this.ghost.setPosition(tx * CFG.tile + CFG.tile / 2, ty * CFG.tile + CFG.tile / 2);
+        // Invalidate cache when player moves to a new tile
+        const ptKey = `${Math.floor(this.player.x / CFG.tile)},${Math.floor(this.player.y / CFG.tile)}`;
+        if (ptKey !== this._lastWallCheckPlayerTile) {
+          this._lastWallCheckPlayerTile = ptKey;
+          this._wallCheckCache = { key: '', valid: false };
+        }
         let valid = gridGet(this.grid, tx, ty) === 0;
         if (valid) {
-          const pt = this.worldToTile(this.player.x, this.player.y);
-          gridSet(this.grid, tx, ty, 1);
-          valid = canReachFromSpawnDirections(this.grid, pt.x, pt.y, CFG.spawnDist);
-          gridSet(this.grid, tx, ty, 0);
+          // Cache path check per tile to avoid running BFS every frame
+          const cacheKey = `${tx},${ty}`;
+          if (this._wallCheckCache.key === cacheKey) {
+            valid = this._wallCheckCache.valid;
+          } else {
+            const pt = this.worldToTile(this.player.x, this.player.y);
+            // Check how many directions are reachable WITHOUT the wall
+            const beforeReach = this.countReachableDirections(pt.x, pt.y);
+            // Now test WITH the wall
+            gridSet(this.grid, tx, ty, 1);
+            const afterReach = this.countReachableDirections(pt.x, pt.y);
+            gridSet(this.grid, tx, ty, 0);
+            // Allow if placing the wall doesn't reduce reachable directions,
+            // or at least 2 directions still work
+            valid = afterReach >= Math.min(beforeReach, 2);
+            this._wallCheckCache = { key: cacheKey, valid };
+          }
         }
         const canAffordWall = this.player.money >= CFG.wall.cost;
         this.ghost.setTint(valid && canAffordWall ? 0x88ff88 : 0xff8888);
@@ -1206,7 +1258,7 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    this.gridVersion++;
+    this.gridVersion++; this._wallCheckCache = { key: '', valid: false };
   }
 
   // ---------- RIVER TERRAIN (river biome) ----------
@@ -2518,7 +2570,7 @@ export class GameScene extends Phaser.Scene {
     for (let j = 0; j < t.size; j++)
       for (let i = 0; i < t.size; i++)
         gridSet(this.grid, t.tileX + i, t.tileY + j, 0);
-    this.gridVersion++; this.rebuildGapBlockers();
+    this.gridVersion++; this._wallCheckCache = { key: '', valid: false }; this.rebuildGapBlockers();
     const burst = this.add.sprite(t.x, t.y, 'fx_death_0').setDepth(15).setScale(0.5);
     burst.play('fx-death');
     burst.once('animationcomplete', () => burst.destroy());
@@ -2531,7 +2583,7 @@ export class GameScene extends Phaser.Scene {
     const tx = w.tileX, ty = w.tileY;
     gridSet(this.grid, tx, ty, 0);
     this.syncWallTile(tx, ty, false);
-    this.gridVersion++; this.rebuildGapBlockers();
+    this.gridVersion++; this._wallCheckCache = { key: '', valid: false }; this.rebuildGapBlockers();
     w.destroy();
     this.updateWallNeighbors(tx, ty);
   }

@@ -42,6 +42,7 @@ export function findPath(
 
   if (!inRange(sx, sy)) return [];
   const queue: number[] = [];
+  let qHead = 0;
   const start = idx(sx, sy);
   queue.push(start);
   visited[start] = 1;
@@ -50,8 +51,8 @@ export function findPath(
   const cardinals: [number, number][] = [[1,0],[-1,0],[0,1],[0,-1]];
   const diagonals: [number, number][] = [[1,1],[-1,1],[1,-1],[-1,-1]];
 
-  while (queue.length) {
-    const cur = queue.shift()!;
+  while (qHead < queue.length) {
+    const cur = queue[qHead++];
     const cx = (cur % width) + minX;
     const cy = Math.floor(cur / width) + minY;
     if (cx === tx && cy === ty) { foundTarget = true; break; }

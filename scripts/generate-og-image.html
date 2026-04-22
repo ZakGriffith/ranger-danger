@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html>
+<head><title>OG Image Generator</title></head>
+<body style="margin:0;background:#111;">
+<canvas id="c" width="1200" height="630"></canvas>
+<p style="color:#aaa;font-family:sans-serif;padding:16px;">Right-click the image above → "Save image as..." → save to <code>public/og-image.png</code></p>
+<script>
+const W = 1200, H = 630;
+const c = document.getElementById('c');
+const ctx = c.getContext('2d');
+
+// --- Background gradient (dark forest/meadow vibe) ---
+const bg = ctx.createLinearGradient(0, 0, 0, H);
+bg.addColorStop(0, '#0a1628');
+bg.addColorStop(0.4, '#0d1f1a');
+bg.addColorStop(0.7, '#122010');
+bg.addColorStop(1, '#0a1a08');
+ctx.fillStyle = bg;
+ctx.fillRect(0, 0, W, H);
+
+// --- Starfield ---
+const rand = (s) => { s = Math.sin(s) * 43758.5453; return s - Math.floor(s); };
+for (let i = 0; i < 80; i++) {
+  const x = rand(i * 7.3) * W;
+  const y = rand(i * 3.1) * H * 0.5;
+  const r = rand(i * 11.7) * 1.5 + 0.5;
+  const a = rand(i * 2.9) * 0.4 + 0.2;
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.fillStyle = `rgba(200,220,255,${a})`;
+  ctx.fill();
+}
+
+// --- Ground with grass texture ---
+const groundY = H * 0.62;
+const ground = ctx.createLinearGradient(0, groundY, 0, H);
+ground.addColorStop(0, '#2a5a1a');
+ground.addColorStop(0.3, '#1e4a14');
+ground.addColorStop(1, '#143a0c');
+ctx.fillStyle = ground;
+ctx.fillRect(0, groundY, W, H - groundY);
+
+// Grass blades
+for (let i = 0; i < 200; i++) {
+  const x = rand(i * 4.7) * W;
+  const h = rand(i * 9.1) * 18 + 6;
+  const lean = (rand(i * 5.3) - 0.5) * 8;
+  ctx.strokeStyle = `rgba(${50 + rand(i*2.1)*40}, ${100 + rand(i*3.3)*60}, ${20 + rand(i*1.7)*30}, 0.6)`;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(x, groundY);
+  ctx.quadraticCurveTo(x + lean * 0.5, groundY - h * 0.6, x + lean, groundY - h);
+  ctx.stroke();
+}
+
+// --- Trees (background silhouettes) ---
+function drawTree(x, y, size, shade) {
+  // Trunk
+  ctx.fillStyle = `rgb(${30+shade*10},${20+shade*5},${15+shade*5})`;
+  ctx.fillRect(x - size*0.08, y - size*0.1, size*0.16, size*0.3);
+  // Canopy layers
+  for (let i = 0; i < 3; i++) {
+    const ly = y - size*0.1 - i * size*0.25;
+    const lw = size * (0.5 - i*0.1);
+    const lh = size * 0.35;
+    ctx.fillStyle = `rgba(${20+shade*15+i*8},${50+shade*20+i*12},${15+shade*8+i*5},${0.7+shade*0.15})`;
+    ctx.beginPath();
+    ctx.moveTo(x - lw, ly);
+    ctx.lineTo(x, ly - lh);
+    ctx.lineTo(x + lw, ly);
+    ctx.closePath();
+    ctx.fill();
+  }
+}
+// Far trees
+for (let i = 0; i < 12; i++) {
+  const x = rand(i*6.1) * W;
+  const sz = 40 + rand(i*8.3) * 30;
+  drawTree(x, groundY + 5, sz, 0.3);
+}
+// Near trees (sides)
+drawTree(60, groundY + 8, 90, 0.8);
+drawTree(150, groundY + 3, 70, 0.6);
+drawTree(W - 80, groundY + 6, 85, 0.7);
+drawTree(W - 170, groundY + 4, 65, 0.5);
+
+// --- Path (dirt trail) ---
+ctx.strokeStyle = '#3a2a18';
+ctx.lineWidth = 28;
+ctx.lineCap = 'round';
+ctx.beginPath();
+ctx.moveTo(0, groundY + 50);
+ctx.quadraticCurveTo(W*0.3, groundY + 30, W*0.5, groundY + 55);
+ctx.quadraticCurveTo(W*0.7, groundY + 75, W, groundY + 45);
+ctx.stroke();
+ctx.strokeStyle = '#4a3a24';
+ctx.lineWidth = 18;
+ctx.stroke();
+
+// --- Tower (left side) ---
+function drawTower(tx, ty) {
+  // Base
+  ctx.fillStyle = '#5a4a3a';
+  ctx.fillRect(tx-20, ty-5, 40, 25);
+  ctx.fillStyle = '#6a5a48';
+  ctx.fillRect(tx-18, ty-3, 36, 21);
+  // Body
+  ctx.fillStyle = '#7a6a54';
+  ctx.fillRect(tx-16, ty-50, 32, 50);
+  // Battlements
+  for (let i = 0; i < 4; i++) {
+    ctx.fillStyle = '#8a7a62';
+    ctx.fillRect(tx - 16 + i*10, ty - 58, 6, 10);
+  }
+  // Window
+  ctx.fillStyle = '#ffd040';
+  ctx.shadowColor = '#ffd040';
+  ctx.shadowBlur = 8;
+  ctx.fillRect(tx-4, ty-38, 8, 10);
+  ctx.shadowBlur = 0;
+}
+drawTower(240, groundY + 5);
+drawTower(W - 260, groundY + 5);
+
+// --- Enemies approaching (red eyes in the dark, right side) ---
+function drawEnemy(ex, ey, size) {
+  // Dark silhouette
+  ctx.fillStyle = 'rgba(20,10,10,0.7)';
+  ctx.beginPath();
+  ctx.arc(ex, ey - size*0.5, size*0.4, 0, Math.PI*2);
+  ctx.fill();
+  ctx.fillRect(ex - size*0.2, ey - size*0.3, size*0.4, size*0.4);
+  // Red eyes
+  ctx.fillStyle = '#ff2020';
+  ctx.shadowColor = '#ff2020';
+  ctx.shadowBlur = 6;
+  ctx.beginPath();
+  ctx.arc(ex - size*0.12, ey - size*0.55, 2.5, 0, Math.PI*2);
+  ctx.arc(ex + size*0.12, ey - size*0.55, 2.5, 0, Math.PI*2);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+}
+drawEnemy(W - 100, groundY + 10, 30);
+drawEnemy(W - 50, groundY + 15, 25);
+drawEnemy(W - 130, groundY + 20, 22);
+
+// --- Ranger (center-ish) ---
+function drawRanger(rx, ry) {
+  // Body
+  ctx.fillStyle = '#2a6a2a';
+  ctx.fillRect(rx-8, ry-30, 16, 24);
+  // Head
+  ctx.fillStyle = '#ddb89a';
+  ctx.beginPath();
+  ctx.arc(rx, ry-38, 9, 0, Math.PI*2);
+  ctx.fill();
+  // Hood
+  ctx.fillStyle = '#1a5a20';
+  ctx.beginPath();
+  ctx.arc(rx, ry-40, 10, Math.PI, 0);
+  ctx.fill();
+  // Bow
+  ctx.strokeStyle = '#8a6a40';
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.arc(rx+14, ry-28, 16, -Math.PI*0.4, Math.PI*0.4);
+  ctx.stroke();
+  // Bowstring
+  ctx.strokeStyle = '#ccc';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(rx+14 + 16*Math.cos(-Math.PI*0.4), ry-28 + 16*Math.sin(-Math.PI*0.4));
+  ctx.lineTo(rx+10, ry-28);
+  ctx.lineTo(rx+14 + 16*Math.cos(Math.PI*0.4), ry-28 + 16*Math.sin(Math.PI*0.4));
+  ctx.stroke();
+  // Arrow
+  ctx.strokeStyle = '#ddd';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(rx+10, ry-28);
+  ctx.lineTo(rx+36, ry-28);
+  ctx.stroke();
+  // Arrowhead
+  ctx.fillStyle = '#aaa';
+  ctx.beginPath();
+  ctx.moveTo(rx+38, ry-28);
+  ctx.lineTo(rx+33, ry-31);
+  ctx.lineTo(rx+33, ry-25);
+  ctx.closePath();
+  ctx.fill();
+  // Legs
+  ctx.fillStyle = '#3a3020';
+  ctx.fillRect(rx-6, ry-6, 5, 12);
+  ctx.fillRect(rx+1, ry-6, 5, 12);
+}
+drawRanger(W*0.42, groundY + 8);
+
+// --- Coins scattered ---
+function drawCoin(cx, cy, r) {
+  ctx.fillStyle = '#ffd700';
+  ctx.shadowColor = '#ffd700';
+  ctx.shadowBlur = 6;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI*2);
+  ctx.fill();
+  ctx.fillStyle = '#ffea60';
+  ctx.beginPath();
+  ctx.arc(cx - r*0.2, cy - r*0.2, r*0.4, 0, Math.PI*2);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+}
+drawCoin(380, groundY + 40, 6);
+drawCoin(520, groundY + 60, 5);
+drawCoin(460, groundY + 35, 7);
+drawCoin(600, groundY + 50, 5);
+
+// --- Walls (stone blocks near towers) ---
+function drawWall(wx, wy) {
+  ctx.fillStyle = '#6a6a6a';
+  ctx.fillRect(wx, wy, 18, 14);
+  ctx.fillStyle = '#7a7a7a';
+  ctx.fillRect(wx+1, wy+1, 7, 5);
+  ctx.fillRect(wx+10, wy+1, 7, 5);
+  ctx.fillRect(wx+5, wy+8, 8, 5);
+}
+drawWall(270, groundY + 8);
+drawWall(290, groundY + 8);
+drawWall(310, groundY + 8);
+
+// --- Arrow projectile streaking across ---
+ctx.strokeStyle = '#fff';
+ctx.lineWidth = 2;
+ctx.shadowColor = '#7cc4ff';
+ctx.shadowBlur = 4;
+ctx.beginPath();
+ctx.moveTo(W*0.48, groundY - 22);
+ctx.lineTo(W*0.62, groundY - 15);
+ctx.stroke();
+// trail
+ctx.strokeStyle = 'rgba(124,196,255,0.4)';
+ctx.lineWidth = 1;
+ctx.beginPath();
+ctx.moveTo(W*0.44, groundY - 24);
+ctx.lineTo(W*0.48, groundY - 22);
+ctx.stroke();
+ctx.shadowBlur = 0;
+
+// --- Title: "RANGER DANGER" ---
+ctx.textAlign = 'center';
+ctx.textBaseline = 'middle';
+
+// Title glow
+ctx.shadowColor = '#7cc4ff';
+ctx.shadowBlur = 30;
+ctx.font = 'bold 72px system-ui, -apple-system, sans-serif';
+ctx.fillStyle = '#7cc4ff';
+ctx.fillText('RANGER DANGER', W/2, H * 0.22);
+ctx.shadowBlur = 15;
+ctx.fillText('RANGER DANGER', W/2, H * 0.22);
+ctx.shadowBlur = 0;
+
+// Title solid
+ctx.fillStyle = '#fff';
+ctx.fillText('RANGER DANGER', W/2, H * 0.22);
+
+// Subtitle
+ctx.font = '600 24px system-ui, -apple-system, sans-serif';
+ctx.fillStyle = '#a0c8e0';
+ctx.letterSpacing = '6px';
+ctx.fillText('B U I L D   ·   D E F E N D   ·   S U R V I V E', W/2, H * 0.34);
+
+// --- Subtle vignette ---
+const vig = ctx.createRadialGradient(W/2, H/2, W*0.25, W/2, H/2, W*0.7);
+vig.addColorStop(0, 'rgba(0,0,0,0)');
+vig.addColorStop(1, 'rgba(0,0,0,0.5)');
+ctx.fillStyle = vig;
+ctx.fillRect(0, 0, W, H);
+
+// --- Border accent ---
+ctx.strokeStyle = '#7cc4ff';
+ctx.lineWidth = 3;
+ctx.shadowColor = '#7cc4ff';
+ctx.shadowBlur = 6;
+ctx.strokeRect(8, 8, W-16, H-16);
+ctx.shadowBlur = 0;
+</script>
+</body>
+</html>
