@@ -315,6 +315,7 @@ export class LevelSelectScene extends Phaser.Scene {
         glowG.strokeCircle(cx, cy, R + this.p(9));
 
         hitZone.on('pointerover', () => {
+          SFX.play('click');
           glowG.setAlpha(1);
           this.tweens.add({
             targets: glowG, alpha: 0.6, yoyo: true, repeat: -1, duration: 600

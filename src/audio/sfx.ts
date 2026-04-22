@@ -71,6 +71,13 @@ class SfxManager {
   private gainNode: GainNode | null = null;
   private _volume = 0.22;
   private _muted = false;
+
+  // Background music
+  private bgmGain: GainNode | null = null;
+  private bgmSource: AudioBufferSourceNode | null = null;
+  private bgmBuffer: AudioBuffer | null = null;
+  private _bgmVolume = 0.12;
+  private bgmPlaying = false;
   private lastPlayed: Partial<Record<SfxKey, number>> = {};
   private cooldowns: Partial<Record<SfxKey, number>> = {
     hit: 80,
@@ -87,6 +94,11 @@ class SfxManager {
     this.gainNode.gain.value = this._volume;
     this.gainNode.connect(this.ctx.destination);
 
+    // BGM gain (separate from SFX)
+    this.bgmGain = this.ctx.createGain();
+    this.bgmGain.gain.value = this._bgmVolume;
+    this.bgmGain.connect(this.ctx.destination);
+
     const loads: Promise<void>[] = [];
     for (const key of SFX_KEYS) {
       const filePath = AUDIO_FILES[key];
@@ -97,6 +109,7 @@ class SfxManager {
         if (b58) this.loadSfxr(key, b58);
       }
     }
+    loads.push(this.loadBgm('/audio/bgm_default.mp3'));
     await Promise.all(loads);
     this.loadClick();
     this.loadCoin();
@@ -220,7 +233,52 @@ class SfxManager {
   get muted() { return this._muted; }
   set muted(m: boolean) { this._muted = m; }
 
-  toggle() { this._muted = !this._muted; }
+  toggle() {
+    this._muted = !this._muted;
+    // Mute/unmute BGM along with SFX
+    if (this.bgmGain) this.bgmGain.gain.value = this._muted ? 0 : this._bgmVolume;
+  }
+
+  // ---- Background music ----
+
+  private async loadBgm(path: string) {
+    try {
+      const resp = await fetch(path);
+      const arrayBuf = await resp.arrayBuffer();
+      this.bgmBuffer = await this.ctx!.decodeAudioData(arrayBuf);
+    } catch (e) {
+      console.warn(`BGM: failed to load ${path}`);
+    }
+  }
+
+  /** Start background music (looping). Safe to call multiple times — restarts if already playing. */
+  playBgm() {
+    if (!this.ctx || !this.bgmGain || !this.bgmBuffer) return;
+    this.stopBgm();
+    if (this.ctx.state === 'suspended') this.ctx.resume();
+    this.bgmSource = this.ctx.createBufferSource();
+    this.bgmSource.buffer = this.bgmBuffer;
+    this.bgmSource.loop = true;
+    this.bgmSource.connect(this.bgmGain);
+    this.bgmSource.start(0);
+    this.bgmPlaying = true;
+  }
+
+  /** Stop background music. */
+  stopBgm() {
+    if (this.bgmSource) {
+      try { this.bgmSource.stop(); } catch (_) { /* already stopped */ }
+      this.bgmSource.disconnect();
+      this.bgmSource = null;
+    }
+    this.bgmPlaying = false;
+  }
+
+  get bgmVolume() { return this._bgmVolume; }
+  set bgmVolume(v: number) {
+    this._bgmVolume = Math.max(0, Math.min(1, v));
+    if (this.bgmGain && !this._muted) this.bgmGain.gain.value = this._bgmVolume;
+  }
 }
 
 /** Global SFX singleton — call SFX.init() once at boot, then SFX.play('key') anywhere. */

@@ -343,6 +343,7 @@ export class GameScene extends Phaser.Scene {
       this.loadingDone = true;
       this.pushHud();
       this.game.events.emit('game-ready');
+      SFX.playBgm();
     });
   }
 
@@ -3340,6 +3341,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   shutdown() {
+    SFX.stopBgm();
     this.game.events.off('ui-build');
     this.game.events.off('ui-sell');
     this.game.events.off('ui-speed');
