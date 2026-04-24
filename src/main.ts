@@ -5,6 +5,7 @@ import { LevelSelectScene } from './scenes/LevelSelectScene';
 import { GameScene } from './scenes/GameScene';
 import { UIScene } from './scenes/UIScene';
 import { SFX } from './audio/sfx';
+import { installViewportResizeListener } from './viewport';
 
 const overlay = document.getElementById('overlay') as HTMLDivElement;
 const startBtn = document.getElementById('startBtn') as HTMLButtonElement;
@@ -68,6 +69,20 @@ function start() {
     overlay.classList.add('hidden');
     const landing = document.getElementById('landingPanel');
     if (landing) landing.classList.remove('loading');
+  });
+
+  // Resize / orientation handling. When the viewport changes (rotate, browser
+  // resize, iOS Safari address bar collapse), recompute the scaling values,
+  // resize the canvas, and notify scenes via a global event so they can
+  // re-layout in place without losing state.
+  installViewportResizeListener((vp) => {
+    game.registry.set('sf', vp.uiScale);
+    game.registry.set('cameraZoom', vp.cameraZoom);
+    game.registry.set('uiScale', vp.uiScale);
+    game.registry.set('isMobile', vp.isMobile);
+    game.scale.setGameSize(vp.renderW, vp.renderH);
+    game.scale.refresh();
+    game.events.emit('viewport-changed', vp);
   });
 }
 

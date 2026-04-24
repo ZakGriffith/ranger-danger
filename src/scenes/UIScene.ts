@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { CFG } from '../config';
 import { Difficulty, saveMedal } from '../levels';
 import { SFX } from '../audio/sfx';
+import { VirtualJoystick } from '../ui/VirtualJoystick';
 
 export class UIScene extends Phaser.Scene {
   hpBarBg!: Phaser.GameObjects.Rectangle;
@@ -38,6 +39,16 @@ export class UIScene extends Phaser.Scene {
   private p(v: number) { return v * this.sf; }
   /** Build a font-size string at scaled resolution */
   private fs(px: number) { return `${Math.round(px * this.sf)}px`; }
+  /** Design-space width (canvas divided by uiScale) — how many base units of
+   *  horizontal room the UI has. Elements sized in base units must fit inside
+   *  this number or they overflow the canvas. */
+  private dw() { return this.scale.width / this.sf; }
+  /** Design-space height. */
+  private dh() { return this.scale.height / this.sf; }
+  /** Mobile flag (from registry). */
+  private isMobile = false;
+  /** Virtual joystick (mobile only). */
+  private joystick: VirtualJoystick | null = null;
 
   constructor() { super({ key: 'UI', active: false }); }
 
@@ -48,11 +59,14 @@ export class UIScene extends Phaser.Scene {
     this.bossBarBg = undefined;
     this.bossBar = undefined;
     this.bossLabel = undefined;
-    this.speedIdx = 0;
+    // Restore speedIdx if a prior incarnation persisted it (e.g. across a
+    // viewport-driven scene restart on rotation). Default to 0 for fresh runs.
+    this.speedIdx = (this.game.registry.get('uiSpeedIdx') as number) ?? 0;
   }
 
   create() {
     this.sf = this.game.registry.get('sf') || 1;
+    this.isMobile = !!this.game.registry.get('isMobile');
     const W = this.scale.width;
     const H = this.scale.height;
     const T = this.p(20); // top padding
@@ -119,8 +133,10 @@ export class UIScene extends Phaser.Scene {
       () => this.game.events.emit('ui-build', 'wall'));
     this.btnSpeed = this.makeHotbarSlot(slotX(4), hotbarY, slotSize, slotSize, 'SPC', 'speed', 'SPEED', '',
       () => this.cycleSpeed());
-    // Speed cycle text overlay
-    this.speedLabel = this.add.text(0, 0, '>', {
+    // Speed cycle text overlay — initial text matches the persisted speedIdx
+    // so a restart (e.g. viewport rotation) doesn't desync from GameScene.
+    const speedLabels = ['>', '>>', '>>>'];
+    this.speedLabel = this.add.text(0, 0, speedLabels[this.speedIdx] ?? '>', {
       fontFamily: 'monospace', fontSize: this.fs(16), fontStyle: 'bold', color: '#c4a850',
       stroke: '#0a0e1a', strokeThickness: this.p(3),
     }).setOrigin(0.5);
@@ -168,8 +184,10 @@ export class UIScene extends Phaser.Scene {
       stroke: '#0b0f1a', strokeThickness: this.p(4)
     }).setOrigin(0.5).setVisible(false);
 
-    // Wave progress bar (centered, same position as boss bar)
-    const barW = this.p(420);
+    // Wave progress bar (centered, same position as boss bar). Clamp to the
+    // available design width so it doesn't overflow narrow mobile canvases.
+    const waveBarBaseW = Math.min(420, this.dw() - 40);
+    const barW = this.p(waveBarBaseW);
     const barX = (W - barW) / 2;
     const barY = T + this.p(38);
     this.waveLabel = this.add.text(W / 2, barY - this.p(16), 'WAVE 1', {
@@ -200,11 +218,68 @@ export class UIScene extends Phaser.Scene {
         this.buildErrorText.setVisible(false);
       }
     });
+
+    // ---- Mobile virtual joystick (lower-left) ----
+    if (this.isMobile) {
+      // Place above the bottom edge so it clears any home-indicator safe area.
+      const outerR = this.p(60);
+      const innerR = this.p(28);
+      const margin = this.p(60);
+      const cx = margin + outerR;
+      const cy = H - margin - outerR;
+      const touchPad = this.p(20);
+      this.joystick = new VirtualJoystick(this, cx, cy, outerR, innerR, outerR + touchPad);
+
+      // Publish the joystick's screen-space hit rect so GameScene can ignore
+      // taps in this region (otherwise tapping the stick during build mode
+      // would also fire handleClick and try to place a tower under your thumb).
+      const halfSize = outerR + touchPad;
+      this.game.registry.set('joystickBounds', {
+        x: cx - halfSize,
+        y: cy - halfSize,
+        w: halfSize * 2,
+        h: halfSize * 2,
+      });
+    }
+
+    // Publish joystick state to the registry every frame so GameScene can read
+    // it from updatePlayer without coupling the two scenes through events.
+    this.events.on(Phaser.Scenes.Events.UPDATE, () => {
+      if (this.joystick) {
+        this.game.registry.set('joystickX', this.joystick.x);
+        this.game.registry.set('joystickY', this.joystick.y);
+      }
+    });
+
+    // If a boss is alive (e.g. we just restarted on rotation), rebuild the
+    // boss bar from registry state since boss-spawn is one-shot and we missed
+    // the original event.
+    if (this.game.registry.get('bossActive')) {
+      const bossMaxHp = (this.game.registry.get('bossMaxHp') as number) || 1;
+      const bossHp = (this.game.registry.get('bossHp') as number) || 0;
+      const biome = this.game.registry.get('bossBiome') as string;
+      this.showBossBar({ maxHp: bossMaxHp, biome });
+      this.updateBossBar({ hp: bossHp, maxHp: bossMaxHp });
+    }
+
+    // Re-layout on rotation / window resize. Restarting cleanly rebuilds every
+    // element at the new uiScale; shutdown() above unbinds the listeners so
+    // they don't accumulate across restarts.
+    const onViewportChanged = () => {
+      // Clear joystick state so the player doesn't drift after restart.
+      this.game.registry.set('joystickX', 0);
+      this.game.registry.set('joystickY', 0);
+      if (this.scene.isActive('UI')) this.scene.restart();
+    };
+    this.game.events.on('viewport-changed', onViewportChanged);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.game.events.off('viewport-changed', onViewportChanged);
+    });
   }
 
   showBossBar(s: any) {
     const W = this.scale.width;
-    const barW = this.p(420);
+    const barW = this.p(Math.min(420, this.dw() - 40));
     const x = (W - barW) / 2;
     const y = this.p(58); // 20 (top pad) + 38
     if (this.bossBarBg) return;
@@ -235,6 +310,8 @@ export class UIScene extends Phaser.Scene {
     this.speedIdx = (this.speedIdx + 1) % speeds.length;
     this.speedLabel.setText(labels[this.speedIdx]);
     this.game.events.emit('ui-speed', speeds[this.speedIdx]);
+    // Persist so a viewport-driven scene restart preserves the chosen speed.
+    this.game.registry.set('uiSpeedIdx', this.speedIdx);
   }
 
   makeButton(x: number, y: number, w: number, h: number, label: string, onClick: () => void) {
@@ -481,7 +558,8 @@ export class UIScene extends Phaser.Scene {
       this.waveBarBg.setVisible(false);
       this.waveBar.setVisible(false);
     } else {
-      const maxW = this.p(416); // barW - 4
+      // Match the clamped wave bar width — bg width minus the inset border.
+      const maxW = this.waveBarBg.width - this.p(4);
       const wavePct = s.waveSize > 0 ? Math.min(1, s.waveKills / s.waveSize) : 0;
       this.waveBar.width = maxW * (1 - wavePct);
 

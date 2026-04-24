@@ -6,6 +6,14 @@ import { CFG } from './config';
 const MOBILE_PORTRAIT_WORLD_W = 540;
 const MOBILE_LANDSCAPE_WORLD_W = 720;
 
+// Mobile UI design space. The UI is laid out assuming the canvas is this many
+// base units. uiScale = renderDimension / designDimension, so a slot defined at
+// base size 48 renders tap-friendly on phones while still fitting horizontally.
+const MOBILE_PORTRAIT_UI_DESIGN_W = 400;
+const MOBILE_PORTRAIT_UI_DESIGN_H = 800;
+const MOBILE_LANDSCAPE_UI_DESIGN_W = 800;
+const MOBILE_LANDSCAPE_UI_DESIGN_H = 400;
+
 export interface ViewportInfo {
   isMobile: boolean;
   isPortrait: boolean;
@@ -57,9 +65,12 @@ export function computeViewport(): ViewportInfo {
   const renderH = Math.round(h * dpr);
   const targetWorldW = isPortrait ? MOBILE_PORTRAIT_WORLD_W : MOBILE_LANDSCAPE_WORLD_W;
   const cameraZoom = renderW / targetWorldW;
-  // UI scale: chunkier than desktop for tap targets. dpr * 1.5 keeps CSS-pixel
-  // text around 22–24px for a 15-unit base — thumb-readable on mobile.
-  const uiScale = dpr * 1.5;
+  // UI scale: on mobile the UI is re-authored to a smaller design space so the
+  // resulting uiScale is generous enough for tap-sized hit targets while still
+  // guaranteeing `designW * uiScale ≤ canvas_width` (no overflow).
+  const designW = isPortrait ? MOBILE_PORTRAIT_UI_DESIGN_W : MOBILE_LANDSCAPE_UI_DESIGN_W;
+  const designH = isPortrait ? MOBILE_PORTRAIT_UI_DESIGN_H : MOBILE_LANDSCAPE_UI_DESIGN_H;
+  const uiScale = Math.min(renderW / designW, renderH / designH);
   return {
     isMobile: true,
     isPortrait,
@@ -73,4 +84,33 @@ export function computeViewport(): ViewportInfo {
 /** Compute how many world units are currently visible in the camera view. */
 export function viewportWorldSize(vp: ViewportInfo): { w: number; h: number } {
   return { w: vp.renderW / vp.cameraZoom, h: vp.renderH / vp.cameraZoom };
+}
+
+/** Install a debounced listener that re-runs `onChange` whenever the window's
+ *  size or orientation changes (rotation, browser resize, address-bar
+ *  collapse). Returns a cleanup function. */
+export function installViewportResizeListener(
+  onChange: (vp: ViewportInfo) => void,
+  debounceMs = 120,
+): () => void {
+  let timer: number | undefined;
+  const handler = () => {
+    if (timer !== undefined) window.clearTimeout(timer);
+    timer = window.setTimeout(() => {
+      timer = undefined;
+      onChange(computeViewport());
+    }, debounceMs);
+  };
+  window.addEventListener('resize', handler);
+  window.addEventListener('orientationchange', handler);
+  // visualViewport gives more accurate values when iOS Safari shows/hides the
+  // address bar. Not all browsers expose it.
+  const vv = (window as any).visualViewport as VisualViewport | undefined;
+  vv?.addEventListener('resize', handler);
+  return () => {
+    window.removeEventListener('resize', handler);
+    window.removeEventListener('orientationchange', handler);
+    vv?.removeEventListener('resize', handler);
+    if (timer !== undefined) window.clearTimeout(timer);
+  };
 }

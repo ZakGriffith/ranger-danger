@@ -31,7 +31,6 @@ export class LevelSelectScene extends Phaser.Scene {
     // Compute native display size and decoupled scales (desktop stays identical;
     // mobile fills the device viewport with its own camera zoom + UI scale).
     const vp = computeViewport();
-    this.sf = vp.uiScale;
     const nativeW = vp.renderW;
     const nativeH = vp.renderH;
 
@@ -44,6 +43,23 @@ export class LevelSelectScene extends Phaser.Scene {
     this.game.registry.set('cameraZoom', vp.cameraZoom);
     this.game.registry.set('uiScale', vp.uiScale);
     this.game.registry.set('isMobile', vp.isMobile);
+
+    // Level select has its own layout authored against a 960×640 design space
+    // (level node positions go out to x≈870), so it uses the legacy min-ratio
+    // formula instead of the mobile uiScale — otherwise far-right nodes would
+    // render off-screen on phones.
+    this.sf = Math.min(nativeW / CFG.width, nativeH / CFG.height);
+
+    // Re-layout on rotation: this scene has no preserved state, so a restart
+    // is the cleanest way to rebuild every node/banner at the new size.
+    const onViewportChanged = () => {
+      // Only restart while LevelSelect is the active scene.
+      if (this.scene.isActive('LevelSelect')) this.scene.restart();
+    };
+    this.game.events.once('viewport-changed', onViewportChanged);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.game.events.off('viewport-changed', onViewportChanged);
+    });
 
     this.medalStore = loadMedals();
     this.medalCount = totalMedals(this.medalStore);

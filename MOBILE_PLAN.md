@@ -71,19 +71,60 @@ Deliberately deferred (handled in later phases):
 - Safe-area insets, fullscreen-on-play, PWA manifest → Phase 4.
 - Level select screen layout on mobile may look rough — acceptable for Phase 1 since the game itself renders correctly.
 
-## Phase 2 — UI re-layout with anchors
+### Phase 1 follow-up (uiScale fix)
 
-- [ ] Refactor `UIScene` to build layout in a `layout()` method that reads current `this.scale.width/height` and `uiScale`.
-- [ ] Call `layout()` in `create()` and on `this.scale.on('resize', …)`.
-- [ ] Replace hard-coded positions like `W - this.p(60)` with named anchors: top-left, top-right, bottom-center (hotbar), bottom-left (future joystick), bottom-right (future action buttons).
-- [ ] Add safe-area insets: `env(safe-area-inset-top/bottom)` in CSS, respect them in UI anchor padding for iOS notches.
+First mobile build had `uiScale = dpr * 1.5` (≈4.5 on DPR-3 phones). The hotbar's design-space width (`5 * 48 + 4 * 10 = 280`) blew up to `1260` physical pixels on iPhone portrait (canvas 1170 wide) — every UI element overflowed and the in-game HUD overlapped the coin badge. Level select nodes at `level.x * uiScale` flew off-screen.
 
-## Phase 3 — Touch input
+Fixed by switching mobile `uiScale` to the same min-ratio formula desktop uses:
 
-- [ ] Detect touch: `const isTouch = window.matchMedia('(pointer: coarse)').matches;`
-- [ ] Add virtual joystick (bottom-left, only when touch) that converts to the same `vx/vy` the keyboard path produces in `updatePlayer`.
-- [ ] Tap-to-place for build mode (replace hover-preview with "ghost follows tap, confirm button places").
-- [ ] Bigger hotbar slots when `uiScale > 1` (wire the `p()` helper to `uiScale` instead of `sf`).
+```
+uiScale = min(renderW / CFG.width, renderH / CFG.height)
+```
+
+This guarantees `960 * uiScale ≤ canvas_width` and `640 * uiScale ≤ canvas_height`, so the existing 960×640 design layout fits without overflow. Trade-off: UI is *visible* but small; tap targets are below Apple's 44pt minimum on phone-sized screens. **Phase 2 needs to land before mobile is genuinely usable.**
+
+## Phase 2 — UI re-layout ✅
+
+Landed:
+
+- [x] **Mobile uiScale uses a smaller "design space"** so the resulting `uiScale` is large enough for tap-friendly UI without overflowing. `viewport.ts` defines `MOBILE_PORTRAIT_UI_DESIGN_W = 400 / DESIGN_H = 800` (and 800×400 for landscape). `uiScale = min(renderW / designW, renderH / designH)` — yields ≈2.93 on iPhone 14 portrait, so a base-48 hotbar slot renders ≈47 CSS px, above Apple's 44pt minimum.
+- [x] **Wave bar and boss bar clamped to design width** via new `dw()` / `dh()` helpers in `UIScene` (returns `scale.width / sf` etc). Bars now `min(420, dw() - 40)` wide so they don't run off narrow portrait canvases.
+- [x] **`updateHud` reads the live wave-bar width** instead of a hardcoded `p(416)` so the inner fill matches the clamped background.
+- [x] **LevelSelectScene gets its own scale** based on the legacy 960×640 formula. The level node positions go out to `x≈870` (designed against a 960-wide canvas), so it can't share the mobile UI's 400-wide design space without nodes flying off the right edge. This is a per-scene override; in-game UI keeps the mobile-tuned `uiScale`.
+
+Deliberately deferred (still TODO if needed):
+
+- Safe-area insets via `env(safe-area-inset-*)`. The joystick uses a `p(60)` margin that clears the iOS home indicator in practice, but a proper inset-aware approach is cleaner.
+
+### Phase 2 follow-up — orientation/resize handling ✅
+
+Landed:
+
+- [x] **`installViewportResizeListener` in `viewport.ts`** — debounced (120ms) listener on `window.resize`, `orientationchange`, and `visualViewport.resize` (iOS Safari address-bar collapse). Returns a cleanup fn.
+- [x] **`main.ts` wires the listener once at game creation**: recomputes `computeViewport()`, updates registry (`sf`, `cameraZoom`, `uiScale`, `isMobile`), calls `game.scale.setGameSize(...)` so the canvas matches the new physical viewport, then emits a global `'viewport-changed'` event.
+- [x] **GameScene listener**: pulls new `cameraZoom` from registry, calls `cameras.main.setZoom(...)`, recomputes `spawnDist` (now extracted to `recomputeSpawnDist()` helper), and resets `lastChunkCx/Cy = -9999` so the chunk generator regenerates around the new view radius. World state (player, towers, enemies, money) is preserved.
+- [x] **UIScene listener**: clears the joystick vector and calls `this.scene.restart()`. UIScene's existing `shutdown()` removes its game-event listeners so they don't accumulate. `init()` restores `speedIdx` from a registry key (`uiSpeedIdx`) and the speed-cycle label is built from that index — game speed survives the restart.
+- [x] **LevelSelectScene listener**: uses `this.scene.restart()` since it has no preserved state.
+
+Edge cases / known caveats:
+
+- ~~Rotating *while a boss is alive* loses the boss HP bar~~ **Fixed.** GameScene now persists `bossActive`, `bossHp`, `bossMaxHp`, `bossBiome` to the registry on spawn and updates `bossHp` on every damage event (clearing `bossActive` when the boss starts dying). UIScene's `create()` checks `bossActive` and rebuilds the bar from the persisted values if a boss is in progress.
+- An open end-game panel disappears across a resize (the `game-end` event is one-shot too). The player would need to tap "Return to Map" via a fresh menu invocation. Niche enough to defer.
+
+## Phase 3 — Touch input ✅
+
+Landed:
+
+- [x] **Touch detection** via `isMobileDevice()` in `viewport.ts` (`matchMedia('(pointer: coarse)')` with a small-viewport fallback). Result is published to the registry as `isMobile`.
+- [x] **Virtual joystick** (`src/ui/VirtualJoystick.ts`) — outer ring + tracking inner stick. Created in `UIScene.create()` only when `isMobile`. Anchored to the lower-left with a `p(60)` bottom margin to clear the iOS home indicator. Outer radius `p(60)`, inner radius `p(28)`, hit zone padded by `p(20)` for thumb forgiveness.
+- [x] **Joystick → `updatePlayer`**: UIScene publishes the normalized `(x, y)` vector to `game.registry` every frame on its `UPDATE` event. `GameScene.updatePlayer` reads it, applies a 0.1-magnitude deadband, and adds the vector to the keyboard delta. The combined velocity is clamped to unit length so an analog joystick gives proper variable speed while keyboard still maxes out.
+- [x] **Joystick / tap conflict resolved**: UIScene publishes `joystickBounds` (screen-space rect) to the registry. `GameScene.handleClick` returns early when the tap lands inside that rect, and the build-ghost preview skips repositioning when the active pointer is in the joystick zone (so dragging the stick during build mode doesn't snap the ghost onto your thumb).
+- [x] **Bigger hotbar slots on mobile** — falls out automatically from the new mobile `uiScale` (no per-slot logic needed).
+
+Deliberately deferred:
+
+- Tap-to-place UX refinement — the existing `pointerdown` → place flow already works on touch (Phaser treats taps as pointer events). A two-step "tap to preview, tap again to confirm" flow could be nicer but isn't strictly needed.
+- Multi-touch: the joystick uses a single pointer at a time; combining "stick on left thumb + tap to place on right" works because Phaser tracks multiple pointers and `activePointer` is the most recent one.
 
 ## Phase 4 — Page / PWA polish
 

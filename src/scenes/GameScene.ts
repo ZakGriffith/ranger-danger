@@ -143,6 +143,11 @@ export class GameScene extends Phaser.Scene {
     this.boss = null;
     this.bossSpawned = false;
     this.bossCountdownUntil = 0;
+    // Clear any persisted boss state from the previous run/level.
+    this.game.registry.set('bossActive', false);
+    this.game.registry.set('bossHp', 0);
+    this.game.registry.set('bossMaxHp', 0);
+    this.game.registry.set('bossBiome', '');
     this.killsTarget = CFG.winKills;
     this.gameOver = false;
     this.boulders = [];
@@ -229,14 +234,23 @@ export class GameScene extends Phaser.Scene {
     // Viewport-aware spawn radius. Desktop keeps CFG.spawnDist exactly (hard
     // requirement). On mobile the view aspect differs from 3:2, so the corner
     // distance can exceed 18 tiles (notably in portrait) — grow to cover it.
-    const vp = computeViewport();
-    if (vp.isMobile) {
-      const { w: viewW, h: viewH } = viewportWorldSize(vp);
-      const cornerTiles = Math.ceil(Math.hypot(viewW / 2, viewH / 2) / CFG.tile);
-      this.spawnDist = Math.max(CFG.spawnDist, cornerTiles + 2);
-    } else {
-      this.spawnDist = CFG.spawnDist;
-    }
+    this.recomputeSpawnDist();
+
+    // React to rotation / window resize: pull the new camera zoom out of the
+    // registry and grow chunk/spawn radius to match the new viewport. World
+    // state (player, towers, enemies) stays untouched.
+    const onViewportChanged = () => {
+      const newZoom = (this.game.registry.get('cameraZoom') as number) ?? 1;
+      this.cameras.main.setZoom(newZoom);
+      this.recomputeSpawnDist();
+      // Force chunk regeneration around player at the new view radius.
+      this.lastChunkCx = -9999;
+      this.lastChunkCy = -9999;
+    };
+    this.game.events.on('viewport-changed', onViewportChanged);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.game.events.off('viewport-changed', onViewportChanged);
+    });
 
     // Apply difficulty adjustments
     if (this.difficulty === 'oneHP') {
@@ -466,6 +480,17 @@ export class GameScene extends Phaser.Scene {
 
   handleClick(p: Phaser.Input.Pointer) {
     if (this.gameOver) return;
+
+    // Ignore taps that land inside the mobile joystick's hit zone — otherwise
+    // dragging the stick during build mode would also place a tower beneath
+    // the thumb. Bounds are published by UIScene in screen-space pixels.
+    const jb = this.game.registry.get('joystickBounds') as
+      | { x: number; y: number; w: number; h: number }
+      | undefined;
+    if (jb && p.x >= jb.x && p.x <= jb.x + jb.w && p.y >= jb.y && p.y <= jb.y + jb.h) {
+      return;
+    }
+
     const wx = p.worldX, wy = p.worldY;
 
     // panel takes priority — clicks inside it are handled by button hit areas
@@ -833,6 +858,20 @@ export class GameScene extends Phaser.Scene {
     return { x: Math.floor(x / CFG.tile), y: Math.floor(y / CFG.tile) };
   }
 
+  /** Recompute the effective spawn radius from the current viewport. Desktop
+   *  always resolves to CFG.spawnDist; mobile grows it to cover the camera's
+   *  corner distance plus a 2-tile margin so enemies still spawn off-screen. */
+  recomputeSpawnDist() {
+    const vp = computeViewport();
+    if (vp.isMobile) {
+      const { w: viewW, h: viewH } = viewportWorldSize(vp);
+      const cornerTiles = Math.ceil(Math.hypot(viewW / 2, viewH / 2) / CFG.tile);
+      this.spawnDist = Math.max(CFG.spawnDist, cornerTiles + 2);
+    } else {
+      this.spawnDist = CFG.spawnDist;
+    }
+  }
+
   /** Count how many of the 4 cardinal spawn directions can reach (px, py). */
   countReachableDirections(px: number, py: number): number {
     const dist = this.spawnDist;
@@ -965,6 +1004,13 @@ export class GameScene extends Phaser.Scene {
     // Ghost follow pointer (runs even while build-paused)
     if (this.buildKind !== 'none') {
       const p = this.input.activePointer;
+      // Don't snap the ghost onto the joystick when the player's thumb is on
+      // the stick — keep it at its last position until they tap elsewhere.
+      const jb = this.game.registry.get('joystickBounds') as
+        | { x: number; y: number; w: number; h: number }
+        | undefined;
+      const overJoystick = !!jb && p.x >= jb.x && p.x <= jb.x + jb.w && p.y >= jb.y && p.y <= jb.y + jb.h;
+      if (!overJoystick) {
       const tx = Math.floor(p.worldX / CFG.tile);
       const ty = Math.floor(p.worldY / CFG.tile);
       let buildErr = '';
@@ -1019,6 +1065,7 @@ export class GameScene extends Phaser.Scene {
         this.ghost.setTint(valid && canAffordWall ? 0x88ff88 : 0xff8888);
       }
       this.game.events.emit('build-error', buildErr);
+      } // end !overJoystick
     }
 
     // Generate ground chunks around player as they move (4ms budget per frame)
@@ -1479,10 +1526,25 @@ export class GameScene extends Phaser.Scene {
     if (k.D.isDown || k.RIGHT.isDown) vx += 1;
     if (k.W.isDown || k.UP.isDown) vy -= 1;
     if (k.S.isDown || k.DOWN.isDown) vy += 1;
+
+    // Mobile virtual joystick contribution. UIScene publishes the current
+    // stick vector to the registry every frame; we add it to the keyboard
+    // delta so either input source (or both) can drive movement. A 0.1
+    // magnitude deadband suppresses thumb jitter when the stick is at rest.
+    const jx = (this.game.registry.get('joystickX') as number) || 0;
+    const jy = (this.game.registry.get('joystickY') as number) || 0;
+    if (jx * jx + jy * jy >= 0.01) {
+      vx += jx;
+      vy += jy;
+    }
+
     const moving = vx !== 0 || vy !== 0;
     if (moving) {
       const len = Math.hypot(vx, vy);
-      vx /= len; vy /= len;
+      // Joystick already produces magnitudes ≤ 1; clamp the combined vector
+      // to a unit length so diagonal input from keys doesn't outrun the stick.
+      const norm = Math.max(1, len);
+      vx /= norm; vy /= norm;
       this.player.setVelocity(vx * CFG.player.speed, vy * CFG.player.speed);
       if (vx !== 0) this.player.facingRight = vx > 0;
       this.player.setFlipX(!this.player.facingRight);
@@ -2733,6 +2795,12 @@ export class GameScene extends Phaser.Scene {
     this.physics.add.collider(this.boss, this.wallGroup, onStructureHit, () => this.biome !== 'river');
     this.physics.add.collider(this.boss, this.towerGroup, onStructureHit, () => this.biome !== 'river');
     this.game.events.emit('boss-spawn', { hp: this.boss.hp, maxHp: this.boss.maxHp, biome: this.biome });
+    // Persist boss state so a viewport-driven UIScene restart can recreate
+    // the boss bar from registry data (boss-spawn is one-shot).
+    this.game.registry.set('bossActive', true);
+    this.game.registry.set('bossHp', this.boss.hp);
+    this.game.registry.set('bossMaxHp', this.boss.maxHp);
+    this.game.registry.set('bossBiome', this.biome);
     SFX.play('bossSpawn');
     const bossTitle = this.biome === 'forest' ? 'THE WENDIGO'
                     : this.biome === 'infected' ? 'THE BLIGHTED ONE'
@@ -2870,7 +2938,11 @@ export class GameScene extends Phaser.Scene {
     spark.once('animationcomplete', () => spark.destroy());
     pr.destroy();
     this.game.events.emit('boss-hp', { hp: b.hp, maxHp: b.maxHp });
-    if (b.dying) this.dropBossLoot(b);
+    this.game.registry.set('bossHp', b.hp);
+    if (b.dying) {
+      this.game.registry.set('bossActive', false);
+      this.dropBossLoot(b);
+    }
   }
 
   dropBossLoot(b: Boss) {
@@ -3044,7 +3116,11 @@ export class GameScene extends Phaser.Scene {
       if (dx * dx + dy * dy <= r2) {
         this.boss.hurt(Math.floor(dmg * 0.6));
         this.game.events.emit('boss-hp', { hp: this.boss.hp, maxHp: this.boss.maxHp });
-        if (this.boss.dying) this.dropBossLoot(this.boss);
+        this.game.registry.set('bossHp', this.boss.hp);
+        if (this.boss.dying) {
+          this.game.registry.set('bossActive', false);
+          this.dropBossLoot(this.boss);
+        }
       }
     }
   }
