@@ -28,6 +28,7 @@ export class UIScene extends Phaser.Scene {
   progressContainer!: Phaser.GameObjects.Container;
   countdownText!: Phaser.GameObjects.Text;
   buildErrorText!: Phaser.GameObjects.Text;
+  buildHintText!: Phaser.GameObjects.Text;
 
   levelId = 1;
   difficulty: Difficulty = 'easy';
@@ -188,6 +189,12 @@ export class UIScene extends Phaser.Scene {
       padding: { x: Number(this.p(10)), y: Number(this.p(4)) }
     }).setOrigin(0.5, 1).setDepth(900).setVisible(false);
 
+    // Build mode cancel hint
+    this.buildHintText = this.add.text(W / 2, hotbarTop - this.p(38), 'Right-click or ESC to cancel', {
+      fontFamily: 'monospace', fontSize: this.fs(10), color: '#7a8a9a',
+      stroke: '#0b0f1a', strokeThickness: this.p(2)
+    }).setOrigin(0.5, 1).setDepth(900).setVisible(false);
+
     // listen for HUD updates
     this.game.events.on('hud', (s: any) => this.updateHud(s));
     this.game.events.on('game-end', (s: any) => this.showEnd(s));
@@ -199,6 +206,10 @@ export class UIScene extends Phaser.Scene {
       } else {
         this.buildErrorText.setVisible(false);
       }
+    });
+    this.game.events.on('build-mode', (active: boolean) => {
+      this.buildHintText.setVisible(active);
+      if (!active) this.buildErrorText.setVisible(false);
     });
   }
 
@@ -520,5 +531,6 @@ export class UIScene extends Phaser.Scene {
     this.game.events.off('boss-spawn');
     this.game.events.off('boss-hp');
     this.game.events.off('build-error');
+    this.game.events.off('build-mode');
   }
 }

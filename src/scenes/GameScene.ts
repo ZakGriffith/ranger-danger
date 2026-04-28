@@ -265,6 +265,7 @@ export class GameScene extends Phaser.Scene {
       else this.setBuild('none');
     });
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => this.handleClick(p));
+    this.input.mouse!.disableContextMenu();
 
     // build ghost
     this.ghost = this.add.sprite(0, 0, 'wall').setAlpha(0.5).setDepth(800).setVisible(false).setOrigin(0.5).setScale(0.5);
@@ -402,6 +403,7 @@ export class GameScene extends Phaser.Scene {
     if (k === 'tower' && towerKind) this.buildTowerKind = towerKind;
     this.ghost.setVisible(k !== 'none');
     if (this.gridOverlay) this.gridOverlay.setVisible(k !== 'none');
+    this.game.events.emit('build-mode', k !== 'none');
     if (k === 'none') this.game.events.emit('build-error', '');
     if (k === 'tower') {
       this.ghost.setTexture(this.buildTowerKind === 'cannon' ? 'c_base' : 't_base');
@@ -449,6 +451,13 @@ export class GameScene extends Phaser.Scene {
 
   handleClick(p: Phaser.Input.Pointer) {
     if (this.gameOver) return;
+
+    // Right-click cancels build mode
+    if (p.rightButtonDown() && this.buildKind !== 'none') {
+      this.setBuild('none');
+      return;
+    }
+
     const wx = p.worldX, wy = p.worldY;
 
     // panel takes priority — clicks inside it are handled by button hit areas
@@ -497,6 +506,7 @@ export class GameScene extends Phaser.Scene {
       this.gridVersion++; this._wallCheckCache = { key: '', valid: false }; this.rebuildGapBlockers(); this.rebuildGapBlockers();
       this.pushHud();
       SFX.play('towerPlace');
+      this.setBuild('none');
       return;
     }
 
@@ -814,6 +824,24 @@ export class GameScene extends Phaser.Scene {
 
   worldToTile(x: number, y: number) {
     return { x: Math.floor(x / CFG.tile), y: Math.floor(y / CFG.tile) };
+  }
+
+  /** Tile-grid raycast: returns true if no wall (1) or tower (2) tiles block the line. */
+  hasLineOfSight(x1: number, y1: number, x2: number, y2: number): boolean {
+    const t = CFG.tile;
+    let tx = Math.floor(x1 / t), ty = Math.floor(y1 / t);
+    const ex = Math.floor(x2 / t), ey = Math.floor(y2 / t);
+    const dx = Math.abs(ex - tx), dy = Math.abs(ey - ty);
+    const sx = tx < ex ? 1 : -1, sy = ty < ey ? 1 : -1;
+    let err = dx - dy;
+    while (true) {
+      if (tx === ex && ty === ey) return true;
+      const v = gridGet(this.grid, tx, ty);
+      if (v === 1 || v === 2) return false; // wall or tower blocks
+      const e2 = err * 2;
+      if (e2 > -dy) { err -= dy; tx += sx; }
+      if (e2 < dx)  { err += dx; ty += sy; }
+    }
   }
 
   /** Count how many of the 4 cardinal spawn directions can reach (px, py). */
@@ -1784,13 +1812,31 @@ export class GameScene extends Phaser.Scene {
       }
 
       // Mosquito ranged attack — stops at range and fires darts
+      // Needs line of sight (no walls/towers blocking). If blocked, rushes to get a clear shot.
+      // If very close, melee attacks instead.
       if (e.kind === 'mosquito') {
         const mqRange = CFG.river.mosquitoRange;
+        const meleeRange = 30;
         const dist = Math.sqrt(dist2);
         e.setFlipX(tx - e.x < 0);
-        if (dist < mqRange) {
-          // In range — stop and shoot
-          // Orbit slightly instead of standing still
+
+        // Close enough to melee
+        if (dist < meleeRange) {
+          e.setVelocity(0, 0);
+          if (e.anims.currentAnim?.key !== `${prefix}-atk`) e.play(`${prefix}-atk`);
+          if (time > e.attackCd) {
+            e.attackCd = time + 700;
+            this.player.hurt(e.dmg, this);
+            this.pushHud();
+            if (this.player.hp <= 0) this.lose();
+          }
+          return true;
+        }
+
+        const hasLOS = this.hasLineOfSight(e.x, e.y, tx, ty);
+
+        if (dist < mqRange && hasLOS) {
+          // In range with clear line of sight — orbit and shoot
           const perpX = -(ty - e.y), perpY = tx - e.x;
           const pLen = Math.hypot(perpX, perpY) || 1;
           e.setVelocity((perpX / pLen) * e.speed * 0.3, (perpY / pLen) * e.speed * 0.3);
@@ -1801,10 +1847,12 @@ export class GameScene extends Phaser.Scene {
           }
           return true;
         }
-        // Too far — chase closer
+
+        // No line of sight or too far — rush toward player at full speed
         const dx = tx - e.x, dy = ty - e.y;
         const d = dist || 1;
-        e.setVelocity((dx / d) * e.speed, (dy / d) * e.speed);
+        const rushSpeed = hasLOS ? e.speed : e.speed * 1.5;
+        e.setVelocity((dx / d) * rushSpeed, (dy / d) * rushSpeed);
         if (e.anims.currentAnim?.key !== `${prefix}-move`) e.play(`${prefix}-move`);
         return true;
       }
@@ -2733,7 +2781,7 @@ export class GameScene extends Phaser.Scene {
 
   enemyHitsPlayer(e: Enemy) {
     if (!e.active || e.dying) return;
-    if (e.kind === 'mosquito') return; // mosquitoes only damage via darts
+    // mosquitoes handle their own melee in the update loop
     if (this.vTime > e.attackCd) {
       e.attackCd = this.vTime + 700;
       this.player.hurt(e.dmg, this);
