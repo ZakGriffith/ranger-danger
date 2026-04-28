@@ -71,14 +71,21 @@ export class UIScene extends Phaser.Scene {
     const H = this.scale.height;
     const T = this.p(20); // top padding
 
-    // top-left HUD
+    // top-left HUD — bar is 25% narrower on mobile to leave room for the
+    // centered wave bar. On portrait mobile the bar nudges up ~5px to tuck
+    // closer under the Ranger label (label stays put).
     this.nameText = this.add.text(this.p(12), T, '', { fontFamily: 'monospace', fontSize: this.fs(14), color: '#7cc4ff' });
-    const hpBarW = this.p(180);
-    this.hpBarBg = this.add.rectangle(this.p(12), T + this.p(22), hpBarW, this.p(14), 0x111826).setOrigin(0, 0).setStrokeStyle(this.p(1), 0x2a3760);
-    this.hpBar = this.add.rectangle(this.p(13), T + this.p(23), hpBarW - this.p(2), this.p(12), 0xd94a4a).setOrigin(0, 0);
+    const hpBarBaseW = this.isMobile ? 135 : 180;
+    const hpBarW = this.p(hpBarBaseW);
+    const isPortraitMobile = this.isMobile && H > W;
+    const hpBarYOffset = isPortraitMobile ? this.p(17) : this.p(22);
+    this.hpBarBg = this.add.rectangle(this.p(12), T + hpBarYOffset, hpBarW, this.p(14), 0x111826).setOrigin(0, 0).setStrokeStyle(this.p(1), 0x2a3760);
+    this.hpBar = this.add.rectangle(this.p(13), T + hpBarYOffset + this.p(1), hpBarW - this.p(2), this.p(12), 0xd94a4a).setOrigin(0, 0);
 
-    // Top-right gold badge (WoW-style)
-    const coinX = W - this.p(60);
+    // Top-right gold badge (WoW-style). On portrait mobile, shift right so
+    // the rightmost element (the coin circle, which extends to coinX+p(25))
+    // aligns with the right edge of the centered wave bar at W-p(20).
+    const coinX = isPortraitMobile ? W - this.p(45) : W - this.p(60);
     const coinY = T + this.p(14);
     // Dark inset panel behind the number
     this.add.rectangle(coinX + this.p(6), coinY, this.p(80), this.p(26), 0x0b0f1a, 0.85).setOrigin(1, 0.5).setStrokeStyle(this.p(1), 0x3a3a1a);
@@ -489,7 +496,7 @@ export class UIScene extends Phaser.Scene {
     if (!s) return;
     this.nameText.setText(s.name ?? 'Ranger');
     const pct = Math.max(0, s.hp / s.maxHp);
-    const hpBarInner = this.p(178);
+    const hpBarInner = this.hpBarBg.width - this.p(2);
     this.hpBar.width = hpBarInner * pct;
     this.hpBar.fillColor = pct > 0.5 ? 0x4ad96a : pct > 0.25 ? 0xd9a84a : 0xd94a4a;
     this.moneyText.setText(`${s.money}`);
