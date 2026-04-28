@@ -131,8 +131,12 @@ class SfxManager {
       (el as any).playsInline = true;
       el.style.display = 'none';
       document.body.appendChild(el);
-      // Non-fatal if play() rejects (e.g. file missing during dev).
-      el.play().catch(() => { /* ignore */ });
+      // The silent loop is the iOS silent-switch bypass — if it fails to
+      // play, WebAudio gets routed through the silent switch and the user
+      // hears nothing. Surface the failure so we don't silently regress.
+      el.play().catch((err) => {
+        console.error('SFX silent-loop play() rejected — iOS mute-switch bypass disabled:', err);
+      });
       this.silentEl = el;
     }
 

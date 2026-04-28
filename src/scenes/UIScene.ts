@@ -231,6 +231,14 @@ export class UIScene extends Phaser.Scene {
     const gameEndState = this.game.registry.get('gameEndState') as any;
     if (gameEndState) this.showEnd(gameEndState);
 
+    // Pull the current HUD state from GameScene so the HP / wave bars
+    // render at their real values immediately on rotation, instead of
+    // showing as empty until the next hud event fires.
+    const game = this.scene.get('Game') as any;
+    if (game && typeof game.hudState === 'function') {
+      this.updateHud(game.hudState());
+    }
+
     // ---- Mobile virtual joystick (lower-left) ----
     if (this.isMobile) {
       const outerR = this.p(60);
