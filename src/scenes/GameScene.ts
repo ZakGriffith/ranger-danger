@@ -39,6 +39,13 @@ export class GameScene extends Phaser.Scene {
   buildKind: BuildKind = 'none';
   buildTowerKind: TowerKind = 'arrow';
   buildPaused = false;
+  // Bound listeners stored so shutdown() can remove the exact handlers it
+  // registered. Calling game.events.off(name) without a fn ref nukes ALL
+  // listeners for that event — including ones the next GameScene's create()
+  // may have already registered if Phaser interleaves shutdown/create.
+  private _onUiBuild?: (k: BuildKind, tk?: TowerKind) => void;
+  private _onUiSell?: () => void;
+  private _onUiSpeed?: (mult: number) => void;
   nextRunnerPack = 0;
   playerStoppedAt = 0;
   ghost!: Phaser.GameObjects.Sprite;
@@ -209,14 +216,18 @@ export class GameScene extends Phaser.Scene {
       tileWidth: CFG.tile, tileHeight: CFG.tile,
       width: mapSize, height: mapSize
     });
-    // 1px transparent + 1px solid tileset
-    const canvas = document.createElement('canvas');
-    canvas.width = CFG.tile * 2; canvas.height = CFG.tile;
-    const ctx = canvas.getContext('2d')!;
-    ctx.fillStyle = '#ff00ff';
-    ctx.fillRect(CFG.tile, 0, CFG.tile, CFG.tile); // tile index 1 = solid
+    // 1px transparent + 1px solid tileset (registered once at the global
+    // texture manager — the canvas/texture survive scene shutdowns, so on
+    // subsequent runs we just reuse the existing entry instead of warning).
     const tilesetKey = 'wall_collision_tileset';
-    this.textures.addCanvas(tilesetKey, canvas);
+    if (!this.textures.exists(tilesetKey)) {
+      const canvas = document.createElement('canvas');
+      canvas.width = CFG.tile * 2; canvas.height = CFG.tile;
+      const ctx = canvas.getContext('2d')!;
+      ctx.fillStyle = '#ff00ff';
+      ctx.fillRect(CFG.tile, 0, CFG.tile, CFG.tile); // tile index 1 = solid
+      this.textures.addCanvas(tilesetKey, canvas);
+    }
     const tileset = this.wallTilemap.addTilesetImage(tilesetKey, tilesetKey, CFG.tile, CFG.tile)!;
     this.wallLayer = this.wallTilemap.createBlankLayer('walls', tileset,
       -(mapSize / 2) * CFG.tile, -(mapSize / 2) * CFG.tile)!;
@@ -323,9 +334,22 @@ export class GameScene extends Phaser.Scene {
 
     // events from UI
     this.events.emit('hud', this.hudState());
-    this.game.events.on('ui-build', (k: BuildKind, tk?: TowerKind) => this.toggleBuild(k, tk));
-    this.game.events.on('ui-sell', () => this.setBuild('none'));
-    this.game.events.on('ui-speed', (mult: number) => this.setTimeScale(mult));
+    // Defensive: drop any leftover listeners from a previous run before
+    // registering ours. The old shutdown path doesn't always fire in time
+    // (e.g. on win the panel→stop happens synchronously inside an input
+    // handler and Phaser can interleave the create of the next run before
+    // the previous shutdown), which would leave us with two listeners both
+    // toggling buildKind on the same singleton scene instance — they cancel
+    // each other and the build menu never opens.
+    this.game.events.off('ui-build');
+    this.game.events.off('ui-sell');
+    this.game.events.off('ui-speed');
+    this._onUiBuild = (k: BuildKind, tk?: TowerKind) => this.toggleBuild(k, tk);
+    this._onUiSell = () => this.setBuild('none');
+    this._onUiSpeed = (mult: number) => this.setTimeScale(mult);
+    this.game.events.on('ui-build', this._onUiBuild);
+    this.game.events.on('ui-sell', this._onUiSell);
+    this.game.events.on('ui-speed', this._onUiSpeed);
 
     // Apply default game speed (1.25x base)
     this.setTimeScale(this.timeMult);
@@ -3603,8 +3627,11 @@ export class GameScene extends Phaser.Scene {
 
   shutdown() {
     SFX.stopBgm();
-    this.game.events.off('ui-build');
-    this.game.events.off('ui-sell');
-    this.game.events.off('ui-speed');
+    if (this._onUiBuild) this.game.events.off('ui-build', this._onUiBuild);
+    if (this._onUiSell) this.game.events.off('ui-sell', this._onUiSell);
+    if (this._onUiSpeed) this.game.events.off('ui-speed', this._onUiSpeed);
+    this._onUiBuild = undefined;
+    this._onUiSell = undefined;
+    this._onUiSpeed = undefined;
   }
 }
