@@ -43,8 +43,13 @@ export class TutorialScene extends Phaser.Scene {
   arrowGfx!: Phaser.GameObjects.Graphics;
   skipBtn!: Phaser.GameObjects.Text;
   private sf = 1;
+  private isMobile = false;
   private p(v: number) { return v * this.sf; }
   private fs(px: number) { return `${Math.round(px * this.sf)}px`; }
+  /** LevelSelect-canvas scaling: matches LevelSelectScene's sf = nativeW/CFG.width.
+   *  Tutorial's regular `p()` uses uiScale (different on mobile), so use this for
+   *  any coordinate that targets a node/panel rendered by LevelSelectScene. */
+  private lsP(v: number) { return v * (this.scale.width / CFG.width); }
 
   hudLabels: Phaser.GameObjects.GameObject[] = [];
   hudClickZone: Phaser.GameObjects.Rectangle | null = null;
@@ -63,6 +68,7 @@ export class TutorialScene extends Phaser.Scene {
 
   create() {
     this.sf = this.game.registry.get('sf') || 1;
+    this.isMobile = !!this.game.registry.get('isMobile');
     const W = this.scale.width;
     const H = this.scale.height;
 
@@ -219,26 +225,65 @@ export class TutorialScene extends Phaser.Scene {
     this.cleanupHudLabels();
 
     switch (this.step) {
-      case 'ls_click_meadow':
-        this.showPrompt('Welcome, Ranger!\nClick on the Meadow to begin your training.', this.p(80));
-        this.drawDimWithHole(this.p(150), this.p(345), this.p(40));
-        this.drawArrow(this.p(150), this.p(295), 'down');
+      case 'ls_click_meadow': {
+        const verb = this.isMobile ? 'Tap' : 'Click';
+        this.showPrompt(`Welcome, Ranger!\n${verb} on the Meadow to begin your training.`, this.p(80));
+        // Meadow node lives in LevelSelect's coord system (sf = nativeW/960),
+        // not the tutorial's uiScale-based one — they differ on mobile.
+        this.drawDimWithHole(this.lsP(150), this.lsP(345), this.lsP(40));
+        this.drawArrow(this.lsP(150), this.lsP(295), 'down');
         break;
+      }
 
-      case 'ls_click_easy':
-        this.showPrompt('Select Easy difficulty to start.', this.p(80));
-        this.drawDimWithCutout(W / 2 - this.p(115), H / 2 - this.p(60), this.p(230), this.p(38));
-        this.drawArrow(W / 2 - this.p(130), H / 2 - this.p(41), 'right');
+      case 'ls_click_easy': {
+        // The difficulty panel rebuilds with mobile-specific button geometry
+        // (see LevelSelectScene.openDifficultyPanel), so derive the cutout
+        // from the same numbers rather than the desktop-only literals.
+        if (this.isMobile) {
+          const btnH = this.lsP(60);
+          const btnGap = this.lsP(12);
+          const btnBlockH = 4 * btnH + 3 * btnGap;
+          const easyCenterY = H / 2 - btnBlockH / 2 + btnH / 2;
+          const ph = H * 0.92;
+          const pw = Math.min(this.lsP(560), W * 0.92);
+          const btnW = Math.min(this.lsP(460), pw - this.lsP(40));
+          this.drawDimWithCutout(W / 2 - btnW / 2, easyCenterY - btnH / 2, btnW, btnH);
+          this.drawArrow(W / 2 - btnW / 2 - this.lsP(20), easyCenterY, 'right');
+          // Prompt text moves to the bottom of the viewport.
+          this.showPrompt('Tap Easy difficulty to start.', H - this.p(20), 1);
+        } else {
+          this.showPrompt('Select Easy difficulty to start.', this.p(80));
+          this.drawDimWithCutout(W / 2 - this.p(115), H / 2 - this.p(60), this.p(230), this.p(38));
+          this.drawArrow(W / 2 - this.p(130), H / 2 - this.p(41), 'right');
+        }
         break;
+      }
 
-      case 'ls_click_start':
-        this.showPrompt('Click START to begin!', this.p(80));
-        this.drawDimWithCutout(W / 2 - this.p(60), H / 2 + this.p(128), this.p(120), this.p(36));
-        this.drawArrow(W / 2, H / 2 + this.p(120), 'down');
+      case 'ls_click_start': {
+        const verb = this.isMobile ? 'Tap' : 'Click';
+        this.showPrompt(`${verb} START to begin!`, this.p(80));
+        if (this.isMobile) {
+          // Mobile panel: ph = H*0.92, START button at (panel center) + (ph/2 - p(80)).
+          // Absolute top of START = H/2 + ph/2 - p_ls(80).
+          const ph = H * 0.92;
+          const startBtnH = this.lsP(56);
+          const startBtnW = this.lsP(220);
+          const startTop = H / 2 + ph / 2 - startBtnH - this.lsP(24);
+          this.drawDimWithCutout(W / 2 - startBtnW / 2, startTop, startBtnW, startBtnH);
+          // Arrow moved up 1 button height so it sits above the START button.
+          this.drawArrow(W / 2, startTop - this.lsP(8), 'down');
+        } else {
+          this.drawDimWithCutout(W / 2 - this.p(60), H / 2 + this.p(128), this.p(120), this.p(36));
+          this.drawArrow(W / 2, H / 2 + this.p(120), 'down');
+        }
         break;
+      }
 
       case 'game_move':
-        this.showPrompt('Use WASD or Arrow Keys to move.', this.p(150));
+        this.showPrompt(
+          this.isMobile ? 'Use the joystick to move.' : 'Use WASD or Arrow Keys to move.',
+          this.p(150)
+        );
         break;
 
       case 'game_hud': {
@@ -286,7 +331,12 @@ export class TutorialScene extends Phaser.Scene {
         this.hudLabels.push(goldLabel);
 
         // Main prompt below labels
-        this.showPrompt('Keep an eye on your HUD!\nHealth, wave progress, and gold reserves.\n\nClick anywhere to continue.', this.p(180));
+        this.showPrompt(
+          this.isMobile
+            ? 'Keep an eye on your HUD!\nHealth, wave progress, and gold reserves.\n\nTAP anywhere to continue.'
+            : 'Keep an eye on your HUD!\nHealth, wave progress, and gold reserves.\n\nClick anywhere to continue.',
+          this.p(180)
+        );
 
         // Click anywhere to advance
         this.hudClickZone = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0)
@@ -435,9 +485,9 @@ export class TutorialScene extends Phaser.Scene {
     if (this.hudClickZone) { this.hudClickZone.destroy(); this.hudClickZone = null; }
   }
 
-  showPrompt(text: string, y: number) {
+  showPrompt(text: string, y: number, anchorY: number = 0.5) {
     const W = this.scale.width;
-    this.promptText.setText(text).setPosition(W / 2, y);
+    this.promptText.setOrigin(0.5, anchorY).setText(text).setPosition(W / 2, y);
 
     // Draw text background panel
     const bounds = this.promptText.getBounds();
