@@ -88,14 +88,35 @@ export class TutorialScene extends Phaser.Scene {
     // Arrow graphic (pulsing pointer)
     this.arrowGfx = this.add.graphics().setDepth(101);
 
-    // Skip button
-    this.skipBtn = this.add.text(W - this.p(20), H - this.p(12), 'Skip Tutorial', {
+    // Skip button — position depends on orientation, see repositionSkipBtn().
+    this.skipBtn = this.add.text(0, 0, 'Skip Tutorial', {
       fontFamily: 'monospace', fontSize: this.fs(10), color: '#888',
       stroke: '#000', strokeThickness: this.p(2)
-    }).setOrigin(1, 1).setDepth(103).setInteractive({ useHandCursor: true });
+    }).setDepth(103).setInteractive({ useHandCursor: true });
     this.skipBtn.on('pointerdown', () => this.finish());
     this.skipBtn.on('pointerover', () => this.skipBtn.setColor('#ccc'));
     this.skipBtn.on('pointerout', () => this.skipBtn.setColor('#888'));
+    this.repositionSkipBtn();
+
+    // Re-render the active step + reposition skip button on viewport change
+    // (rotation, browser resize). Mobile portrait → landscape changes every
+    // tutorial element's coordinates, so we need to redraw them. Defer one
+    // microtask so GameScene's viewport-changed handler (which calls
+    // setGameSize) runs first and this.scale reflects the new dimensions.
+    const onViewportChanged = () => {
+      queueMicrotask(() => {
+        this.sf = this.game.registry.get('sf') || 1;
+        this.isMobile = !!this.game.registry.get('isMobile');
+        this.repositionSkipBtn();
+        // Skip the redraw if a delayed transition is in flight — the screen
+        // is intentionally blank until pendingStep fires.
+        if (!this.pendingStep) this.showStep();
+      });
+    };
+    this.game.events.on('viewport-changed', onViewportChanged);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.game.events.off('viewport-changed', onViewportChanged);
+    });
 
     // Listen for events
     this.game.events.on('tutorial-level-clicked', this.onLevelClicked, this);
@@ -534,6 +555,23 @@ export class TutorialScene extends Phaser.Scene {
     for (const obj of this.hudLabels) obj.destroy();
     this.hudLabels = [];
     if (this.hudClickZone) { this.hudClickZone.destroy(); this.hudClickZone = null; }
+  }
+
+  /** Place the skip-tutorial link based on viewport / orientation:
+   *   - Mobile portrait: vertically centered on the right edge so the user's
+   *     thumb (which usually rests near the bottom holding the phone) doesn't
+   *     hit it accidentally.
+   *   - Mobile landscape & desktop: lower-right corner (the legacy spot). */
+  private repositionSkipBtn() {
+    if (!this.skipBtn) return;
+    const W = this.scale.width;
+    const H = this.scale.height;
+    const isPortraitMobile = this.isMobile && H > W;
+    if (isPortraitMobile) {
+      this.skipBtn.setPosition(W - this.p(20), H / 2).setOrigin(1, 0.5);
+    } else {
+      this.skipBtn.setPosition(W - this.p(20), H - this.p(12)).setOrigin(1, 1);
+    }
   }
 
   showPrompt(text: string, y: number, anchorY: number = 0.5) {

@@ -261,6 +261,18 @@ export class UIScene extends Phaser.Scene {
       this.updateHud(game.hudState());
     }
 
+    // Re-apply the active build-mode highlight after a UI restart (rotation),
+    // since the new hotbar slots default to !isSelected. Also reshow the
+    // build hint text if a build is in progress.
+    const activeKind = game?.buildKind;
+    const activeTowerKind = game?.buildTowerKind;
+    if (activeKind && activeKind !== 'none') {
+      (this.btnTower as any).setSelected?.(activeKind === 'tower' && activeTowerKind === 'arrow');
+      (this.btnCannon as any).setSelected?.(activeKind === 'tower' && activeTowerKind === 'cannon');
+      (this.btnWall as any).setSelected?.(activeKind === 'wall');
+      this.buildHintText.setVisible(true);
+    }
+
     // ---- Mobile virtual joystick (lower-left) ----
     if (this.isMobile) {
       const outerR = this.p(60);
