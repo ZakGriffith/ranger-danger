@@ -140,6 +140,10 @@ export class TutorialScene extends Phaser.Scene {
     if (this.step === 'game_press_1' && kind === 'tower') { this.resumeGame(); this.advanceTo('game_place_tower'); }
     if (this.step === 'game_press_4' && kind === 'wall') { this.resumeGame(); this.advanceTo('game_place_walls'); }
     if (this.step === 'game_exit_build' && !active) { this.advanceTo('game_loot_coins', 1500); }
+    // If player exits build mode during the delay before game_exit_build shows, skip it
+    if (this.pendingStep === 'game_exit_build' && !active) {
+      this.pendingStep = 'game_loot_coins';
+    }
   };
 
   onKill = () => {
@@ -161,12 +165,11 @@ export class TutorialScene extends Phaser.Scene {
   onCoinCollected = () => {
     if (this.step === 'game_loot_coins') {
       this.coinsCollected++;
-      this.showStep(); // update counter
     }
   };
 
   onTowerSelected = () => {
-    if (this.step === 'game_click_tower') this.advanceTo('game_upgrade_tower');
+    if (this.step === 'game_click_tower') { this.resumeGame(); this.advanceTo('game_upgrade_tower'); }
   };
 
   onTowerDeselected = () => {
@@ -327,6 +330,8 @@ export class TutorialScene extends Phaser.Scene {
         break;
 
       case 'game_watch_tower':
+        this.tutorialKills = 0; // reset from game_kill phase
+        this.watchTimer = 0;
         this.showPrompt('Your tower shoots enemies automatically!\nWatch it defend.', this.p(150));
         break;
 
@@ -350,23 +355,34 @@ export class TutorialScene extends Phaser.Scene {
         this.overlay.fillRect(0, 0, W, H);
         break;
 
-      case 'game_exit_build':
-        this.showPrompt('Right-click or press ESC to leave build menu.', this.p(150));
-        break;
-
-      case 'game_loot_coins': {
-        // Spawn enemies so coins drop near the tower
+      case 'game_exit_build': {
+        // If the player already exited build mode, skip this step
         const gs = this.scene.get('Game') as any;
-        if (gs?.enemies?.countActive() < 3) {
-          this.spawnTutorialEnemies(gs, 3);
+        if (gs?.buildKind === 'none' || !gs?.buildKind) {
+          this.advanceTo('game_loot_coins', 1500);
+          return;
         }
-        this.showPrompt('Enemies drop coins when defeated!\nWalk over coins to collect them.', this.p(150));
+        this.showPrompt('Right-click or press ESC to leave build menu.', this.p(150));
         break;
       }
 
-      case 'game_click_tower':
-        this.showPrompt('Click on your Arrow Tower to select it.', this.p(150));
+      case 'game_loot_coins':
+        this.showPrompt('Enemies drop coins when defeated!\nWalk near coins to collect them.', this.p(150));
         break;
+
+      case 'game_click_tower': {
+        this.pauseGame();
+        this.showPrompt('Click on your Arrow Tower to select it.', this.p(150));
+        // Highlight the first arrow tower placed
+        const gsTower = this.scene.get('Game') as any;
+        const tower = gsTower?.towers?.[0];
+        if (tower) {
+          const ts = this.p(48);
+          this.drawDimWithRect(tower.x - ts / 2, tower.y - ts / 2, ts, ts);
+          this.drawArrow(tower.x, tower.y - ts / 2 - this.p(8), 'down');
+        }
+        break;
+      }
 
       case 'game_upgrade_tower':
         this.showPrompt('Click the Upgrade button to make your tower stronger!', this.p(150));
