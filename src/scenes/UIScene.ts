@@ -215,11 +215,16 @@ export class UIScene extends Phaser.Scene {
     }).setOrigin(0.5, 1).setDepth(900).setVisible(false);
 
     // Build mode cancel hint
-    this.buildHintText = this.add.text(W / 2, hotbarTop - this.p(38), 'Right-click or ESC to leave build menu', {
-      fontFamily: 'monospace', fontSize: this.fs(12), color: '#c8d8e8',
-      stroke: '#0b0f1a', strokeThickness: this.p(3),
-      backgroundColor: '#11172aDD', padding: { x: Number(this.p(8)), y: Number(this.p(4)) }
-    }).setOrigin(0.5, 1).setDepth(900).setVisible(false);
+    this.buildHintText = this.add.text(W / 2, hotbarTop - this.p(38),
+      this.isMobile
+        ? 'Tap selected item again to leave build menu'
+        : 'Right-click or ESC to leave build menu',
+      {
+        fontFamily: 'monospace', fontSize: this.fs(12), color: '#c8d8e8',
+        stroke: '#0b0f1a', strokeThickness: this.p(3),
+        backgroundColor: '#11172aDD', padding: { x: Number(this.p(8)), y: Number(this.p(4)) }
+      }
+    ).setOrigin(0.5, 1).setDepth(900).setVisible(false);
 
     // listen for HUD updates
     this.game.events.on('hud', (s: any) => this.updateHud(s));
@@ -233,9 +238,14 @@ export class UIScene extends Phaser.Scene {
         this.buildErrorText.setVisible(false);
       }
     });
-    this.game.events.on('build-mode', (active: boolean) => {
+    this.game.events.on('build-mode', (active: boolean, kind?: string, towerKind?: string) => {
       this.buildHintText.setVisible(active);
       if (!active) this.buildErrorText.setVisible(false);
+      // Highlight the matching hotbar slot so the player can see at a glance
+      // which build is active (and which to re-tap to exit on mobile).
+      (this.btnTower as any).setSelected?.(active && kind === 'tower' && towerKind === 'arrow');
+      (this.btnCannon as any).setSelected?.(active && kind === 'tower' && towerKind === 'cannon');
+      (this.btnWall as any).setSelected?.(active && kind === 'wall');
     });
 
     // Recover the end-panel after a UI restart (e.g. mid-rotation): if the
@@ -366,44 +376,64 @@ export class UIScene extends Phaser.Scene {
     const c = this.add.container(cx, my);
 
     const g = this.add.graphics();
-    const drawSlot = (hover: boolean) => {
+    let isHover = false;
+    let isSelected = false;
+    const drawSlot = () => {
       g.clear();
+      // Outer glow ring + thicker border when this slot's build kind is the
+      // active one (mobile only — desktop has the keybind badge / right-click
+      // affordance to communicate selection).
+      if (isSelected && this.isMobile) {
+        g.lineStyle(this.p(2), 0xffd84a, 0.5);
+        g.strokeRoundedRect(-w / 2 - this.p(3), -h / 2 - this.p(3), w + this.p(6), h + this.p(6), this.p(5));
+        g.lineStyle(this.p(1.5), 0xffd84a, 0.25);
+        g.strokeRoundedRect(-w / 2 - this.p(5), -h / 2 - this.p(5), w + this.p(10), h + this.p(10), this.p(6));
+      }
       // Slot fill
-      g.fillStyle(hover ? 0x141c30 : 0x0a0e1a, 1);
+      g.fillStyle(isHover ? 0x141c30 : 0x0a0e1a, 1);
       g.fillRoundedRect(-w / 2, -h / 2, w, h, this.p(3));
-      // Gold border
-      g.lineStyle(this.p(1.5), hover ? 0xc4a030 : 0x8a6a20, 1);
+      // Gold border — thicker / brighter when selected on mobile.
+      const borderW = (isSelected && this.isMobile) ? this.p(3) : this.p(1.5);
+      const borderColor = (isSelected && this.isMobile)
+        ? 0xffd84a
+        : (isHover ? 0xc4a030 : 0x8a6a20);
+      g.lineStyle(borderW, borderColor, 1);
       g.strokeRoundedRect(-w / 2, -h / 2, w, h, this.p(3));
       // Inner glow
-      g.lineStyle(this.p(1), hover ? 0xa08830 : 0xa08030, hover ? 0.2 : 0.12);
+      g.lineStyle(this.p(1), isHover ? 0xa08830 : 0xa08030, isHover ? 0.2 : 0.12);
       g.strokeRoundedRect(-w / 2 + this.p(2), -h / 2 + this.p(2), w - this.p(4), h - this.p(4), this.p(2));
     };
-    drawSlot(false);
+    drawSlot();
 
     // Hit area
     const hitRect = this.add.rectangle(0, 0, w, h, 0x000000, 0).setInteractive({ useHandCursor: true });
     hitRect.on('pointerdown', () => { SFX.play('click'); onClick(); });
-    hitRect.on('pointerover', () => drawSlot(true));
-    hitRect.on('pointerout', () => drawSlot(false));
+    hitRect.on('pointerover', () => { isHover = true; drawSlot(); });
+    hitRect.on('pointerout', () => { isHover = false; drawSlot(); });
 
     // Draw icon
     const iconG = this.add.graphics();
     this.drawSlotIcon(iconG, icon);
 
-    // Keybind badge (top-left corner)
-    const badgeW = key.length > 2 ? this.p(22) : this.p(13);
-    const badgeBg = this.add.rectangle(-w / 2 + badgeW / 2 + this.p(1), -h / 2 + this.p(7), badgeW, this.p(12), 0x0a0e1a, 0.9)
-      .setStrokeStyle(this.p(0.5), 0x8a6a20, 0.5);
-    const badge = this.add.text(-w / 2 + badgeW / 2 + this.p(1), -h / 2 + this.p(7), key, {
-      fontFamily: 'monospace', fontSize: this.fs(8), color: '#a08830',
-    }).setOrigin(0.5);
+    // Keybind badge (top-left corner) — desktop only; the keys it displays
+    // (1/2/3/4/SPC) don't apply on touch devices.
+    const items: Phaser.GameObjects.GameObject[] = [g, hitRect, iconG];
+    if (!this.isMobile) {
+      const badgeW = key.length > 2 ? this.p(22) : this.p(13);
+      const badgeBg = this.add.rectangle(-w / 2 + badgeW / 2 + this.p(1), -h / 2 + this.p(7), badgeW, this.p(12), 0x0a0e1a, 0.9)
+        .setStrokeStyle(this.p(0.5), 0x8a6a20, 0.5);
+      const badge = this.add.text(-w / 2 + badgeW / 2 + this.p(1), -h / 2 + this.p(7), key, {
+        fontFamily: 'monospace', fontSize: this.fs(8), color: '#a08830',
+      }).setOrigin(0.5);
+      items.push(badgeBg, badge);
+    }
 
     // Name label below slot
     const nameLabel = this.add.text(0, h / 2 + this.p(4), name, {
       fontFamily: 'monospace', fontSize: this.fs(8), color: '#8a9ab0',
     }).setOrigin(0.5, 0);
 
-    const items: Phaser.GameObjects.GameObject[] = [g, hitRect, iconG, badgeBg, badge, nameLabel];
+    items.push(nameLabel);
 
     // Cost label below name
     if (cost) {
@@ -414,6 +444,9 @@ export class UIScene extends Phaser.Scene {
     }
 
     c.add(items);
+    // Expose a setter so the build-mode listener can highlight this slot
+    // when it matches the active build kind.
+    (c as any).setSelected = (sel: boolean) => { isSelected = sel; drawSlot(); };
     return c;
   }
 

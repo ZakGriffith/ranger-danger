@@ -359,7 +359,12 @@ export class TutorialScene extends Phaser.Scene {
 
       case 'game_press_1': {
         this.pauseGame();
-        this.showPrompt('Time to build defenses!\nPress 1 or click the hotbar to select the Arrow Tower.', H - this.p(140));
+        this.showPrompt(
+          this.isMobile
+            ? 'Time to build defenses!\nTap the hotbar to select the Arrow Tower.'
+            : 'Time to build defenses!\nPress 1 or click the hotbar to select the Arrow Tower.',
+          H - this.p(140)
+        );
         // Highlight hotbar slot 1 area — hotbarY is the TOP of the slot
         const slotSize = this.p(48);
         const slotGap = this.p(10);
@@ -373,7 +378,12 @@ export class TutorialScene extends Phaser.Scene {
       }
 
       case 'game_place_tower':
-        this.showPrompt('Click near your ranger to place the Arrow Tower.\nThe green ghost shows where it will go.', this.p(150));
+        this.showPrompt(
+          this.isMobile
+            ? 'Tap near your ranger to place the Arrow Tower.'
+            : 'Click near your ranger to place the Arrow Tower.\nThe green ghost shows where it will go.',
+          this.p(150)
+        );
         // Light dim, no specific hole — player needs to see the grid
         this.overlay.fillStyle(0x000000, 0.2);
         this.overlay.fillRect(0, 0, W, H);
@@ -387,7 +397,12 @@ export class TutorialScene extends Phaser.Scene {
 
       case 'game_press_4': {
         this.pauseGame();
-        this.showPrompt('Walls block enemy paths!\nPress 4 or click the hotbar to select Wall.', H - this.p(140));
+        this.showPrompt(
+          this.isMobile
+            ? 'Walls block enemy paths!\nTap the hotbar to select Wall.'
+            : 'Walls block enemy paths!\nPress 4 or click the hotbar to select Wall.',
+          H - this.p(140)
+        );
         const slotSize2 = this.p(48);
         const slotGap2 = this.p(10);
         const hotbarY2 = H - slotSize2 - this.p(32);
@@ -412,7 +427,20 @@ export class TutorialScene extends Phaser.Scene {
           this.advanceTo('game_loot_coins', 1500);
           return;
         }
-        this.showPrompt('Right-click or press ESC to leave build menu.', this.p(150));
+        if (this.isMobile) {
+          this.showPrompt('Tap the wall icon in the hotbar to leave build menu.', H - this.p(140));
+          // Highlight the wall hotbar slot so the player knows where to tap.
+          const slotSize3 = this.p(48);
+          const slotGap3 = this.p(10);
+          const hotbarY3 = H - slotSize3 - this.p(32);
+          const barCenterX3 = W / 2;
+          const slots3 = 5;
+          const wallSlotX2 = barCenterX3 - (slots3 * slotSize3 + (slots3 - 1) * slotGap3) / 2 + 3 * (slotSize3 + slotGap3) + slotSize3 / 2;
+          this.drawDimWithRect(wallSlotX2 - slotSize3 / 2 - this.p(4), hotbarY3 - this.p(4), slotSize3 + this.p(8), slotSize3 + this.p(8));
+          this.drawArrow(wallSlotX2, hotbarY3 - this.p(12), 'down');
+        } else {
+          this.showPrompt('Right-click or press ESC to leave build menu.', this.p(150));
+        }
         break;
       }
 
@@ -422,24 +450,47 @@ export class TutorialScene extends Phaser.Scene {
 
       case 'game_click_tower': {
         this.pauseGame();
-        this.showPrompt('Click on your Arrow Tower to select it.', this.p(150));
-        // Highlight the first arrow tower placed
+        this.showPrompt(
+          this.isMobile
+            ? 'Tap on your Arrow Tower to select it.'
+            : 'Click on your Arrow Tower to select it.',
+          this.p(150)
+        );
+        // Highlight the first arrow tower placed. Tower coords are WORLD-
+        // space (Phaser GameObject) — convert to screen-space via the Game
+        // camera so the highlight lands on the tower regardless of where
+        // the camera is panned (camera follows the player).
         const gsTower = this.scene.get('Game') as any;
         const tower = gsTower?.towers?.[0];
         if (tower) {
-          const ts = this.p(48);
-          this.drawDimWithRect(tower.x - ts / 2, tower.y - ts / 2, ts, ts);
-          this.drawArrow(tower.x, tower.y - ts / 2 - this.p(8), 'down');
+          const cam = gsTower.cameras.main;
+          const sx = (tower.x - cam.scrollX) * cam.zoom;
+          const sy = (tower.y - cam.scrollY) * cam.zoom;
+          // Tower footprint = CFG.tower.tiles * CFG.tile world units, scaled by camera zoom.
+          const towerWorldSize = CFG.tower.tiles * CFG.tile;
+          const ts = towerWorldSize * cam.zoom + this.p(8);
+          this.drawDimWithRect(sx - ts / 2, sy - ts / 2, ts, ts);
+          this.drawArrow(sx, sy - ts / 2 - this.p(8), 'down');
         }
         break;
       }
 
       case 'game_upgrade_tower':
-        this.showPrompt('Click the Upgrade button to make your tower stronger!', this.p(150));
+        this.showPrompt(
+          this.isMobile
+            ? 'Tap the Upgrade button to make your tower stronger!'
+            : 'Click the Upgrade button to make your tower stronger!',
+          this.p(150)
+        );
         break;
 
       case 'game_deselect_tower':
-        this.showPrompt('Click somewhere else to close the tower panel.', this.p(150));
+        this.showPrompt(
+          this.isMobile
+            ? 'Tap somewhere else to close the tower panel.'
+            : 'Click somewhere else to close the tower panel.',
+          this.p(150)
+        );
         break;
 
       case 'game_done':

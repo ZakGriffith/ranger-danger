@@ -378,7 +378,12 @@ export class GameScene extends Phaser.Scene {
       if (ts) {
         if (ts === 'game_press_1' && k === 'tower' && tk === 'arrow') { /* allowed */ }
         else if ((ts === 'game_press_4' || ts === 'game_place_walls') && k === 'wall') { /* allowed */ }
-        else if (ts === 'game_place_tower' && k === 'tower' && tk === 'arrow') { /* allowed */ }
+        // Tutorial caps placements at 1 arrow tower — once placed, don't let
+        // the player re-enter tower build mode and try to place another.
+        else if (ts === 'game_place_tower' && k === 'tower' && tk === 'arrow' && this.towers.length === 0) { /* allowed */ }
+        // Mobile has no right-click / ESC, so tapping the (already-active)
+        // wall slot is the only way to exit build mode during this step.
+        else if (ts === 'game_exit_build' && k === 'wall') { /* allowed — toggles off */ }
         else return; // block everything else during tutorial
       }
       this.toggleBuild(k, tk);
@@ -598,6 +603,9 @@ export class GameScene extends Phaser.Scene {
     this.deselectTower();
 
     if (this.buildKind === 'tower') {
+      // Tutorial caps placements at 1 tower; ignore further click-to-place
+      // even if the player somehow stays in tower build mode.
+      if (this.game.registry.get('tutorialActive') && this.towers.length >= 1) return;
       const s = CFG.tower.tiles;
       // For even-size footprints, snap to the nearest grid intersection
       // so the tower centers under the cursor. For odd, snap to tile center.
@@ -624,6 +632,8 @@ export class GameScene extends Phaser.Scene {
     }
 
     // wall
+    // Tutorial caps placements at 3 walls.
+    if (this.game.registry.get('tutorialActive') && this.walls.length >= 3) return;
     if (gridGet(this.grid, tx, ty) !== 0) return;
     if (this.player.money < CFG.wall.cost) return;
     const pt = this.worldToTile(this.player.x, this.player.y);
