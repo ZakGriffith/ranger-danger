@@ -178,12 +178,24 @@ export class TutorialScene extends Phaser.Scene {
   };
 
   onKill = () => {
-    if (this.step === 'game_kill') {
+    // Count kills both during game_kill AND while it's queued via the 2s
+    // post-stand_still delay (pendingStep === 'game_kill'). Enemies spawn
+    // before the step transitions, and at high game speed the player can
+    // shred them in those 2s — without this, those kills evaporate and
+    // the tutorial gets stuck.
+    if (this.step === 'game_kill' || this.pendingStep === 'game_kill') {
       this.tutorialKills++;
-      // After 6 kills, prompt the player to walk over and collect the coins
-      // their kills dropped before introducing tower-build.
-      if (this.tutorialKills >= 6) this.advanceTo('game_loot_coins', 1500);
-      else this.showStep(); // update counter
+      if (this.tutorialKills >= 6) {
+        if (this.pendingStep === 'game_kill') {
+          // Skip game_kill entirely — they already did it. Reuse the
+          // existing pending timer so the read pacing stays consistent.
+          this.pendingStep = 'game_loot_coins';
+        } else {
+          this.advanceTo('game_loot_coins', 1500);
+        }
+      } else if (this.step === 'game_kill') {
+        this.showStep(); // update counter once active
+      }
     } else if (this.step === 'game_watch_tower') {
       this.tutorialKills++;
     }
@@ -799,6 +811,10 @@ export class TutorialScene extends Phaser.Scene {
     this.game.registry.set('tutorialStep', null);
     this.cleanupContinueZone();
     this.resumeGame();
+
+    // Tells UIScene the tutorial just wrapped — it pops the speed-up
+    // unlock toast a couple seconds later and removes the speed slot lock.
+    this.game.events.emit('tutorial-finished');
 
     // Resume normal spawning in GameScene — skip the standard build break
     // since the tutorial already walked the player through placement.

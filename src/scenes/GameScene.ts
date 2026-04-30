@@ -373,6 +373,8 @@ export class GameScene extends Phaser.Scene {
     });
     this.input.keyboard!.on('keydown-TWO', () => {
       if (this.game.registry.get('tutorialStep')) return; // blocked during tutorial
+      // Cannon is locked on the meadow level (intro). Unlocked from forest on.
+      if (this.biome === 'grasslands') return;
       this.toggleBuild('tower', 'cannon');
     });
     // Key 3 reserved for mage tower (not yet implemented)

@@ -60,7 +60,7 @@ const FALLBACKS: Partial<Record<SfxKey, string>> = {
   bossSpawn:   '12eZRSDSVRrD67KRceReSAHfH5R3pqU9JuRJpxZuQ1eMG9Fn1aSWE8wmnE3HgvjZiNptQo2zpHgj9fqofhSaDFuEok9jcFWnVvN3cW1iDBbN4qzVuw8gJNnhKM',
   // playerHurt uses a custom programmatic tone (see loadPlayerHurt below)
   // upgrade uses a custom programmatic tone (see loadUpgrade below)
-  victory:     '12eZRSDSVRrD4ighYdxUJtJhbVM7kzBaESDDXD9y9c3gB9aqm7KCQmne61TQrJLPbeVZ55B9tgz9FcmqdQGuWbneGcgGAzT38WkhBUNh5tjysbwgkjcuPkTP51',
+  // victory uses a custom programmatic fanfare (see loadVictory below)
   gameOver:    '12eZRSDW9BpyimpJ2g3CzvFeX7gYUb8STeQhqTheS6kbAXPHtF43iMHM4X4FDyt6hu2Gpiiz5scgQdCbp1Kd9YLifs2Xp7PKJhDZqHPZAsDXZesN5w4R7vko6X',
   // click uses a custom programmatic tone (see loadClick below)
 };
@@ -201,6 +201,7 @@ class SfxManager {
     this.loadCoin();
     this.loadUpgrade();
     this.loadPlayerHurt();
+    this.loadVictory();
   }
 
   /** @deprecated kept for any old call sites — equivalent to loadAssets(). */
@@ -305,7 +306,44 @@ class SfxManager {
     this.buffers.playerHurt = buf;
   }
 
-
+  /** Triumphant ascending fanfare for level-complete. Three short bumps
+   *  (C5, E5, G5) climbing the major triad, finishing on a sustained C6. */
+  private loadVictory() {
+    const sr = 44100;
+    const totalDur = 1.45;
+    const len = Math.floor(sr * totalDur);
+    const buf = this.ctx!.createBuffer(1, len, sr);
+    const ch = buf.getChannelData(0);
+    type Note = { freq: number; start: number; dur: number; vol: number };
+    const notes: Note[] = [
+      { freq: 523, start: 0.00, dur: 0.18, vol: 0.36 }, // C5
+      { freq: 659, start: 0.16, dur: 0.18, vol: 0.36 }, // E5
+      { freq: 784, start: 0.32, dur: 0.20, vol: 0.40 }, // G5
+      { freq: 1046, start: 0.50, dur: 0.95, vol: 0.45 }, // C6 sustained
+    ];
+    for (const n of notes) {
+      const startSample = Math.floor(n.start * sr);
+      const noteLen = Math.floor(n.dur * sr);
+      for (let i = 0; i < noteLen && (startSample + i) < len; i++) {
+        const t = i / sr;
+        const progress = i / noteLen;
+        // Quick attack (~5ms), exponential decay across the note's duration
+        const attack = 1 - Math.exp(-i / (sr * 0.005));
+        const decay = Math.exp(-progress * 2.4);
+        const env = attack * decay;
+        const phase = 2 * Math.PI * n.freq * t;
+        // Fundamental + slight 3rd harmonic for a warmer, brassier tone
+        const sample = Math.sin(phase) * 0.7 + Math.sin(phase * 3) * 0.12;
+        ch[startSample + i] += sample * env * n.vol;
+      }
+    }
+    // Defensive clamp in case overlapping notes clip
+    for (let i = 0; i < len; i++) {
+      if (ch[i] > 1) ch[i] = 1;
+      else if (ch[i] < -1) ch[i] = -1;
+    }
+    this.buffers.victory = buf;
+  }
 
   private loadSfxr(key: SfxKey, b58: string) {
     const samples = sfxr.toBuffer(b58);

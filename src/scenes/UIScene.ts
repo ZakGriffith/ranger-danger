@@ -38,6 +38,11 @@ export class UIScene extends Phaser.Scene {
   private towerIndicators = new Map<any, { bg: Phaser.GameObjects.Sprite; ptr: Phaser.GameObjects.Sprite }>();
   private bossIndicator: { bg: Phaser.GameObjects.Sprite; ptr: Phaser.GameObjects.Sprite } | null = null;
 
+  /** Speed-cycle lock state — true while the tutorial is running. Locks the
+   *  speed hotbar slot, the SPACE keybind, and the new `5` keybind. */
+  private speedLocked = false;
+  private speedLockOverlay: Phaser.GameObjects.Graphics | null = null;
+
   levelId = 1;
   difficulty: Difficulty = 'easy';
   biome: Biome = 'grasslands';
@@ -133,34 +138,38 @@ export class UIScene extends Phaser.Scene {
 
     this.btnTower = this.makeHotbarSlot(slotX(0), hotbarY, slotSize, slotSize, '1', 'arrow', 'ARROW', '$60',
       () => this.game.events.emit('ui-build', 'tower', 'arrow'));
+    // Cannon is locked on the meadow level (intro) — unlocks from forest on.
+    const cannonLocked = this.levelId === 1;
     this.btnCannon = this.makeHotbarSlot(slotX(1), hotbarY, slotSize, slotSize, '2', 'cannon', 'CANNON', '$60',
-      () => this.game.events.emit('ui-build', 'tower', 'cannon'));
+      cannonLocked
+        ? () => { /* locked on meadow */ }
+        : () => this.game.events.emit('ui-build', 'tower', 'cannon'));
     this.btnMage = this.makeHotbarSlot(slotX(2), hotbarY, slotSize, slotSize, '3', 'mage', 'MAGE', '$80',
       () => { /* locked — mage tower not yet implemented */ });
-    // Lock overlay on mage slot
-    const lockG = this.add.graphics();
-    const ls = this.sf;
-    // Dim overlay
-    lockG.fillStyle(0x000000, 0.5);
-    lockG.fillRoundedRect(-slotSize / 2, -slotSize / 2, slotSize, slotSize, this.p(3));
-    // Padlock body
-    const lx = 0, ly = this.p(2);
-    lockG.fillStyle(0x8a8a8a, 0.9);
-    lockG.fillRoundedRect(lx - this.p(7), ly, this.p(14), this.p(10), this.p(2));
-    // Shackle
-    lockG.lineStyle(this.p(2.5), 0x8a8a8a, 0.9);
-    lockG.beginPath();
-    lockG.arc(lx, ly - this.p(1), this.p(5), Math.PI, 0, false);
-    lockG.strokePath();
-    // Keyhole
-    lockG.fillStyle(0x222222, 1);
-    lockG.fillCircle(lx, ly + this.p(4), this.p(2));
-    lockG.fillRect(lx - this.p(1), ly + this.p(5), this.p(2), this.p(3));
-    this.btnMage.add(lockG);
+
+    /** Build the padlock + dim overlay used on locked hotbar slots. */
+    const buildLockOverlay = () => {
+      const g = this.add.graphics();
+      g.fillStyle(0x000000, 0.5);
+      g.fillRoundedRect(-slotSize / 2, -slotSize / 2, slotSize, slotSize, this.p(3));
+      const lx = 0, ly = this.p(2);
+      g.fillStyle(0x8a8a8a, 0.9);
+      g.fillRoundedRect(lx - this.p(7), ly, this.p(14), this.p(10), this.p(2));
+      g.lineStyle(this.p(2.5), 0x8a8a8a, 0.9);
+      g.beginPath();
+      g.arc(lx, ly - this.p(1), this.p(5), Math.PI, 0, false);
+      g.strokePath();
+      g.fillStyle(0x222222, 1);
+      g.fillCircle(lx, ly + this.p(4), this.p(2));
+      g.fillRect(lx - this.p(1), ly + this.p(5), this.p(2), this.p(3));
+      return g;
+    };
+    this.btnMage.add(buildLockOverlay());
+    if (cannonLocked) this.btnCannon.add(buildLockOverlay());
     this.btnWall = this.makeHotbarSlot(slotX(3), hotbarY, slotSize, slotSize, '4', 'wall', 'WALL', '$5',
       () => this.game.events.emit('ui-build', 'wall'));
-    this.btnSpeed = this.makeHotbarSlot(slotX(4), hotbarY, slotSize, slotSize, 'SPC', 'speed', 'SPEED', '',
-      () => this.cycleSpeed());
+    this.btnSpeed = this.makeHotbarSlot(slotX(4), hotbarY, slotSize, slotSize, '5', 'speed', 'SPEED', '',
+      () => { if (!this.speedLocked) this.cycleSpeed(); });
     // Speed cycle text overlay — initial text matches the persisted speedIdx
     // so a restart (e.g. viewport rotation) doesn't desync from GameScene.
     const speedLabels = ['>', '>>', '>>>'];
@@ -169,18 +178,29 @@ export class UIScene extends Phaser.Scene {
       stroke: '#0a0e1a', strokeThickness: this.p(3),
     }).setOrigin(0.5);
     this.btnSpeed.add(this.speedLabel);
-    this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE)
-      .on('down', () => {
-        // While a build mode is active, SPACE bails out of it instead of
-        // cycling game speed — gives the player a quick exit during wall
-        // placement without reaching for ESC.
-        const game = this.scene.get('Game') as any;
-        if (game?.buildKind && game.buildKind !== 'none') {
-          game.setBuild('none');
-          return;
-        }
-        this.cycleSpeed();
-      });
+
+    // Speed is locked during the tutorial. Lock state survives the lock
+    // overlay so SPACE / 5 / hotbar-click all share the same gate, and we
+    // can tear the overlay back off later from showSpeedUnlockToast.
+    this.speedLocked = !!this.game.registry.get('tutorialActive');
+    if (this.speedLocked) {
+      this.speedLockOverlay = buildLockOverlay();
+      this.btnSpeed.add(this.speedLockOverlay);
+    }
+
+    const tryCycleSpeed = () => {
+      // While a build mode is active, the speed key bails out of build
+      // instead of cycling — gives the player a quick exit during wall
+      // placement without reaching for ESC.
+      const game = this.scene.get('Game') as any;
+      if (game?.buildKind && game.buildKind !== 'none') {
+        game.setBuild('none');
+        return;
+      }
+      if (!this.speedLocked) this.cycleSpeed();
+    };
+    this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE).on('down', tryCycleSpeed);
+    this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.FIVE).on('down', tryCycleSpeed);
 
     // Level progress graphic (wave circles + boss skull)
     this.progressCircles = [];
@@ -271,6 +291,12 @@ export class UIScene extends Phaser.Scene {
     this.game.events.on('boss-spawn', (s: any) => this.showBossBar(s));
     this.game.events.on('boss-hp', (s: any) => this.updateBossBar(s));
     this.game.events.on('boss-died', () => this.hideBossBar());
+    // After the tutorial wraps, give the player a couple seconds to read
+    // "Great job, Ranger!", then pop the speed-up unlock toast and
+    // remove the speed slot's padlock.
+    this.game.events.on('tutorial-finished', () => {
+      this.time.delayedCall(2000, () => this.showSpeedUnlockToast());
+    });
     this.game.events.on('build-error', (msg: string) => {
       if (msg) {
         this.buildErrorText.setText(msg).setVisible(true);
@@ -312,6 +338,24 @@ export class UIScene extends Phaser.Scene {
       (this.btnWall as any).setSelected?.(activeKind === 'wall');
       this.buildHintText.setVisible(true);
     }
+
+    // First time the player drops into the forest level (level 2), pop a
+    // 6-second tooltip introducing the now-unlocked cannon tower. Flag is
+    // stored in localStorage so it only fires once across sessions.
+    if (this.levelId === 2 && localStorage.getItem('td_seen_forest_intro') !== 'true') {
+      this.showForestIntroToast();
+      localStorage.setItem('td_seen_forest_intro', 'true');
+    }
+
+    // First time the player drops into the infected level (level 3),
+    // warn them about ranged enemies — toads here, mosquitos and others
+    // later — and explain that some projectiles arc over walls/towers
+    // while others get blocked.
+    if (this.levelId === 3 && localStorage.getItem('td_seen_infected_intro') !== 'true') {
+      this.showInfectedIntroToast();
+      localStorage.setItem('td_seen_infected_intro', 'true');
+    }
+
 
     // ---- Mobile virtual joystick (lower-left) ----
     if (this.isMobile) {
@@ -381,6 +425,14 @@ export class UIScene extends Phaser.Scene {
     const y = this.p(58); // 20 (top pad) + 38
     // Destroy previous boss bar if any (for multi-boss levels like Castle)
     this.hideBossBar();
+
+    // First time the player ever sees a boss spawn (always the meadow's
+    // Ancient Ram, even during the tutorial), pop a quick warning so they
+    // know bosses are dangerous and will smash structures.
+    if (s?.biome === 'grasslands' && localStorage.getItem('td_seen_first_boss_intro') !== 'true') {
+      this.showFirstBossIntroToast();
+      localStorage.setItem('td_seen_first_boss_intro', 'true');
+    }
     const bossName = s?.bossKind === 'queen' ? 'THE PHANTOM QUEEN'
                    : s?.bossKind === 'dragon' ? 'THE CASTLE DRAGON'
                    : s?.biome === 'forest' ? 'THE WENDIGO'
@@ -904,6 +956,87 @@ export class UIScene extends Phaser.Scene {
     }
   }
 
+  /** Shared rounded-toast helper used by the one-time intro tooltips
+   *  (cannon unlock, first boss warning, ...). `accent` colors the outer
+   *  border; `totalDurationMs` is the on-screen lifetime (last 500ms is a
+   *  fade), defaulting to 6000ms (5500 visible + 500 fade). */
+  private showIntroToast(message: string, accent: number, y: number, totalDurationMs = 6000) {
+    const W = this.scale.width;
+    const text = this.add.text(W / 2, y, message, {
+      fontFamily: 'monospace', fontSize: this.fs(14), fontStyle: 'bold',
+      color: '#ffffff', align: 'center', stroke: '#0b0f1a', strokeThickness: this.p(3),
+    }).setOrigin(0.5).setDepth(951);
+
+    const tb = text.getBounds();
+    const padX = this.p(20), padY = this.p(14);
+    const boxX = tb.x - padX, boxY = tb.y - padY;
+    const boxW = tb.width + padX * 2, boxH = tb.height + padY * 2;
+    const r = this.p(8);
+    const panel = this.add.graphics().setDepth(950);
+    panel.fillStyle(0x11172a, 0.95);
+    panel.fillRoundedRect(boxX, boxY, boxW, boxH, r);
+    panel.lineStyle(this.p(1), 0x2a3760, 0.7);
+    panel.strokeRoundedRect(boxX + this.p(3), boxY + this.p(3), boxW - this.p(6), boxH - this.p(6), r - this.p(2));
+    panel.lineStyle(this.p(2), accent, 0.9);
+    panel.strokeRoundedRect(boxX, boxY, boxW, boxH, r);
+
+    this.time.delayedCall(Math.max(0, totalDurationMs - 500), () => {
+      this.tweens.add({
+        targets: [panel, text],
+        alpha: 0,
+        duration: 500,
+        onComplete: () => { panel.destroy(); text.destroy(); }
+      });
+    });
+  }
+
+  /** First time the player enters the forest — introduces cannon tower. */
+  private showForestIntroToast() {
+    this.showIntroToast(
+      'CANNON TOWER UNLOCKED!\n\nGreat for AoE damage against\nclusters of enemies.',
+      0x4a8acc, // blue info accent
+      this.p(110)
+    );
+  }
+
+  /** First time the player enters the infected level — first ranged
+   *  enemies. Sets expectations for both styles: blockable line-of-sight
+   *  shots and arcing projectiles that ignore walls and towers. */
+  private showInfectedIntroToast() {
+    this.showIntroToast(
+      'RANGED ENEMIES INCOMING!\n\nSome projectiles can\'t shoot through\nwalls or towers — others arc right over them.\nPosition your defenses carefully.',
+      0x9a5ac0, // purple/infected accent
+      this.p(110)
+    );
+  }
+
+  /** First time the player ever fights a boss — danger warning. Lower
+   *  on the screen so it doesn't overlap the just-appeared boss HP bar. */
+  private showFirstBossIntroToast() {
+    this.showIntroToast(
+      'YOUR FIRST BOSS IS SPAWNING!\n\nCareful — bosses have special abilities\nand can destroy walls and towers.',
+      0xd94a4a, // red danger accent
+      this.p(160)
+    );
+  }
+
+  /** Speed-up tutorial — fired ~2s after the tutorial finishes. Removes
+   *  the speed-slot lock at the moment the tip shows so the player can
+   *  try it immediately. Stays on screen for 5s total. */
+  private showSpeedUnlockToast() {
+    this.speedLocked = false;
+    if (this.speedLockOverlay) {
+      this.speedLockOverlay.destroy();
+      this.speedLockOverlay = null;
+    }
+    this.showIntroToast(
+      'SPEED UP UNLOCKED!\n\nTap the speed slot or press 5\nto cycle through game speeds.',
+      0xc4a850, // gold/yellow accent matching the speed label
+      this.p(110),
+      5000
+    );
+  }
+
   showEnd(s: any) {
     if (this.endPanel) return;
     if (s.win) saveMedal(this.levelId, this.difficulty);
@@ -989,6 +1122,7 @@ export class UIScene extends Phaser.Scene {
     this.game.events.off('boss-spawn');
     this.game.events.off('boss-hp');
     this.game.events.off('boss-died');
+    this.game.events.off('tutorial-finished');
     this.game.events.off('build-error');
     this.game.events.off('build-mode');
   }
