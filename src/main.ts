@@ -60,20 +60,22 @@ function start() {
     });
   }
 
-  // Castle-door whoosh: play the preloaded buffer at 1.6x speed, skipping the
-  // first 0.15s, so the click feels instant. Quiet (gain 0.16) so it sits under
-  // BGM. Uses its own AudioContext to avoid colliding with the game's SFX bus.
+  // Castle-door whoosh: play the preloaded buffer with the same rate +
+  // offset that LevelSelectScene uses for its level/difficulty/start
+  // clicks, so the sound is identical across init + map screens. Gain is
+  // tuned to match the level-select clicks' effective volume after they
+  // pass through the SFX manager's master gain (volume * 0.32).
   if (playBtnBuffer) {
     const ctx = new AudioContext();
     ctx.decodeAudioData(playBtnBuffer.slice(0)).then(audioBuf => {
       const src = ctx.createBufferSource();
       src.buffer = audioBuf;
-      src.playbackRate.value = 1.6;
+      src.playbackRate.value = 2.0;
       const g = ctx.createGain();
-      g.gain.value = 0.16;
+      g.gain.value = 0.11;
       src.connect(g);
       g.connect(ctx.destination);
-      src.start(0, 0.15);
+      src.start(0, 0.12);
     });
   }
 

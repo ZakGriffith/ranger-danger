@@ -114,15 +114,13 @@ class SfxManager {
   };
   /** Per-sound volume multipliers (0–1, default 1) */
   private volumes: Partial<Record<SfxKey, number>> = {
-    cannonShoot: 0.75,
+    cannonShoot: 0.5,
     playerHurt: 0.85,
     doorOpen: 0.5,
   };
   /** Per-sound playback-rate multipliers (1 = original pitch). <1 = lower
-   *  pitch, >1 = higher. Cannon plays a touch slower for a beefier thump. */
-  private rates: Partial<Record<SfxKey, number>> = {
-    cannonShoot: 0.82,
-  };
+   *  pitch, >1 = higher. */
+  private rates: Partial<Record<SfxKey, number>> = {};
 
   /** SYNCHRONOUS — must be called from inside a user-gesture handler (e.g. the
    *  Play button click). Creates the AudioContext, primes it with a silent

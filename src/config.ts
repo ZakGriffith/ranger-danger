@@ -180,7 +180,7 @@ export const CFG = {
     dragonFireballDmg: 18,
     dragonFireballSplash: 56,  // AoE radius
     dragonFireballLifetime: 3500,
-    dragonFireballRate: 2200,  // ms between fireballs
+    dragonFireballRate: 1700,  // ms between fireballs (~30% faster than the original 2200ms)
   },
 
   winKills: 200, // kills needed to trigger the boss; defeating the boss wins
