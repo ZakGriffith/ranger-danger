@@ -29,6 +29,7 @@ type Step =
   | 'game_place_walls'
   | 'game_exit_build'
   | 'game_loot_coins'
+  | 'game_collect_60'
   | 'game_click_tower'
   | 'game_upgrade_tower'
   | 'game_deselect_tower'
@@ -63,6 +64,8 @@ export class TutorialScene extends Phaser.Scene {
   wallsPlaced = 0;
   watchTimer = 0;
   stepDelay = 0;
+  /** Timestamp at which game_loot_coins should auto-advance. 0 = unset. */
+  lootAdvanceAt = 0;
 
   constructor() { super('Tutorial'); }
 
@@ -139,6 +142,7 @@ export class TutorialScene extends Phaser.Scene {
     this.coinsCollected = 0;
     this.watchTimer = 0;
     this.stepDelay = 0;
+    this.lootAdvanceAt = 0;
 
     this.showStep();
   }
@@ -166,17 +170,19 @@ export class TutorialScene extends Phaser.Scene {
   onBuildMode = (active: boolean, kind: string, _towerKind?: string) => {
     if (this.step === 'game_press_1' && kind === 'tower') { this.resumeGame(); this.advanceTo('game_place_tower'); }
     if (this.step === 'game_press_4' && kind === 'wall') { this.resumeGame(); this.advanceTo('game_place_walls'); }
-    if (this.step === 'game_exit_build' && !active) { this.advanceTo('game_loot_coins', 1500); }
+    if (this.step === 'game_exit_build' && !active) { this.advanceTo(this.nextStepAfterBuild(), 1500); }
     // If player exits build mode during the delay before game_exit_build shows, skip it
     if (this.pendingStep === 'game_exit_build' && !active) {
-      this.pendingStep = 'game_loot_coins';
+      this.pendingStep = this.nextStepAfterBuild();
     }
   };
 
   onKill = () => {
     if (this.step === 'game_kill') {
       this.tutorialKills++;
-      if (this.tutorialKills >= 6) this.advanceTo('game_press_1', 2000);
+      // After 6 kills, prompt the player to walk over and collect the coins
+      // their kills dropped before introducing tower-build.
+      if (this.tutorialKills >= 6) this.advanceTo('game_loot_coins', 1500);
       else this.showStep(); // update counter
     } else if (this.step === 'game_watch_tower') {
       this.tutorialKills++;
@@ -354,8 +360,8 @@ export class TutorialScene extends Phaser.Scene {
         // Main prompt below labels
         this.showPrompt(
           this.isMobile
-            ? 'Keep an eye on your HUD!\nHealth, wave progress, and gold reserves.\n\nTAP anywhere to continue.'
-            : 'Keep an eye on your HUD!\nHealth, wave progress, and gold reserves.\n\nClick anywhere to continue.',
+            ? 'Keep an eye on your HUD!\nIt shows your health, wave progress, and gold reserves.\n\nTAP anywhere to continue.'
+            : 'Keep an eye on your HUD!\nIt shows your health, wave progress, and gold reserves.\n\nClick anywhere to continue.',
           this.p(180)
         );
 
@@ -371,7 +377,7 @@ export class TutorialScene extends Phaser.Scene {
       }
 
       case 'game_stand_still':
-        this.showPrompt('Your ranger fires automatically!\nStanding still shoots faster than when moving.', this.p(150));
+        this.showPrompt('Your ranger fires automatically!\nStanding still shoots faster than while moving.', this.p(150));
         break;
 
       case 'game_kill':
@@ -445,7 +451,7 @@ export class TutorialScene extends Phaser.Scene {
         // If the player already exited build mode, skip this step
         const gs = this.scene.get('Game') as any;
         if (gs?.buildKind === 'none' || !gs?.buildKind) {
-          this.advanceTo('game_loot_coins', 1500);
+          this.advanceTo(this.nextStepAfterBuild(), 1500);
           return;
         }
         if (this.isMobile) {
@@ -466,20 +472,28 @@ export class TutorialScene extends Phaser.Scene {
       }
 
       case 'game_loot_coins':
-        this.showPrompt('Enemies drop coins when defeated!\nYou will automatically gather them when nearby.', this.p(150));
+        // Reset counters on entry — onCoinCollected counts pickups during
+        // this step. Seed lootAdvanceAt with a hard 6s fallback so the tip
+        // dismisses even when the player keeps running and ignores the
+        // coins; the update tick shrinks it when the ground is clear.
+        this.coinsCollected = 0;
+        this.lootAdvanceAt = this.time.now + 6000;
+        this.showPrompt('Enemies drop coins when defeated!\nCollect them by getting close.', this.p(150));
+        break;
+
+      case 'game_collect_60':
+        this.showPrompt('Gather 60 coins to upgrade your tower!', this.p(150));
         break;
 
       case 'game_click_tower': {
-        this.pauseGame();
+        // No pause / dim — by this point the player has 60+ coins and is
+        // playing freely. The glow rings still locate the tower for them.
         this.showPrompt(
           this.isMobile
             ? 'Tap on your Arrow Tower to select it.'
             : 'Click on your Arrow Tower to select it.',
           this.p(150)
         );
-        // Light dim over everything
-        this.overlay.fillStyle(0x000000, 0.45);
-        this.overlay.fillRect(0, 0, W, H);
         // Bright pulsing highlight ring on the tower
         const gsTower = this.scene.get('Game') as any;
         const tower = gsTower?.towers?.[0];
@@ -501,15 +515,26 @@ export class TutorialScene extends Phaser.Scene {
       }
 
       case 'game_upgrade_tower':
+        // Drop the prompt to the bottom of the canvas so it doesn't sit on
+        // top of the tower select panel (which pops up above the tower).
         this.showPrompt(
           this.isMobile
             ? 'Tap the Upgrade button to make your tower stronger!'
             : 'Click the Upgrade button to make your tower stronger!',
-          this.p(150)
+          H - this.p(120)
         );
         break;
 
-      case 'game_deselect_tower':
+      case 'game_deselect_tower': {
+        // If the player already clicked out of the tower panel during the
+        // 1.5s delay before this step, skip the prompt — there's nothing
+        // for them to do and a stale "click somewhere else" tooltip would
+        // hang until they clicked again.
+        const gsSel = this.scene.get('Game') as any;
+        if (!gsSel?.selectedTower) {
+          this.advanceTo('game_done', 1500);
+          return;
+        }
         this.showPrompt(
           this.isMobile
             ? 'Tap somewhere else to close the tower panel.'
@@ -517,6 +542,7 @@ export class TutorialScene extends Phaser.Scene {
           this.p(150)
         );
         break;
+      }
 
       case 'game_done':
         this.showClickPrompt('Great job, Ranger!\nEnemies will find a path around walls — use them wisely.\nGood luck!', this.p(150), 'complete');
@@ -536,6 +562,15 @@ export class TutorialScene extends Phaser.Scene {
   resumeGame() {
     const gameScene = this.scene.get('Game') as any;
     if (gameScene?.physics?.world) gameScene.physics.resume();
+  }
+
+  /** After the player exits build mode, decide whether to prompt them to
+   *  click the tower (already has upgrade money) or grind 60 coins first. */
+  private nextStepAfterBuild(): Step {
+    const upgradeCost = CFG.tower.kinds.arrow.levels[0].upgradeCost;
+    const gs = this.scene.get('Game') as any;
+    const money = gs?.player?.money ?? 0;
+    return money >= upgradeCost ? 'game_click_tower' : 'game_collect_60';
   }
 
   /** Show prompt with "Click to continue" and advance to nextStep on click */
@@ -706,25 +741,39 @@ export class TutorialScene extends Phaser.Scene {
         break;
       }
 
-      case 'game_loot_coins':
-        // Hide the prompt after 10s
-        if (this.stepDelay === 0) this.stepDelay = this.time.now + 10000;
-        if (this.stepDelay > 0 && this.time.now > this.stepDelay) {
-          this.stepDelay = -1; // mark as done
-          this.overlay.clear();
-          this.textBg.clear();
-          this.promptText.setText('');
+      case 'game_loot_coins': {
+        const coinsLeft = gameScene?.coins?.countActive() ?? 0;
+        // lootAdvanceAt is seeded to "now + 8s" on entry. Shrink it when
+        // the ground is clear: 1.2s read pause if they actively collected,
+        // 3s if it was already empty (no kills yet or coins picked up
+        // before the step started).
+        if (coinsLeft === 0) {
+          const tighter = this.coinsCollected >= 1
+            ? this.time.now + 1200
+            : this.time.now + 3000;
+          if (this.lootAdvanceAt > tighter) this.lootAdvanceAt = tighter;
         }
-        // Keep spawning enemies so coins keep dropping
+        if (this.lootAdvanceAt > 0 && this.time.now >= this.lootAdvanceAt) {
+          this.lootAdvanceAt = 0;
+          // 2s blank gap before the tower-build tip — gives the player a
+          // breather between tooltips.
+          this.advanceTo('game_press_1', 2000);
+        }
+        break;
+      }
+
+      case 'game_collect_60': {
+        // Drip-feed enemies so coin drops keep coming while the player
+        // grinds toward the upgrade cost.
         if (gameScene?.enemies?.countActive() < 2) {
           this.spawnTutorialEnemies(gameScene, 2);
         }
-        // Once the player has enough money to upgrade, move on
         const upgradeCost = CFG.tower.kinds.arrow.levels[0].upgradeCost;
-        if (gameScene?.player?.money >= upgradeCost) {
+        if ((gameScene?.player?.money ?? 0) >= upgradeCost) {
           this.advanceTo('game_click_tower', 1500);
         }
         break;
+      }
 
       // game_done handled by click-to-continue
     }

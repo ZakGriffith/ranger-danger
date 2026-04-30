@@ -48,6 +48,18 @@ function start() {
   // hack that bypasses the mute switch.
   SFX.unlock();
 
+  // Start the intro theme via the preloaded <audio> element so it fires
+  // instantly on this gesture (no fetch/decode delay). It keeps playing
+  // through level-select; LevelSelectScene.startMission stops it so the
+  // biome track can take over.
+  const intro = document.getElementById('introMusic') as HTMLAudioElement | null;
+  if (intro) {
+    intro.volume = 0.07;
+    intro.play().catch((err) => {
+      console.warn('intro audio play() rejected:', err);
+    });
+  }
+
   // Castle-door whoosh: play the preloaded buffer at 1.6x speed, skipping the
   // first 0.15s, so the click feels instant. Quiet (gain 0.16) so it sits under
   // BGM. Uses its own AudioContext to avoid colliding with the game's SFX bus.

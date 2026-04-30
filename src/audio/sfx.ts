@@ -65,6 +65,18 @@ const FALLBACKS: Partial<Record<SfxKey, string>> = {
   // click uses a custom programmatic tone (see loadClick below)
 };
 
+// ---- Per-biome BGM file paths ----
+// Loaded lazily — only the track for the current level is fetched, which
+// keeps "Generating world..." short. The intro/menu theme is served via
+// an HTMLAudioElement (see index.html) so it starts on first gesture.
+const BGM_PATHS: Record<string, string> = {
+  grasslands: '/audio/bgm_grasslands.mp3',
+  forest:     '/audio/bgm_forest.mp3',
+  infected:   '/audio/bgm_infected.mp3',
+  river:      '/audio/bgm_river.mp3',
+  castle:     '/audio/bgm_castle.mp3',
+};
+
 // ---- Manager ----
 class SfxManager {
   /** Pre-decoded AudioBuffers for instant playback */
@@ -78,10 +90,18 @@ class SfxManager {
    *  forcing Safari into the "playback" audio session category. */
   private silentEl: HTMLAudioElement | null = null;
 
-  // Background music
+  // Background music — per-biome tracks loaded lazily on demand (see
+  // BGM_PATHS above). Only the track for the level the player enters
+  // gets fetched; this is what keeps the loading screen short.
   private bgmGain: GainNode | null = null;
   private bgmSource: AudioBufferSourceNode | null = null;
-  private bgmBuffer: AudioBuffer | null = null;
+  private bgmBuffers: Record<string, AudioBuffer> = {};
+  /** Currently-playing BGM key, or null if none. */
+  private currentBgmKey: string | null = null;
+  /** A play request that arrived before the buffer finished decoding. */
+  private pendingBgmKey: string | null = null;
+  /** Keys currently mid-fetch — prevents duplicate downloads. */
+  private bgmLoading: Set<string> = new Set();
   private _bgmVolume = 0.07;
   private bgmPlaying = false;
   private lastPlayed: Partial<Record<SfxKey, number>> = {};
@@ -171,7 +191,8 @@ class SfxManager {
         if (b58) this.loadSfxr(key, b58);
       }
     }
-    loads.push(this.loadBgm('/audio/bgm_default.mp3'));
+    // BGM is now lazy — playBgm(key) fetches+decodes the requested track on
+    // first use, so this loadAssets() pass only handles the small SFX bank.
     await Promise.all(loads);
     this.loadClick();
     this.loadCoin();
@@ -359,30 +380,75 @@ class SfxManager {
 
   // ---- Background music ----
 
-  private async loadBgm(path: string) {
+  private async loadBgm(key: string, path: string) {
     try {
       const resp = await fetch(path);
       const arrayBuf = await resp.arrayBuffer();
-      this.bgmBuffer = await this.ctx!.decodeAudioData(arrayBuf);
+      this.bgmBuffers[key] = await this.ctx!.decodeAudioData(arrayBuf);
     } catch (e) {
       console.warn(`BGM: failed to load ${path}`);
     }
   }
 
-  /** Start background music (looping). Safe to call multiple times — restarts if already playing. */
-  playBgm() {
-    if (!this.ctx || !this.bgmGain || !this.bgmBuffer) return;
+  /** Kick off a lazy fetch+decode for a BGM track without playing it.
+   *  Safe to call multiple times — duplicate calls become no-ops. Used to
+   *  warm the cache during "Generating world..." so playBgm() lands
+   *  instantly when the level finishes loading. */
+  preloadBgm(key: string) {
+    if (this.bgmBuffers[key]) return;
+    if (this.bgmLoading.has(key)) return;
+    const path = BGM_PATHS[key];
+    if (!path || !this.ctx) return;
+    this.bgmLoading.add(key);
+    this.loadBgm(key, path).finally(() => {
+      this.bgmLoading.delete(key);
+      // If a play was already queued for this key, fire it now.
+      if (this.pendingBgmKey === key && this.bgmBuffers[key]) {
+        this.pendingBgmKey = null;
+        this.playBgm(key);
+      }
+    });
+  }
+
+  /** Start the named BGM track on loop. Pass the same key as currently
+   *  playing to no-op. If the track hasn't been fetched yet (BGMs are
+   *  loaded lazily so the level-load screen stays short), kick off the
+   *  fetch and queue the play — it fires the moment decode finishes. */
+  playBgm(key: string) {
+    if (!this.bgmBuffers[key]) {
+      this.pendingBgmKey = key;
+      // Trigger a lazy fetch+decode if we haven't already.
+      const path = BGM_PATHS[key];
+      if (path && !this.bgmLoading.has(key) && this.ctx) {
+        this.bgmLoading.add(key);
+        this.loadBgm(key, path).finally(() => {
+          this.bgmLoading.delete(key);
+          // If this is still the requested track, fire it now.
+          if (this.pendingBgmKey === key && this.bgmBuffers[key]) {
+            this.pendingBgmKey = null;
+            this.playBgm(key);
+          }
+        });
+      }
+      return;
+    }
+    if (!this.ctx || !this.bgmGain) return;
+    if (this.currentBgmKey === key && this.bgmPlaying) return;
     this.stopBgm();
     if (this.ctx.state === 'suspended') this.ctx.resume();
+    // Restore gain in case a previous fadeOutBgm left it at 0
+    this.bgmGain.gain.cancelScheduledValues(this.ctx.currentTime);
+    this.bgmGain.gain.setValueAtTime(this._muted ? 0 : this._bgmVolume, this.ctx.currentTime);
     this.bgmSource = this.ctx.createBufferSource();
-    this.bgmSource.buffer = this.bgmBuffer;
+    this.bgmSource.buffer = this.bgmBuffers[key];
     this.bgmSource.loop = true;
     this.bgmSource.connect(this.bgmGain);
     this.bgmSource.start(0);
     this.bgmPlaying = true;
+    this.currentBgmKey = key;
   }
 
-  /** Stop background music. */
+  /** Stop background music immediately. */
   stopBgm() {
     if (this.bgmSource) {
       try { this.bgmSource.stop(); } catch (_) { /* already stopped */ }
@@ -390,6 +456,7 @@ class SfxManager {
       this.bgmSource = null;
     }
     this.bgmPlaying = false;
+    this.currentBgmKey = null;
   }
 
   /** Fade BGM volume to silence over `durationMs`, then stop the source. */

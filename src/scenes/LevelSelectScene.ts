@@ -33,6 +33,15 @@ export class LevelSelectScene extends Phaser.Scene {
   constructor() { super('LevelSelect'); }
 
   create() {
+    // Resume the intro/menu theme. The HTMLAudioElement is started in
+    // main.ts on the first PLAY click; here we just make sure it's
+    // playing when returning from a level (where startMission paused it).
+    const intro = document.getElementById('introMusic') as HTMLAudioElement | null;
+    if (intro && intro.paused) {
+      intro.volume = 0.07;
+      intro.play().catch(() => {});
+    }
+
     // Compute native display size and decoupled scales (desktop stays identical;
     // mobile fills the device viewport with its own camera zoom + UI scale).
     const vp = computeViewport();
@@ -675,6 +684,28 @@ export class LevelSelectScene extends Phaser.Scene {
 
   startMission() {
     if (!this.selectedLevel || !this.selectedDiff) return;
+
+    // Kick the biome's BGM fetch off NOW, in parallel with world
+    // generation. By the time GameScene's warm-up finishes, the buffer
+    // is decoded and playBgm() can fire instantly.
+    SFX.preloadBgm(this.selectedLevel.biome);
+
+    // Fade out the intro/menu theme via volume tween, then pause so it
+    // can resume cleanly when the user returns to the map. GameScene
+    // starts the biome track once the world is warm.
+    const intro = document.getElementById('introMusic') as HTMLAudioElement | null;
+    if (intro) {
+      const startVol = intro.volume;
+      const startTs = performance.now();
+      const dur = 900;
+      const tick = () => {
+        const t = Math.min(1, (performance.now() - startTs) / dur);
+        intro.volume = startVol * (1 - t);
+        if (t < 1) requestAnimationFrame(tick);
+        else { intro.pause(); intro.volume = startVol; intro.currentTime = 0; }
+      };
+      requestAnimationFrame(tick);
+    }
 
     // Show the "Generating world..." loading overlay
     const overlay = document.getElementById('overlay');

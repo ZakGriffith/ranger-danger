@@ -406,13 +406,17 @@ export class GameScene extends Phaser.Scene {
       const ts = this.game.registry.get('tutorialStep');
       if (ts) {
         if (ts === 'game_press_1' && k === 'tower' && tk === 'arrow') { /* allowed */ }
-        else if ((ts === 'game_press_4' || ts === 'game_place_walls') && k === 'wall') { /* allowed */ }
+        // Tutorial caps placements at 3 walls — once 3 are down, don't let
+        // the player re-enter wall build mode and click into a dead state.
+        else if ((ts === 'game_press_4' || ts === 'game_place_walls') && k === 'wall' && this.walls.length < 3) { /* allowed */ }
         // Tutorial caps placements at 1 arrow tower — once placed, don't let
         // the player re-enter tower build mode and try to place another.
         else if (ts === 'game_place_tower' && k === 'tower' && tk === 'arrow' && this.towers.length === 0) { /* allowed */ }
         // Mobile has no right-click / ESC, so tapping the (already-active)
         // wall slot is the only way to exit build mode during this step.
-        else if (ts === 'game_exit_build' && k === 'wall') { /* allowed — toggles off */ }
+        // Only permit it when wall mode is currently on (i.e. the toggle
+        // turns it OFF) so the player can't re-enter wall mode after exit.
+        else if (ts === 'game_exit_build' && k === 'wall' && this.buildKind === 'wall') { /* allowed — toggles off */ }
         else return; // block everything else during tutorial
       }
       this.toggleBuild(k, tk);
@@ -1169,7 +1173,11 @@ export class GameScene extends Phaser.Scene {
         this.physics.resume();
         this.pushHud();
         this.game.events.emit('game-ready');
-        SFX.playBgm();
+        // Pick the biome's BGM. Falls through to 'castle' for any biome
+        // that doesn't yet have its own track.
+        const bgmKey = (['grasslands', 'forest', 'infected', 'river', 'castle'] as const)
+          .includes(this.biome as any) ? this.biome : 'castle';
+        SFX.playBgm(bgmKey);
       }
       return;
     }

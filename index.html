@@ -290,6 +290,12 @@
     </style>
   </head>
   <body>
+    <!-- Intro / level-select theme. Browsers block autoplay with sound for
+         first-time visitors, so this is set up to start playing on the very
+         first user gesture (PLAY click). preload="auto" lets the browser
+         buffer it while the page loads, so play() returns instantly. -->
+    <audio id="introMusic" src="/audio/bgm_intro.mp3" loop preload="auto"></audio>
+
     <div id="game"></div>
 
     <div id="overlay">
