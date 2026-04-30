@@ -800,10 +800,11 @@ export class TutorialScene extends Phaser.Scene {
     this.cleanupContinueZone();
     this.resumeGame();
 
-    // Resume normal spawning in GameScene
+    // Resume normal spawning in GameScene — skip the standard build break
+    // since the tutorial already walked the player through placement.
     const gameScene = this.scene.get('Game') as any;
     if (gameScene?.loadingDone) {
-      gameScene.waveStartAt = gameScene.vTime + CFG.spawn.startDelay;
+      gameScene.waveStartAt = gameScene.vTime;
     }
 
     // Clean up listeners

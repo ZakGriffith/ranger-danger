@@ -2051,6 +2051,11 @@ export class GameScene extends Phaser.Scene {
     // Chosen well outside any camera viewport so culled enemies are never
     // visible. The boss is updated separately and is exempt from this cull.
     const FAR_AI_CULL_SQ = 1100 * 1100;
+    // Stragglers that drift very far (player ran off, pathfinding stalled)
+    // get teleported back to a fresh spawn ring so they don't strand the
+    // wave forever. Threshold sits comfortably past the AI cull.
+    const TELEPORT_DIST_SQ = 1500 * 1500;
+    const respawnR = this.spawnDist * CFG.tile;
 
     this.enemies.children.iterate((c: any) => {
       const e = c as Enemy;
@@ -2061,6 +2066,19 @@ export class GameScene extends Phaser.Scene {
       e.targetRef = this.player;
       const prefix = e.dirPrefix();
       const dist2 = (tx - e.x) ** 2 + (ty - e.y) ** 2;
+
+      // Stranded straggler — yank them to just outside the screen on the
+      // line from the player so the next frame's AI picks them up normally.
+      if (dist2 > TELEPORT_DIST_SQ) {
+        const dx = e.x - tx, dy = e.y - ty;
+        const inv = 1 / Math.sqrt(dx * dx + dy * dy);
+        e.setPosition(tx + dx * inv * respawnR, ty + dy * inv * respawnR);
+        if (e.body && (e.body as any).enable) e.setVelocity(0, 0);
+        // Drop any stale path — let the enemy re-plan from its new spot.
+        e.path = [];
+        e.pathIdx = 0;
+        return true;
+      }
 
       // Far-AI cull: stop the enemy and skip pathfinding/lineBlocked/etc.
       // It still exists in the world; once the player gets close it resumes
