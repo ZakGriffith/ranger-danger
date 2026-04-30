@@ -5,15 +5,13 @@ import { LevelSelectScene } from './scenes/LevelSelectScene';
 import { GameScene } from './scenes/GameScene';
 import { UIScene } from './scenes/UIScene';
 import { TutorialScene } from './scenes/TutorialScene';
+import { SFX } from './audio/sfx';
+import { installViewportResizeListener } from './viewport';
 
 const overlay = document.getElementById('overlay') as HTMLDivElement;
 const startBtn = document.getElementById('startBtn') as HTMLButtonElement;
 
 let started = false;
-
-// Preload play button sound so it's instant on click
-let playBtnBuffer: ArrayBuffer | null = null;
-fetch('/audio/PlayButton.wav').then(r => r.arrayBuffer()).then(b => { playBtnBuffer = b; }).catch(() => {});
 
 // Keep the screen awake so the game doesn't pause/restart when the user
 // walks away. Re-acquires the lock whenever the tab becomes visible again.
@@ -40,20 +38,10 @@ function start() {
   if (started) return;
   started = true;
 
-  // Play preloaded castle door sound instantly
-  if (playBtnBuffer) {
-    const ctx = new AudioContext();
-    ctx.decodeAudioData(playBtnBuffer.slice(0)).then(audioBuf => {
-      const src = ctx.createBufferSource();
-      src.buffer = audioBuf;
-      src.playbackRate.value = 1.6;
-      const g = ctx.createGain();
-      g.gain.value = 0.16;
-      src.connect(g);
-      g.connect(ctx.destination);
-      src.start(0, 0.15);
-    });
-  }
+  // Unlock audio FIRST, synchronously, while we're still inside the click
+  // gesture. iOS requires this for both WebAudio resume and the silent-loop
+  // hack that bypasses the mute switch.
+  SFX.unlock();
 
   // Hide overlay immediately — level select appears fast since art is deferred
   overlay.classList.add('hidden');
@@ -82,6 +70,19 @@ function start() {
     overlay.classList.add('hidden');
     const landing = document.getElementById('landingPanel');
     if (landing) landing.classList.remove('loading');
+  });
+
+  // Resize / orientation handling. When the viewport changes, update the
+  // shared scale registry values and broadcast a `viewport-changed` event.
+  // Each scene is responsible for setting its own gameSize (LevelSelect locks
+  // to a 3:2 fit; GameScene fills the device viewport), so this top-level
+  // handler intentionally does NOT call setGameSize itself.
+  installViewportResizeListener((vp) => {
+    game.registry.set('sf', vp.uiScale);
+    game.registry.set('cameraZoom', vp.cameraZoom);
+    game.registry.set('uiScale', vp.uiScale);
+    game.registry.set('isMobile', vp.isMobile);
+    game.events.emit('viewport-changed', vp);
   });
 }
 

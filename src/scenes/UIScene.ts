@@ -2,12 +2,13 @@ import Phaser from 'phaser';
 import { CFG } from '../config';
 import { Difficulty, saveMedal, LEVELS, Biome } from '../levels';
 import { SFX } from '../audio/sfx';
+import { VirtualJoystick } from '../ui/VirtualJoystick';
 
 export class UIScene extends Phaser.Scene {
-  hpBarGfx!: Phaser.GameObjects.Graphics;
+  hpBarBg!: Phaser.GameObjects.Rectangle;
+  hpBar!: Phaser.GameObjects.Rectangle;
   nameText!: Phaser.GameObjects.Text;
   moneyText!: Phaser.GameObjects.Text;
-  goldBadgeGfx!: Phaser.GameObjects.Graphics;
   btnTower!: Phaser.GameObjects.Container;
   btnCannon!: Phaser.GameObjects.Container;
   btnMage!: Phaser.GameObjects.Container;
@@ -16,11 +17,11 @@ export class UIScene extends Phaser.Scene {
   speedLabel!: Phaser.GameObjects.Text;
   speedIdx = 0;
   endPanel?: Phaser.GameObjects.Container;
-  bossBarGfx?: Phaser.GameObjects.Graphics;
-  bossBarMaxW = 0;
-  bossBarMaxHp = 1;
+  bossBarBg?: Phaser.GameObjects.Rectangle;
+  bossBar?: Phaser.GameObjects.Rectangle;
   bossLabel?: Phaser.GameObjects.Text;
-  waveBarGfx!: Phaser.GameObjects.Graphics;
+  waveBarBg!: Phaser.GameObjects.Rectangle;
+  waveBar!: Phaser.GameObjects.Rectangle;
   waveLabel!: Phaser.GameObjects.Text;
   progressCircles: Phaser.GameObjects.Arc[] = [];
   progressLabels: Phaser.GameObjects.Text[] = [];
@@ -40,6 +41,16 @@ export class UIScene extends Phaser.Scene {
   private p(v: number) { return v * this.sf; }
   /** Build a font-size string at scaled resolution */
   private fs(px: number) { return `${Math.round(px * this.sf)}px`; }
+  /** Design-space width (canvas divided by uiScale) — how many base units of
+   *  horizontal room the UI has. Elements sized in base units must fit inside
+   *  this number or they overflow the canvas. */
+  private dw() { return this.scale.width / this.sf; }
+  /** Design-space height. */
+  private dh() { return this.scale.height / this.sf; }
+  /** Mobile flag (from registry). */
+  private isMobile = false;
+  /** Virtual joystick (mobile only). */
+  private joystick: VirtualJoystick | null = null;
 
   constructor() { super({ key: 'UI', active: false }); }
 
@@ -49,33 +60,39 @@ export class UIScene extends Phaser.Scene {
     const levelDef = LEVELS.find(l => l.id === this.levelId);
     this.biome = levelDef?.biome ?? 'grasslands';
     this.endPanel = undefined;
-    this.bossBarGfx = undefined;
+    this.bossBarBg = undefined;
+    this.bossBar = undefined;
     this.bossLabel = undefined;
-    this.speedIdx = 0;
+    // Restore speedIdx if a prior incarnation persisted it (e.g. across a
+    // viewport-driven scene restart on rotation). Default to 0 for fresh runs.
+    this.speedIdx = (this.game.registry.get('uiSpeedIdx') as number) ?? 0;
   }
 
   create() {
-    this.events.on('shutdown', this.shutdown, this);
     this.sf = this.game.registry.get('sf') || 1;
+    this.isMobile = !!this.game.registry.get('isMobile');
     const W = this.scale.width;
     const H = this.scale.height;
     const T = this.p(20); // top padding
 
-    // top-left HUD
+    // top-left HUD — bar is 25% narrower on mobile to leave room for the
+    // centered wave bar. On portrait mobile the bar nudges up ~5px to tuck
+    // closer under the Ranger label (label stays put).
     this.nameText = this.add.text(this.p(12), T, '', { fontFamily: 'monospace', fontSize: this.fs(14), color: '#7cc4ff' });
-    this.hpBarGfx = this.add.graphics();
+    const hpBarBaseW = this.isMobile ? 135 : 180;
+    const hpBarW = this.p(hpBarBaseW);
+    const isPortraitMobile = this.isMobile && H > W;
+    const hpBarYOffset = isPortraitMobile ? this.p(17) : this.p(22);
+    this.hpBarBg = this.add.rectangle(this.p(12), T + hpBarYOffset, hpBarW, this.p(14), 0x111826).setOrigin(0, 0).setStrokeStyle(this.p(1), 0x2a3760);
+    this.hpBar = this.add.rectangle(this.p(13), T + hpBarYOffset + this.p(1), hpBarW - this.p(2), this.p(12), 0xd94a4a).setOrigin(0, 0);
 
-    // Top-right gold badge (WoW-style)
-    const coinX = W - this.p(60);
+    // Top-right gold badge (WoW-style). On portrait mobile, shift right so
+    // the rightmost element (the coin circle, which extends to coinX+p(25))
+    // aligns with the right edge of the centered wave bar at W-p(20).
+    const coinX = isPortraitMobile ? W - this.p(45) : W - this.p(60);
     const coinY = T + this.p(14);
-    // Dark inset panel with rounded corners
-    this.goldBadgeGfx = this.add.graphics();
-    const gbW = this.p(80), gbH = this.p(26), gbR = this.p(6);
-    const gbX = coinX + this.p(6) - gbW, gbY = coinY - gbH / 2;
-    this.goldBadgeGfx.fillStyle(0x0b0f1a, 0.85);
-    this.goldBadgeGfx.fillRoundedRect(gbX, gbY, gbW, gbH, gbR);
-    this.goldBadgeGfx.lineStyle(this.p(1.5), 0x5a4a1a, 0.7);
-    this.goldBadgeGfx.strokeRoundedRect(gbX, gbY, gbW, gbH, gbR);
+    // Dark inset panel behind the number
+    this.add.rectangle(coinX + this.p(6), coinY, this.p(80), this.p(26), 0x0b0f1a, 0.85).setOrigin(1, 0.5).setStrokeStyle(this.p(1), 0x3a3a1a);
     // Gold coin circle
     this.add.circle(coinX + this.p(12), coinY, this.p(13), 0x8a6a1a).setStrokeStyle(this.p(2), 0xc4a030);
     this.add.circle(coinX + this.p(12), coinY, this.p(9), 0xd4a820).setStrokeStyle(this.p(1), 0xffd84a);
@@ -127,8 +144,10 @@ export class UIScene extends Phaser.Scene {
       () => this.game.events.emit('ui-build', 'wall'));
     this.btnSpeed = this.makeHotbarSlot(slotX(4), hotbarY, slotSize, slotSize, 'SPC', 'speed', 'SPEED', '',
       () => this.cycleSpeed());
-    // Speed cycle text overlay
-    this.speedLabel = this.add.text(0, 0, '>', {
+    // Speed cycle text overlay — initial text matches the persisted speedIdx
+    // so a restart (e.g. viewport rotation) doesn't desync from GameScene.
+    const speedLabels = ['>', '>>', '>>>'];
+    this.speedLabel = this.add.text(0, 0, speedLabels[this.speedIdx] ?? '>', {
       fontFamily: 'monospace', fontSize: this.fs(16), fontStyle: 'bold', color: '#c4a850',
       stroke: '#0a0e1a', strokeThickness: this.p(3),
     }).setOrigin(0.5);
@@ -182,15 +201,18 @@ export class UIScene extends Phaser.Scene {
       stroke: '#0b0f1a', strokeThickness: this.p(4)
     }).setOrigin(0.5).setVisible(false);
 
-    // Wave progress bar (centered, same position as boss bar)
-    const barW = this.p(420);
+    // Wave progress bar (centered, same position as boss bar). Clamp to the
+    // available design width so it doesn't overflow narrow mobile canvases.
+    const waveBarBaseW = Math.min(420, this.dw() - 40);
+    const barW = this.p(waveBarBaseW);
     const barX = (W - barW) / 2;
     const barY = T + this.p(38);
     this.waveLabel = this.add.text(W / 2, barY - this.p(16), 'WAVE 1', {
       fontFamily: 'monospace', fontSize: this.fs(14), color: '#7cc4ff',
       stroke: '#0b0f1a', strokeThickness: this.p(3)
     }).setOrigin(0.5);
-    this.waveBarGfx = this.add.graphics();
+    this.waveBarBg = this.add.rectangle(barX, barY, barW, this.p(14), 0x11172a).setOrigin(0, 0).setStrokeStyle(this.p(2), 0x2a3760);
+    this.waveBar = this.add.rectangle(barX + this.p(2), barY + this.p(2), 0, this.p(10), 0x4a8ad9).setOrigin(0, 0);
 
     // Build error message (persistent while hovering invalid tile)
     const hotbarTop = H - this.p(48) - this.p(32); // matches hotbarY
@@ -202,18 +224,22 @@ export class UIScene extends Phaser.Scene {
     }).setOrigin(0.5, 1).setDepth(900).setVisible(false);
 
     // Build mode cancel hint
-    this.buildHintText = this.add.text(W / 2, hotbarTop - this.p(38), 'Right-click or ESC to leave build menu', {
-      fontFamily: 'monospace', fontSize: this.fs(12), color: '#c8d8e8',
-      stroke: '#0b0f1a', strokeThickness: this.p(3),
-      backgroundColor: '#11172aDD', padding: { x: Number(this.p(8)), y: Number(this.p(4)) }
-    }).setOrigin(0.5, 1).setDepth(900).setVisible(false);
+    this.buildHintText = this.add.text(W / 2, hotbarTop - this.p(38),
+      this.isMobile
+        ? 'Tap selected item again to leave build menu'
+        : 'Right-click or ESC to leave build menu',
+      {
+        fontFamily: 'monospace', fontSize: this.fs(12), color: '#c8d8e8',
+        stroke: '#0b0f1a', strokeThickness: this.p(3),
+        backgroundColor: '#11172aDD', padding: { x: Number(this.p(8)), y: Number(this.p(4)) }
+      }
+    ).setOrigin(0.5, 1).setDepth(900).setVisible(false);
 
     // listen for HUD updates
     this.game.events.on('hud', (s: any) => this.updateHud(s));
     this.game.events.on('game-end', (s: any) => this.showEnd(s));
     this.game.events.on('boss-spawn', (s: any) => this.showBossBar(s));
     this.game.events.on('boss-hp', (s: any) => this.updateBossBar(s));
-    this.game.events.on('boss-died', () => this.hideBossBar());
     this.game.events.on('build-error', (msg: string) => {
       if (msg) {
         this.buildErrorText.setText(msg).setVisible(true);
@@ -221,20 +247,109 @@ export class UIScene extends Phaser.Scene {
         this.buildErrorText.setVisible(false);
       }
     });
-    this.game.events.on('build-mode', (active: boolean) => {
+    this.game.events.on('build-mode', (active: boolean, kind?: string, towerKind?: string) => {
       this.buildHintText.setVisible(active);
       if (!active) this.buildErrorText.setVisible(false);
+      // Highlight the matching hotbar slot so the player can see at a glance
+      // which build is active (and which to re-tap to exit on mobile).
+      (this.btnTower as any).setSelected?.(active && kind === 'tower' && towerKind === 'arrow');
+      (this.btnCannon as any).setSelected?.(active && kind === 'tower' && towerKind === 'cannon');
+      (this.btnWall as any).setSelected?.(active && kind === 'wall');
+    });
+
+    // Recover the end-panel after a UI restart (e.g. mid-rotation): if the
+    // game already ended and we missed the live event, replay it now.
+    const gameEndState = this.game.registry.get('gameEndState') as any;
+    if (gameEndState) this.showEnd(gameEndState);
+
+    // Pull the current HUD state from GameScene so the HP / wave bars
+    // render at their real values immediately on rotation, instead of
+    // showing as empty until the next hud event fires.
+    const game = this.scene.get('Game') as any;
+    if (game && typeof game.hudState === 'function') {
+      this.updateHud(game.hudState());
+    }
+
+    // Re-apply the active build-mode highlight after a UI restart (rotation),
+    // since the new hotbar slots default to !isSelected. Also reshow the
+    // build hint text if a build is in progress.
+    const activeKind = game?.buildKind;
+    const activeTowerKind = game?.buildTowerKind;
+    if (activeKind && activeKind !== 'none') {
+      (this.btnTower as any).setSelected?.(activeKind === 'tower' && activeTowerKind === 'arrow');
+      (this.btnCannon as any).setSelected?.(activeKind === 'tower' && activeTowerKind === 'cannon');
+      (this.btnWall as any).setSelected?.(activeKind === 'wall');
+      this.buildHintText.setVisible(true);
+    }
+
+    // ---- Mobile virtual joystick (lower-left) ----
+    if (this.isMobile) {
+      const outerR = this.p(60);
+      const innerR = this.p(28);
+      // Portrait: lift the joystick above the bottom hotbar (slot top at
+      // H - p(80), labels extend below to ~H - p(18)). Landscape: hotbar is
+      // horizontally centered with no overlap on the left, so we can sit lower.
+      const isPortraitNow = this.scale.height > this.scale.width;
+      const margin = this.p(isPortraitNow ? 130 : 60);
+      const cx = this.p(40) + outerR;
+      const cy = H - margin - outerR;
+      const touchPad = this.p(20);
+      this.joystick = new VirtualJoystick(this, cx, cy, outerR, innerR, outerR + touchPad);
+
+      // Publish the joystick's screen-space hit rect so GameScene can ignore
+      // taps in this region (otherwise tapping the stick during build mode
+      // would also fire handleClick and try to place a tower under your thumb).
+      const halfSize = outerR + touchPad;
+      this.game.registry.set('joystickBounds', {
+        x: cx - halfSize,
+        y: cy - halfSize,
+        w: halfSize * 2,
+        h: halfSize * 2,
+      });
+    }
+
+    // Publish joystick state to the registry every frame so GameScene can read
+    // it from updatePlayer without coupling the two scenes through events.
+    this.events.on(Phaser.Scenes.Events.UPDATE, () => {
+      if (this.joystick) {
+        this.game.registry.set('joystickX', this.joystick.x);
+        this.game.registry.set('joystickY', this.joystick.y);
+      }
+    });
+
+    // If a boss is alive (e.g. we just restarted on rotation), rebuild the
+    // boss bar from registry state since boss-spawn is one-shot and we missed
+    // the original event.
+    if (this.game.registry.get('bossActive')) {
+      const bossMaxHp = (this.game.registry.get('bossMaxHp') as number) || 1;
+      const bossHp = (this.game.registry.get('bossHp') as number) || 0;
+      const biome = this.game.registry.get('bossBiome') as string;
+      this.showBossBar({ maxHp: bossMaxHp, biome });
+      this.updateBossBar({ hp: bossHp, maxHp: bossMaxHp });
+    }
+
+    // Re-layout on rotation / window resize. Restarting cleanly rebuilds every
+    // element at the new uiScale; shutdown() above unbinds the listeners so
+    // they don't accumulate across restarts.
+    const onViewportChanged = () => {
+      // Clear joystick state so the player doesn't drift after restart.
+      this.game.registry.set('joystickX', 0);
+      this.game.registry.set('joystickY', 0);
+      if (this.scene.isActive('UI')) this.scene.restart();
+    };
+    this.game.events.on('viewport-changed', onViewportChanged);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.game.events.off('viewport-changed', onViewportChanged);
     });
   }
 
   showBossBar(s: any) {
     const W = this.scale.width;
-    const barW = this.p(420);
+    const barW = this.p(Math.min(420, this.dw() - 40));
     const x = (W - barW) / 2;
     const y = this.p(58); // 20 (top pad) + 38
-    // Destroy previous boss bar if any (for multi-boss levels)
+    // Destroy previous boss bar if any (for multi-boss levels like Castle)
     this.hideBossBar();
-    if (this.bossBarGfx) return;
     const bossName = s?.bossKind === 'queen' ? 'THE PHANTOM QUEEN'
                    : s?.bossKind === 'dragon' ? 'THE CASTLE DRAGON'
                    : s?.biome === 'forest' ? 'THE WENDIGO'
@@ -245,38 +360,26 @@ export class UIScene extends Phaser.Scene {
       fontFamily: 'monospace', fontSize: this.fs(14), color: '#ff6a6a',
       stroke: '#0b0f1a', strokeThickness: this.p(3)
     }).setOrigin(0.5);
-    this.bossBarGfx = this.add.graphics();
-    this.bossBarMaxW = barW - this.p(4);
-    this.bossBarMaxHp = s?.maxHp ?? 1;
+    this.bossBarBg = this.add.rectangle(x, y, barW, this.p(14), 0x11172a).setOrigin(0, 0).setStrokeStyle(this.p(2), 0x6a1a1a);
+    this.bossBar = this.add.rectangle(x + this.p(2), y + this.p(2), barW - this.p(4), this.p(10), 0xd94a4a).setOrigin(0, 0);
+    this.bossBar.setDataEnabled();
+    this.bossBar.setData('maxW', barW - this.p(4));
+    this.bossBar.setData('maxHp', s?.maxHp ?? 1);
   }
 
   hideBossBar() {
-    if (this.bossBarGfx) { this.bossBarGfx.destroy(); this.bossBarGfx = undefined; }
+    if (this.bossBarBg) { this.bossBarBg.destroy(); this.bossBarBg = undefined; }
+    if (this.bossBar) { this.bossBar.destroy(); this.bossBar = undefined; }
     if (this.bossLabel) { this.bossLabel.destroy(); this.bossLabel = undefined; }
   }
 
   updateBossBar(s: any) {
-    if (!this.bossBarGfx) return;
-    const W = this.scale.width;
-    const barW = this.p(420);
-    const x = (W - barW) / 2;
-    const y = this.p(58);
-    const bH = this.p(14), bR = this.p(5);
-    const maxHp = this.bossBarMaxHp || s.maxHp || 1;
+    if (!this.bossBar) return;
+    const maxW = this.bossBar.getData('maxW');
+    const maxHp = this.bossBar.getData('maxHp') || s.maxHp || 1;
     const pct = Math.max(0, (s.hp ?? 0) / maxHp);
-    const bossColor = pct > 0.5 ? 0xd94a4a : pct > 0.25 ? 0xd97a4a : 0xff3030;
-    this.bossBarGfx.clear();
-    // Background
-    this.bossBarGfx.fillStyle(0x11172a, 1);
-    this.bossBarGfx.fillRoundedRect(x, y, barW, bH, bR);
-    this.bossBarGfx.lineStyle(this.p(1.5), 0x6a2a2a, 0.8);
-    this.bossBarGfx.strokeRoundedRect(x, y, barW, bH, bR);
-    // Fill
-    const fillW = this.bossBarMaxW * pct;
-    if (fillW > 0) {
-      this.bossBarGfx.fillStyle(bossColor, 1);
-      this.bossBarGfx.fillRoundedRect(x + this.p(2), y + this.p(2), fillW, bH - this.p(4), bR - this.p(1));
-    }
+    this.bossBar.width = maxW * pct;
+    this.bossBar.fillColor = pct > 0.5 ? 0xd94a4a : pct > 0.25 ? 0xd97a4a : 0xff3030;
   }
 
   cycleSpeed() {
@@ -285,6 +388,8 @@ export class UIScene extends Phaser.Scene {
     this.speedIdx = (this.speedIdx + 1) % speeds.length;
     this.speedLabel.setText(labels[this.speedIdx]);
     this.game.events.emit('ui-speed', speeds[this.speedIdx]);
+    // Persist so a viewport-driven scene restart preserves the chosen speed.
+    this.game.registry.set('uiSpeedIdx', this.speedIdx);
   }
 
   makeButton(x: number, y: number, w: number, h: number, label: string, onClick: () => void) {
@@ -304,44 +409,64 @@ export class UIScene extends Phaser.Scene {
     const c = this.add.container(cx, my);
 
     const g = this.add.graphics();
-    const drawSlot = (hover: boolean) => {
+    let isHover = false;
+    let isSelected = false;
+    const drawSlot = () => {
       g.clear();
+      // Outer glow ring + thicker border when this slot's build kind is the
+      // active one (mobile only — desktop has the keybind badge / right-click
+      // affordance to communicate selection).
+      if (isSelected && this.isMobile) {
+        g.lineStyle(this.p(2), 0xffd84a, 0.5);
+        g.strokeRoundedRect(-w / 2 - this.p(3), -h / 2 - this.p(3), w + this.p(6), h + this.p(6), this.p(5));
+        g.lineStyle(this.p(1.5), 0xffd84a, 0.25);
+        g.strokeRoundedRect(-w / 2 - this.p(5), -h / 2 - this.p(5), w + this.p(10), h + this.p(10), this.p(6));
+      }
       // Slot fill
-      g.fillStyle(hover ? 0x141c30 : 0x0a0e1a, 1);
+      g.fillStyle(isHover ? 0x141c30 : 0x0a0e1a, 1);
       g.fillRoundedRect(-w / 2, -h / 2, w, h, this.p(3));
-      // Gold border
-      g.lineStyle(this.p(1.5), hover ? 0xc4a030 : 0x8a6a20, 1);
+      // Gold border — thicker / brighter when selected on mobile.
+      const borderW = (isSelected && this.isMobile) ? this.p(3) : this.p(1.5);
+      const borderColor = (isSelected && this.isMobile)
+        ? 0xffd84a
+        : (isHover ? 0xc4a030 : 0x8a6a20);
+      g.lineStyle(borderW, borderColor, 1);
       g.strokeRoundedRect(-w / 2, -h / 2, w, h, this.p(3));
       // Inner glow
-      g.lineStyle(this.p(1), hover ? 0xa08830 : 0xa08030, hover ? 0.2 : 0.12);
+      g.lineStyle(this.p(1), isHover ? 0xa08830 : 0xa08030, isHover ? 0.2 : 0.12);
       g.strokeRoundedRect(-w / 2 + this.p(2), -h / 2 + this.p(2), w - this.p(4), h - this.p(4), this.p(2));
     };
-    drawSlot(false);
+    drawSlot();
 
     // Hit area
     const hitRect = this.add.rectangle(0, 0, w, h, 0x000000, 0).setInteractive({ useHandCursor: true });
     hitRect.on('pointerdown', () => { SFX.play('click'); onClick(); });
-    hitRect.on('pointerover', () => drawSlot(true));
-    hitRect.on('pointerout', () => drawSlot(false));
+    hitRect.on('pointerover', () => { isHover = true; drawSlot(); });
+    hitRect.on('pointerout', () => { isHover = false; drawSlot(); });
 
     // Draw icon
     const iconG = this.add.graphics();
     this.drawSlotIcon(iconG, icon);
 
-    // Keybind badge (top-left corner)
-    const badgeW = key.length > 2 ? this.p(22) : this.p(13);
-    const badgeBg = this.add.rectangle(-w / 2 + badgeW / 2 + this.p(1), -h / 2 + this.p(7), badgeW, this.p(12), 0x0a0e1a, 0.9)
-      .setStrokeStyle(this.p(0.5), 0x8a6a20, 0.5);
-    const badge = this.add.text(-w / 2 + badgeW / 2 + this.p(1), -h / 2 + this.p(7), key, {
-      fontFamily: 'monospace', fontSize: this.fs(8), color: '#a08830',
-    }).setOrigin(0.5);
+    // Keybind badge (top-left corner) — desktop only; the keys it displays
+    // (1/2/3/4/SPC) don't apply on touch devices.
+    const items: Phaser.GameObjects.GameObject[] = [g, hitRect, iconG];
+    if (!this.isMobile) {
+      const badgeW = key.length > 2 ? this.p(22) : this.p(13);
+      const badgeBg = this.add.rectangle(-w / 2 + badgeW / 2 + this.p(1), -h / 2 + this.p(7), badgeW, this.p(12), 0x0a0e1a, 0.9)
+        .setStrokeStyle(this.p(0.5), 0x8a6a20, 0.5);
+      const badge = this.add.text(-w / 2 + badgeW / 2 + this.p(1), -h / 2 + this.p(7), key, {
+        fontFamily: 'monospace', fontSize: this.fs(8), color: '#a08830',
+      }).setOrigin(0.5);
+      items.push(badgeBg, badge);
+    }
 
     // Name label below slot
     const nameLabel = this.add.text(0, h / 2 + this.p(4), name, {
       fontFamily: 'monospace', fontSize: this.fs(8), color: '#8a9ab0',
     }).setOrigin(0.5, 0);
 
-    const items: Phaser.GameObjects.GameObject[] = [g, hitRect, iconG, badgeBg, badge, nameLabel];
+    items.push(nameLabel);
 
     // Cost label below name
     if (cost) {
@@ -352,6 +477,9 @@ export class UIScene extends Phaser.Scene {
     }
 
     c.add(items);
+    // Expose a setter so the build-mode listener can highlight this slot
+    // when it matches the active build kind.
+    (c as any).setSelected = (sel: boolean) => { isSelected = sel; drawSlot(); };
     return c;
   }
 
@@ -459,22 +587,9 @@ export class UIScene extends Phaser.Scene {
     if (!s) return;
     this.nameText.setText(s.name ?? 'Ranger');
     const pct = Math.max(0, s.hp / s.maxHp);
-    const T = this.p(20);
-    const hpX = this.p(12), hpY = T + this.p(22);
-    const hpW = this.p(180), hpH = this.p(14), hpR = this.p(5);
-    const hpColor = pct > 0.5 ? 0x4ad96a : pct > 0.25 ? 0xd9a84a : 0xd94a4a;
-    this.hpBarGfx.clear();
-    // Background
-    this.hpBarGfx.fillStyle(0x111826, 1);
-    this.hpBarGfx.fillRoundedRect(hpX, hpY, hpW, hpH, hpR);
-    this.hpBarGfx.lineStyle(this.p(1.5), 0x3a4a70, 0.8);
-    this.hpBarGfx.strokeRoundedRect(hpX, hpY, hpW, hpH, hpR);
-    // Fill
-    const fillW = (hpW - this.p(4)) * pct;
-    if (fillW > 0) {
-      this.hpBarGfx.fillStyle(hpColor, 1);
-      this.hpBarGfx.fillRoundedRect(hpX + this.p(2), hpY + this.p(2), fillW, hpH - this.p(4), hpR - this.p(1));
-    }
+    const hpBarInner = this.hpBarBg.width - this.p(2);
+    this.hpBar.width = hpBarInner * pct;
+    this.hpBar.fillColor = pct > 0.5 ? 0x4ad96a : pct > 0.25 ? 0xd9a84a : 0xd94a4a;
     this.moneyText.setText(`${s.money}`);
 
     // Toggle countdown text vs progress graphic
@@ -560,30 +675,36 @@ export class UIScene extends Phaser.Scene {
         const waveNum = i + 1; // 1-indexed wave for this node
         if (isBoss) {
           if (s.bossSpawned) {
+            // Boss active - highlight red
             this.progressCircles[i].setStrokeStyle(this.p(2), 0xff6a6a);
             this.progressCircles[i].setFillStyle(0x3a1010);
             this.progressLabels[i].setColor('#ff6a6a');
           } else {
+            // Boss not yet
             this.progressCircles[i].setStrokeStyle(this.p(2), 0x2a3760);
             this.progressCircles[i].setFillStyle(0x11172a);
             this.progressLabels[i].setColor('#556');
           }
         } else if (waveNum < currentWave || (waveNum === currentWave && s.bossSpawned)) {
+          // Completed wave - green with checkmark
           this.progressCircles[i].setStrokeStyle(this.p(2), 0x4ad96a);
           this.progressCircles[i].setFillStyle(0x1a3a1a);
           this.progressLabels[i].setText('\u2713');
           this.progressLabels[i].setColor('#4ad96a');
         } else if (waveNum === currentWave) {
+          // Current wave - bright blue highlight
           this.progressCircles[i].setStrokeStyle(this.p(2), 0x7cc4ff);
           this.progressCircles[i].setFillStyle(0x1a2a4a);
           this.progressLabels[i].setText(`${waveNum}`);
           this.progressLabels[i].setColor('#7cc4ff');
         } else {
+          // Future wave - dim
           this.progressCircles[i].setStrokeStyle(this.p(2), 0x2a3760);
           this.progressCircles[i].setFillStyle(0x11172a);
           this.progressLabels[i].setText(`${waveNum}`);
           this.progressLabels[i].setColor('#556');
         }
+        // Update connecting line colors
         if (i < this.progressLines.length) {
           if (waveNum < currentWave || (waveNum === currentWave && s.bossSpawned)) {
             this.progressLines[i].setFillStyle(0x4ad96a);
@@ -597,28 +718,19 @@ export class UIScene extends Phaser.Scene {
     }
 
     // Wave progress bar
-    const W = this.scale.width;
-    const wbW = this.p(420), wbH = this.p(14), wbR = this.p(5);
-    const wbX = (W - wbW) / 2, wbY = this.p(20) + this.p(38);
-    this.waveBarGfx.clear();
     if (s.bossSpawned) {
+      // Hide wave bar when boss is active (boss bar takes its place)
       this.waveLabel.setVisible(false);
-      this.waveBarGfx.setVisible(false);
+      this.waveBarBg.setVisible(false);
+      this.waveBar.setVisible(false);
     } else {
-      this.waveBarGfx.setVisible(true);
       this.waveLabel.setVisible(true);
-      // Background
-      this.waveBarGfx.fillStyle(0x11172a, 1);
-      this.waveBarGfx.fillRoundedRect(wbX, wbY, wbW, wbH, wbR);
-      this.waveBarGfx.lineStyle(this.p(1.5), 0x3a4a70, 0.8);
-      this.waveBarGfx.strokeRoundedRect(wbX, wbY, wbW, wbH, wbR);
-      // Fill (remaining enemies)
+      this.waveBarBg.setVisible(true);
+      this.waveBar.setVisible(true);
+      // Match the clamped wave bar width — bg width minus the inset border.
+      const maxW = this.waveBarBg.width - this.p(4);
       const wavePct = s.waveSize > 0 ? Math.min(1, s.waveKills / s.waveSize) : 0;
-      const fillW = (wbW - this.p(4)) * (1 - wavePct);
-      if (fillW > 0) {
-        this.waveBarGfx.fillStyle(0x4a8ad9, 1);
-        this.waveBarGfx.fillRoundedRect(wbX + this.p(2), wbY + this.p(2), fillW, wbH - this.p(4), wbR - this.p(1));
-      }
+      this.waveBar.width = maxW * (1 - wavePct);
 
       if (s.waveBreakUntil > 0 && s.vTime < s.waveBreakUntil) {
         const secs = Math.ceil((s.waveBreakUntil - s.vTime) / 1000);
@@ -635,114 +747,18 @@ export class UIScene extends Phaser.Scene {
     if (this.endPanel) return;
     if (s.win) saveMedal(this.levelId, this.difficulty);
     const W = this.scale.width, H = this.scale.height;
-    const isWin = !!s.win;
-    const accent = isWin ? 0x4ad96a : 0xd94a4a;
-    const accentHex = isWin ? '#4ad96a' : '#d94a4a';
-    const accentBright = isWin ? '#7cf29a' : '#ff6a6a';
-    const panelW = this.p(340), panelH = this.p(240), panelR = this.p(14);
-    const px = W / 2 - panelW / 2, py = H / 2 - panelH / 2;
-
-    // Dim background
-    const bg = this.add.rectangle(0, 0, W, H, 0x000000, 0.75).setOrigin(0);
-
-    // Panel with rounded corners and layered border
-    const panelGfx = this.add.graphics();
-    // Outer glow
-    panelGfx.lineStyle(this.p(4), accent, 0.15);
-    panelGfx.strokeRoundedRect(px - this.p(3), py - this.p(3), panelW + this.p(6), panelH + this.p(6), panelR + this.p(2));
-    // Main panel fill
-    panelGfx.fillStyle(0x0d1220, 0.95);
-    panelGfx.fillRoundedRect(px, py, panelW, panelH, panelR);
-    // Inner border
-    panelGfx.lineStyle(this.p(1.5), accent, 0.5);
-    panelGfx.strokeRoundedRect(px, py, panelW, panelH, panelR);
-
-    // Decorative top accent line
-    panelGfx.lineStyle(this.p(2), accent, 0.8);
-    const lineInset = this.p(30);
-    panelGfx.lineBetween(px + lineInset, py + this.p(1), px + panelW - lineInset, py + this.p(1));
-
-    // Title
-    const title = this.add.text(W / 2, py + this.p(40), isWin ? 'VICTORY' : 'DEFEAT', {
-      fontFamily: 'monospace', fontSize: this.fs(30), fontStyle: 'bold',
-      color: accentBright,
-      stroke: '#000000', strokeThickness: this.p(4),
-    }).setOrigin(0.5);
-
-    // Divider line under title
-    panelGfx.lineStyle(this.p(1), 0x2a3760, 0.6);
-    panelGfx.lineBetween(px + this.p(20), py + this.p(62), px + panelW - this.p(20), py + this.p(62));
-
-    // Stats row
-    const statsY = py + this.p(90);
-    const statSpacing = this.p(90);
-    const statStartX = W / 2 - statSpacing;
-
-    // Kills stat
-    const killsLabel = this.add.text(statStartX, statsY - this.p(10), 'KILLS', {
-      fontFamily: 'monospace', fontSize: this.fs(9), color: '#6a7a8a',
-      letterSpacing: 2,
-    }).setOrigin(0.5);
-    const killsVal = this.add.text(statStartX, statsY + this.p(10), `${s.kills}`, {
-      fontFamily: 'monospace', fontSize: this.fs(20), fontStyle: 'bold', color: '#e0e8f0',
-      stroke: '#0b0f1a', strokeThickness: this.p(2),
-    }).setOrigin(0.5);
-
-    // Gold stat
-    const goldLabel = this.add.text(W / 2, statsY - this.p(10), 'GOLD', {
-      fontFamily: 'monospace', fontSize: this.fs(9), color: '#6a7a8a',
-      letterSpacing: 2,
-    }).setOrigin(0.5);
-    const goldVal = this.add.text(W / 2, statsY + this.p(10), `$${s.money}`, {
-      fontFamily: 'monospace', fontSize: this.fs(20), fontStyle: 'bold', color: '#ffd84a',
-      stroke: '#0b0f1a', strokeThickness: this.p(2),
-    }).setOrigin(0.5);
-
-    // Ranger name stat
-    const nameLabel = this.add.text(statStartX + statSpacing * 2, statsY - this.p(10), 'RANGER', {
-      fontFamily: 'monospace', fontSize: this.fs(9), color: '#6a7a8a',
-      letterSpacing: 2,
-    }).setOrigin(0.5);
-    const nameVal = this.add.text(statStartX + statSpacing * 2, statsY + this.p(10), `${s.name}`, {
-      fontFamily: 'monospace', fontSize: this.fs(16), fontStyle: 'bold', color: '#7cc4ff',
-      stroke: '#0b0f1a', strokeThickness: this.p(2),
-    }).setOrigin(0.5);
-
-    // Divider line above button
-    panelGfx.lineStyle(this.p(1), 0x2a3760, 0.4);
-    panelGfx.lineBetween(px + this.p(20), py + panelH - this.p(68), px + panelW - this.p(20), py + panelH - this.p(68));
-
-    // Return button — styled with accent color
-    const btnW = this.p(180), btnH = this.p(36), btnR = this.p(8);
-    const btnX = W / 2 - btnW / 2, btnY = py + panelH - this.p(52);
-    const btnGfx = this.add.graphics();
-    const drawBtn = (hover: boolean) => {
-      btnGfx.clear();
-      btnGfx.fillStyle(hover ? (isWin ? 0x2a5a3e : 0x5a2a2a) : (isWin ? 0x1a3a2a : 0x3a1a1a), 1);
-      btnGfx.fillRoundedRect(btnX, btnY, btnW, btnH, btnR);
-      btnGfx.lineStyle(this.p(1.5), accent, 0.7);
-      btnGfx.strokeRoundedRect(btnX, btnY, btnW, btnH, btnR);
-    };
-    drawBtn(false);
-    const btnText = this.add.text(W / 2, btnY + btnH / 2, 'RETURN TO MAP', {
-      fontFamily: 'monospace', fontSize: this.fs(12), fontStyle: 'bold', color: accentHex,
-    }).setOrigin(0.5);
-    const btnHit = this.add.rectangle(W / 2, btnY + btnH / 2, btnW, btnH, 0x000000, 0)
-      .setInteractive({ useHandCursor: true });
-    btnHit.on('pointerover', () => drawBtn(true));
-    btnHit.on('pointerout', () => drawBtn(false));
-    btnHit.on('pointerdown', () => {
-      SFX.play('click');
+    const bg = this.add.rectangle(0, 0, W, H, 0x000000, 0.7).setOrigin(0);
+    const box = this.add.rectangle(W / 2, H / 2, this.p(380), this.p(200), 0x11172a).setStrokeStyle(this.p(2), 0x2a3760);
+    const title = this.add.text(W / 2, H / 2 - this.p(60), s.win ? 'VICTORY' : 'DEFEAT',
+      { fontFamily: 'monospace', fontSize: this.fs(32), color: s.win ? '#7cf29a' : '#ff6a6a' }).setOrigin(0.5);
+    const sub = this.add.text(W / 2, H / 2 - this.p(10), `${s.name}   Kills: ${s.kills}   $ ${s.money}`,
+      { fontFamily: 'monospace', fontSize: this.fs(14), color: '#ccd' }).setOrigin(0.5);
+    const btn = this.makeButton(W / 2, H / 2 + this.p(40), this.p(140), this.p(32), 'RETURN TO MAP', () => {
       this.scene.stop('Game');
       this.scene.stop('UI');
       this.scene.start('LevelSelect');
     });
-
-    this.endPanel = this.add.container(0, 0, [
-      bg, panelGfx, title,
-      killsLabel, killsVal, goldLabel, goldVal, nameLabel, nameVal,
-      btnGfx, btnText, btnHit,
-    ]);
+    this.endPanel = this.add.container(0, 0, [bg, box, title, sub, btn]);
   }
 
   shutdown() {
@@ -750,7 +766,6 @@ export class UIScene extends Phaser.Scene {
     this.game.events.off('game-end');
     this.game.events.off('boss-spawn');
     this.game.events.off('boss-hp');
-    this.game.events.off('boss-died');
     this.game.events.off('build-error');
     this.game.events.off('build-mode');
   }
