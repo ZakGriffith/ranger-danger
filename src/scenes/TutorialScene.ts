@@ -477,21 +477,25 @@ export class TutorialScene extends Phaser.Scene {
             : 'Click on your Arrow Tower to select it.',
           this.p(150)
         );
-        // Highlight the first arrow tower placed. Tower coords are WORLD-
-        // space (Phaser GameObject) — convert to screen-space via the Game
-        // camera so the highlight lands on the tower regardless of where
-        // the camera is panned (camera follows the player).
+        // Light dim over everything
+        this.overlay.fillStyle(0x000000, 0.45);
+        this.overlay.fillRect(0, 0, W, H);
+        // Bright pulsing highlight ring on the tower
         const gsTower = this.scene.get('Game') as any;
         const tower = gsTower?.towers?.[0];
         if (tower) {
+          // Convert tower world coords to screen-space via the Game camera so
+          // the highlight lands on the tower regardless of pan / zoom.
           const cam = gsTower.cameras.main;
           const sx = (tower.x - cam.scrollX) * cam.zoom;
           const sy = (tower.y - cam.scrollY) * cam.zoom;
-          // Tower footprint = CFG.tower.tiles * CFG.tile world units, scaled by camera zoom.
-          const towerWorldSize = CFG.tower.tiles * CFG.tile;
-          const ts = towerWorldSize * cam.zoom + this.p(8);
-          this.drawDimWithRect(sx - ts / 2, sy - ts / 2, ts, ts);
-          this.drawArrow(sx, sy - ts / 2 - this.p(8), 'down');
+          const r = CFG.tower.tiles * CFG.tile * 0.7 * cam.zoom;
+          // Dual glow rings
+          this.overlay.lineStyle(this.p(4), 0x4ad96a, 0.9);
+          this.overlay.strokeCircle(sx, sy, r);
+          this.overlay.lineStyle(this.p(8), 0x4ad96a, 0.3);
+          this.overlay.strokeCircle(sx, sy, r + this.p(4));
+          this.drawArrow(sx, sy - r - this.p(12), 'down');
         }
         break;
       }

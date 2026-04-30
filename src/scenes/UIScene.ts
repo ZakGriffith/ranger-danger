@@ -5,8 +5,8 @@ import { SFX } from '../audio/sfx';
 import { VirtualJoystick } from '../ui/VirtualJoystick';
 
 export class UIScene extends Phaser.Scene {
-  hpBarBg!: Phaser.GameObjects.Rectangle;
-  hpBar!: Phaser.GameObjects.Rectangle;
+  hpBarGfx!: Phaser.GameObjects.Graphics;
+  private hpBarX = 0; private hpBarY = 0; private hpBarW = 0; private hpBarH = 0;
   nameText!: Phaser.GameObjects.Text;
   moneyText!: Phaser.GameObjects.Text;
   btnTower!: Phaser.GameObjects.Container;
@@ -17,11 +17,12 @@ export class UIScene extends Phaser.Scene {
   speedLabel!: Phaser.GameObjects.Text;
   speedIdx = 0;
   endPanel?: Phaser.GameObjects.Container;
-  bossBarBg?: Phaser.GameObjects.Rectangle;
-  bossBar?: Phaser.GameObjects.Rectangle;
+  bossBarGfx?: Phaser.GameObjects.Graphics;
+  private bossBarX = 0; private bossBarY = 0; private bossBarW = 0; private bossBarH = 0;
+  private bossBarMaxHp = 1;
   bossLabel?: Phaser.GameObjects.Text;
-  waveBarBg!: Phaser.GameObjects.Rectangle;
-  waveBar!: Phaser.GameObjects.Rectangle;
+  waveBarGfx!: Phaser.GameObjects.Graphics;
+  private waveBarX = 0; private waveBarY = 0; private waveBarW = 0; private waveBarH = 0;
   waveLabel!: Phaser.GameObjects.Text;
   progressCircles: Phaser.GameObjects.Arc[] = [];
   progressLabels: Phaser.GameObjects.Text[] = [];
@@ -60,8 +61,7 @@ export class UIScene extends Phaser.Scene {
     const levelDef = LEVELS.find(l => l.id === this.levelId);
     this.biome = levelDef?.biome ?? 'grasslands';
     this.endPanel = undefined;
-    this.bossBarBg = undefined;
-    this.bossBar = undefined;
+    this.bossBarGfx = undefined;
     this.bossLabel = undefined;
     // Restore speedIdx if a prior incarnation persisted it (e.g. across a
     // viewport-driven scene restart on rotation). Default to 0 for fresh runs.
@@ -80,19 +80,28 @@ export class UIScene extends Phaser.Scene {
     // closer under the Ranger label (label stays put).
     this.nameText = this.add.text(this.p(12), T, '', { fontFamily: 'monospace', fontSize: this.fs(14), color: '#7cc4ff' });
     const hpBarBaseW = this.isMobile ? 135 : 180;
-    const hpBarW = this.p(hpBarBaseW);
     const isPortraitMobile = this.isMobile && H > W;
     const hpBarYOffset = isPortraitMobile ? this.p(17) : this.p(22);
-    this.hpBarBg = this.add.rectangle(this.p(12), T + hpBarYOffset, hpBarW, this.p(14), 0x111826).setOrigin(0, 0).setStrokeStyle(this.p(1), 0x2a3760);
-    this.hpBar = this.add.rectangle(this.p(13), T + hpBarYOffset + this.p(1), hpBarW - this.p(2), this.p(12), 0xd94a4a).setOrigin(0, 0);
+    this.hpBarX = this.p(12);
+    this.hpBarY = T + hpBarYOffset;
+    this.hpBarW = this.p(hpBarBaseW);
+    this.hpBarH = this.p(14);
+    this.hpBarGfx = this.add.graphics();
 
-    // Top-right gold badge (WoW-style). On portrait mobile, shift right so
-    // the rightmost element (the coin circle, which extends to coinX+p(25))
-    // aligns with the right edge of the centered wave bar at W-p(20).
+    // Top-right gold badge (WoW-style, rounded). On portrait mobile, shift
+    // right so the rightmost element (the coin circle, which extends to
+    // coinX+p(25)) aligns with the right edge of the centered wave bar at
+    // W-p(20).
     const coinX = isPortraitMobile ? W - this.p(45) : W - this.p(60);
     const coinY = T + this.p(14);
-    // Dark inset panel behind the number
-    this.add.rectangle(coinX + this.p(6), coinY, this.p(80), this.p(26), 0x0b0f1a, 0.85).setOrigin(1, 0.5).setStrokeStyle(this.p(1), 0x3a3a1a);
+    // Dark inset panel behind the number — rounded corners
+    const gbW = this.p(80), gbH = this.p(26), gbR = this.p(6);
+    const gbX = coinX + this.p(6) - gbW, gbY = coinY - gbH / 2;
+    const gbGfx = this.add.graphics();
+    gbGfx.fillStyle(0x0b0f1a, 0.85);
+    gbGfx.fillRoundedRect(gbX, gbY, gbW, gbH, gbR);
+    gbGfx.lineStyle(this.p(1.5), 0x5a4a1a, 0.7);
+    gbGfx.strokeRoundedRect(gbX, gbY, gbW, gbH, gbR);
     // Gold coin circle
     this.add.circle(coinX + this.p(12), coinY, this.p(13), 0x8a6a1a).setStrokeStyle(this.p(2), 0xc4a030);
     this.add.circle(coinX + this.p(12), coinY, this.p(9), 0xd4a820).setStrokeStyle(this.p(1), 0xffd84a);
@@ -211,8 +220,11 @@ export class UIScene extends Phaser.Scene {
       fontFamily: 'monospace', fontSize: this.fs(14), color: '#7cc4ff',
       stroke: '#0b0f1a', strokeThickness: this.p(3)
     }).setOrigin(0.5);
-    this.waveBarBg = this.add.rectangle(barX, barY, barW, this.p(14), 0x11172a).setOrigin(0, 0).setStrokeStyle(this.p(2), 0x2a3760);
-    this.waveBar = this.add.rectangle(barX + this.p(2), barY + this.p(2), 0, this.p(10), 0x4a8ad9).setOrigin(0, 0);
+    this.waveBarX = barX;
+    this.waveBarY = barY;
+    this.waveBarW = barW;
+    this.waveBarH = this.p(14);
+    this.waveBarGfx = this.add.graphics();
 
     // Build error message (persistent while hovering invalid tile)
     const hotbarTop = H - this.p(48) - this.p(32); // matches hotbarY
@@ -360,26 +372,38 @@ export class UIScene extends Phaser.Scene {
       fontFamily: 'monospace', fontSize: this.fs(14), color: '#ff6a6a',
       stroke: '#0b0f1a', strokeThickness: this.p(3)
     }).setOrigin(0.5);
-    this.bossBarBg = this.add.rectangle(x, y, barW, this.p(14), 0x11172a).setOrigin(0, 0).setStrokeStyle(this.p(2), 0x6a1a1a);
-    this.bossBar = this.add.rectangle(x + this.p(2), y + this.p(2), barW - this.p(4), this.p(10), 0xd94a4a).setOrigin(0, 0);
-    this.bossBar.setDataEnabled();
-    this.bossBar.setData('maxW', barW - this.p(4));
-    this.bossBar.setData('maxHp', s?.maxHp ?? 1);
+    this.bossBarX = x;
+    this.bossBarY = y;
+    this.bossBarW = barW;
+    this.bossBarH = this.p(14);
+    this.bossBarMaxHp = s?.maxHp ?? 1;
+    this.bossBarGfx = this.add.graphics();
+    // Draw immediately at full HP so the bar appears the moment the boss spawns
+    this.updateBossBar({ hp: this.bossBarMaxHp, maxHp: this.bossBarMaxHp });
   }
 
   hideBossBar() {
-    if (this.bossBarBg) { this.bossBarBg.destroy(); this.bossBarBg = undefined; }
-    if (this.bossBar) { this.bossBar.destroy(); this.bossBar = undefined; }
+    if (this.bossBarGfx) { this.bossBarGfx.destroy(); this.bossBarGfx = undefined; }
     if (this.bossLabel) { this.bossLabel.destroy(); this.bossLabel = undefined; }
   }
 
   updateBossBar(s: any) {
-    if (!this.bossBar) return;
-    const maxW = this.bossBar.getData('maxW');
-    const maxHp = this.bossBar.getData('maxHp') || s.maxHp || 1;
+    if (!this.bossBarGfx) return;
+    const maxHp = this.bossBarMaxHp || s.maxHp || 1;
     const pct = Math.max(0, (s.hp ?? 0) / maxHp);
-    this.bossBar.width = maxW * pct;
-    this.bossBar.fillColor = pct > 0.5 ? 0xd94a4a : pct > 0.25 ? 0xd97a4a : 0xff3030;
+    const x = this.bossBarX, y = this.bossBarY, w = this.bossBarW, h = this.bossBarH;
+    const r = this.p(5);
+    const bossColor = pct > 0.5 ? 0xd94a4a : pct > 0.25 ? 0xd97a4a : 0xff3030;
+    this.bossBarGfx.clear();
+    this.bossBarGfx.fillStyle(0x11172a, 1);
+    this.bossBarGfx.fillRoundedRect(x, y, w, h, r);
+    this.bossBarGfx.lineStyle(this.p(1.5), 0x6a2a2a, 0.8);
+    this.bossBarGfx.strokeRoundedRect(x, y, w, h, r);
+    const fillW = (w - this.p(4)) * pct;
+    if (fillW > 0) {
+      this.bossBarGfx.fillStyle(bossColor, 1);
+      this.bossBarGfx.fillRoundedRect(x + this.p(2), y + this.p(2), fillW, h - this.p(4), r - this.p(1));
+    }
   }
 
   cycleSpeed() {
@@ -587,9 +611,19 @@ export class UIScene extends Phaser.Scene {
     if (!s) return;
     this.nameText.setText(s.name ?? 'Ranger');
     const pct = Math.max(0, s.hp / s.maxHp);
-    const hpBarInner = this.hpBarBg.width - this.p(2);
-    this.hpBar.width = hpBarInner * pct;
-    this.hpBar.fillColor = pct > 0.5 ? 0x4ad96a : pct > 0.25 ? 0xd9a84a : 0xd94a4a;
+    const hpColor = pct > 0.5 ? 0x4ad96a : pct > 0.25 ? 0xd9a84a : 0xd94a4a;
+    const hpX = this.hpBarX, hpY = this.hpBarY, hpW = this.hpBarW, hpH = this.hpBarH;
+    const hpR = this.p(5);
+    this.hpBarGfx.clear();
+    this.hpBarGfx.fillStyle(0x111826, 1);
+    this.hpBarGfx.fillRoundedRect(hpX, hpY, hpW, hpH, hpR);
+    this.hpBarGfx.lineStyle(this.p(1.5), 0x3a4a70, 0.8);
+    this.hpBarGfx.strokeRoundedRect(hpX, hpY, hpW, hpH, hpR);
+    const hpFillW = (hpW - this.p(4)) * pct;
+    if (hpFillW > 0) {
+      this.hpBarGfx.fillStyle(hpColor, 1);
+      this.hpBarGfx.fillRoundedRect(hpX + this.p(2), hpY + this.p(2), hpFillW, hpH - this.p(4), hpR - this.p(1));
+    }
     this.moneyText.setText(`${s.money}`);
 
     // Toggle countdown text vs progress graphic
@@ -718,19 +752,26 @@ export class UIScene extends Phaser.Scene {
     }
 
     // Wave progress bar
+    this.waveBarGfx.clear();
     if (s.bossSpawned) {
       // Hide wave bar when boss is active (boss bar takes its place)
       this.waveLabel.setVisible(false);
-      this.waveBarBg.setVisible(false);
-      this.waveBar.setVisible(false);
+      this.waveBarGfx.setVisible(false);
     } else {
+      this.waveBarGfx.setVisible(true);
       this.waveLabel.setVisible(true);
-      this.waveBarBg.setVisible(true);
-      this.waveBar.setVisible(true);
-      // Match the clamped wave bar width — bg width minus the inset border.
-      const maxW = this.waveBarBg.width - this.p(4);
+      const wbX = this.waveBarX, wbY = this.waveBarY, wbW = this.waveBarW, wbH = this.waveBarH;
+      const wbR = this.p(5);
+      this.waveBarGfx.fillStyle(0x11172a, 1);
+      this.waveBarGfx.fillRoundedRect(wbX, wbY, wbW, wbH, wbR);
+      this.waveBarGfx.lineStyle(this.p(1.5), 0x3a4a70, 0.8);
+      this.waveBarGfx.strokeRoundedRect(wbX, wbY, wbW, wbH, wbR);
       const wavePct = s.waveSize > 0 ? Math.min(1, s.waveKills / s.waveSize) : 0;
-      this.waveBar.width = maxW * (1 - wavePct);
+      const wbFillW = (wbW - this.p(4)) * (1 - wavePct);
+      if (wbFillW > 0) {
+        this.waveBarGfx.fillStyle(0x4a8ad9, 1);
+        this.waveBarGfx.fillRoundedRect(wbX + this.p(2), wbY + this.p(2), wbFillW, wbH - this.p(4), wbR - this.p(1));
+      }
 
       if (s.waveBreakUntil > 0 && s.vTime < s.waveBreakUntil) {
         const secs = Math.ceil((s.waveBreakUntil - s.vTime) / 1000);

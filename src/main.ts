@@ -13,6 +13,11 @@ const startBtn = document.getElementById('startBtn') as HTMLButtonElement;
 
 let started = false;
 
+// Preload the castle-door whoosh so it can fire instantly on the PLAY click
+// (decoding a 100KB WAV inside the gesture would cost a perceptible delay).
+let playBtnBuffer: ArrayBuffer | null = null;
+fetch('/audio/PlayButton.wav').then(r => r.arrayBuffer()).then(b => { playBtnBuffer = b; }).catch(() => {});
+
 // Keep the screen awake so the game doesn't pause/restart when the user
 // walks away. Re-acquires the lock whenever the tab becomes visible again.
 let wakeLock: any = null;
@@ -42,6 +47,23 @@ function start() {
   // gesture. iOS requires this for both WebAudio resume and the silent-loop
   // hack that bypasses the mute switch.
   SFX.unlock();
+
+  // Castle-door whoosh: play the preloaded buffer at 1.6x speed, skipping the
+  // first 0.15s, so the click feels instant. Quiet (gain 0.16) so it sits under
+  // BGM. Uses its own AudioContext to avoid colliding with the game's SFX bus.
+  if (playBtnBuffer) {
+    const ctx = new AudioContext();
+    ctx.decodeAudioData(playBtnBuffer.slice(0)).then(audioBuf => {
+      const src = ctx.createBufferSource();
+      src.buffer = audioBuf;
+      src.playbackRate.value = 1.6;
+      const g = ctx.createGain();
+      g.gain.value = 0.16;
+      src.connect(g);
+      g.connect(ctx.destination);
+      src.start(0, 0.15);
+    });
+  }
 
   // Hide overlay immediately — level select appears fast since art is deferred
   overlay.classList.add('hidden');
