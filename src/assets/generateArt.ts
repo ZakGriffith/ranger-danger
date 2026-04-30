@@ -5865,12 +5865,15 @@ function drawEnemyWarlock(f: EFrame) {
 function drawEnemyGolem(f: EFrame) {
   return (rawPut: Put) => {
     const put = f.startsWith('die') ? rawPut : mirrorX(rawPut);
+    // Darker basalt/obsidian palette — the previous mid-grey '#5a6270' and
+    // '#636d7a' were two of the four castle flagstone shades, so the golem
+    // disappeared into the floor on the castle level.
     if (f.startsWith('die')) {
       const step = parseInt(f.slice(3));
       const r = 10 - step * 2;
       if (r <= 0) return;
-      disc(put, 16, 16, Math.max(0, r), '#5a6270');
-      disc(put, 16, 16, Math.max(0, r - 2), '#636d7a');
+      disc(put, 16, 16, Math.max(0, r), '#2c303a');
+      disc(put, 16, 16, Math.max(0, r - 2), '#3c4250');
       for (let i = 0; i < 8; i++) {
         const a = (i / 8) * Math.PI * 2 + step * 0.4;
         const d = step * 3 + 3;
@@ -5879,9 +5882,9 @@ function drawEnemyGolem(f: EFrame) {
       return;
     }
     const flash = f === 'hit';
-    const stone = flash ? P.white : '#5a6270';
-    const stoneD = flash ? P.white : '#4a5260';
-    const stoneL = flash ? P.white : '#636d7a';
+    const stone = flash ? P.white : '#2c303a';
+    const stoneD = flash ? P.white : '#1c1f26';
+    const stoneL = flash ? P.white : '#3c4250';
     const rune = flash ? P.white : '#ffa020';
 
     const phase = f === 'move0' ? 0 : f === 'move1' ? 1 : f === 'move2' ? 2 : f === 'move3' ? 3 :

@@ -118,6 +118,11 @@ class SfxManager {
     playerHurt: 0.85,
     doorOpen: 0.5,
   };
+  /** Per-sound playback-rate multipliers (1 = original pitch). <1 = lower
+   *  pitch, >1 = higher. Cannon plays a touch slower for a beefier thump. */
+  private rates: Partial<Record<SfxKey, number>> = {
+    cannonShoot: 0.82,
+  };
 
   /** SYNCHRONOUS — must be called from inside a user-gesture handler (e.g. the
    *  Play button click). Creates the AudioContext, primes it with a silent
@@ -332,6 +337,8 @@ class SfxManager {
 
     const source = this.ctx.createBufferSource();
     source.buffer = buf;
+    const rate = this.rates[key];
+    if (rate !== undefined && rate !== 1) source.playbackRate.value = rate;
     const vol = this.volumes[key];
     if (vol !== undefined && vol < 1) {
       const g = this.ctx.createGain();

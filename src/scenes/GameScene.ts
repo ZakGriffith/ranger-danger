@@ -74,12 +74,10 @@ export class GameScene extends Phaser.Scene {
   selectionRing!: Phaser.GameObjects.Graphics;
   towerPanel!: Phaser.GameObjects.Container;
   towerPanelBounds = { x: 0, y: 0, w: 0, h: 0 };
-  towerIndicators = new Map<Tower, { bg: Phaser.GameObjects.Sprite; ptr: Phaser.GameObjects.Sprite }>();
   gapBlockers: Phaser.Physics.Arcade.StaticGroup | null = null;
   wallTilemap!: Phaser.Tilemaps.Tilemap;
   wallLayer!: Phaser.Tilemaps.TilemapLayer;
   sellTimers = new Map<Tower | Wall, { startTime: number; duration: number; gfx: Phaser.GameObjects.Graphics }>();
-  bossIndicator: { bg: Phaser.GameObjects.Sprite; ptr: Phaser.GameObjects.Sprite } | null = null;
 
   boss: Boss | null = null;
   bossSpawned = false;
@@ -94,6 +92,7 @@ export class GameScene extends Phaser.Scene {
   dragonFireballs!: Phaser.Physics.Arcade.Group;
   nextQueenTeleport = 0;
   nextQueenOrb = 0;
+  nextQueenAura = 0;
   nextDragonFireball = 0;
 
   killsTarget = CFG.winKills;
@@ -161,9 +160,7 @@ export class GameScene extends Phaser.Scene {
     this.timeMult = 1.25;
     this.vTime = 0;
     this.selectedTower = null;
-    this.towerIndicators = new Map();
     this.sellTimers = new Map();
-    this.bossIndicator = null;
     this.boss = null;
     this.bossSpawned = false;
     this.bossCountdownUntil = 0;
@@ -193,6 +190,7 @@ export class GameScene extends Phaser.Scene {
     this.midBossDefeated = false;
     this.nextQueenTeleport = 0;
     this.nextQueenOrb = 0;
+    this.nextQueenAura = 0;
     this.nextDragonFireball = 0;
 
     // Per-level spawn tuning (from level def, fall back to CFG defaults)
@@ -201,17 +199,29 @@ export class GameScene extends Phaser.Scene {
     this.levelWaveSize = levelDef?.waveSize ?? CFG.spawn.waveSize;
     this.levelClusterMax = levelDef?.clusterMax ?? 4;
 
-    // Difficulty multipliers (don't mutate CFG)
+    // Difficulty multipliers (don't mutate CFG). Harder modes get tougher
+    // enemies, more of them, and faster spawn pacing — but the same
+    // starting gold across all modes.
     this.enemySpeedMult = 1;
+    let waveSizeMult = 1;
+    let intervalMult = 1;
     switch (this.difficulty) {
       case 'medium':
-        this.enemyHpMult = 1.3; break;
+        this.enemyHpMult = 1.3;
+        waveSizeMult = 1.25;
+        intervalMult = 0.85;
+        break;
       case 'hard':
       case 'oneHP':
-        this.enemyHpMult = 1.6; break;
+        this.enemyHpMult = 1.6;
+        waveSizeMult = 1.5;
+        intervalMult = 0.7;
+        break;
       default:
         this.enemyHpMult = 1;
     }
+    this.levelWaveSize = Math.round(this.levelWaveSize * waveSizeMult);
+    this.levelMinInterval = Math.round(this.levelMinInterval * intervalMult);
   }
 
   create() {
@@ -311,13 +321,13 @@ export class GameScene extends Phaser.Scene {
       this.game.events.off('viewport-changed', onViewportChanged);
     });
 
-    // Apply difficulty adjustments
+    // Apply difficulty adjustments. Starting gold is now uniform across all
+    // modes (CFG.startMoney); harder modes are tuned via wave size + spawn
+    // pacing in init() instead.
     if (this.difficulty === 'oneHP') {
       this.player.hp = 1;
       this.player.maxHp = 1;
     }
-    if (this.difficulty === 'medium') this.player.money = 100;
-    else if (this.difficulty === 'hard' || this.difficulty === 'oneHP') this.player.money = 80;
 
     // Generate all initial ground chunks before the game starts (no time limit)
     this.generateChunksAround(0, 0);
@@ -374,6 +384,12 @@ export class GameScene extends Phaser.Scene {
     this.input.keyboard!.on('keydown-ESC', () => {
       if (this.selectedTower) this.deselectTower();
       else this.setBuild('none');
+    });
+    // 'B' is a dedicated build-cancel key — handy while wall-building since
+    // the wall hotkey is '4' (not adjacent to ESC). No-ops outside of
+    // build mode so it won't fight other bindings.
+    this.input.keyboard!.on('keydown-B', () => {
+      if (this.buildKind !== 'none') this.setBuild('none');
     });
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => this.handleClick(p));
     this.input.mouse!.disableContextMenu();
@@ -814,8 +830,6 @@ export class GameScene extends Phaser.Scene {
       for (let j = 0; j < t.size; j++)
         for (let i = 0; i < t.size; i++)
           gridSet(this.grid, t.tileX + i, t.tileY + j, 0);
-      const ind = this.towerIndicators.get(t);
-      if (ind) { ind.bg.destroy(); ind.ptr.destroy(); this.towerIndicators.delete(t); }
       const idx = this.towers.indexOf(t);
       if (idx >= 0) this.towers.splice(idx, 1);
       t.destroyTower();
@@ -883,79 +897,114 @@ export class GameScene extends Phaser.Scene {
     const panel = this.towerPanel;
     panel.removeAll(true);
 
-    const W = 184, H = 74;
+    const W = 184, H = 76;
     const px = t.x;
     const py = t.y - CFG.tile * t.size / 2 - H / 2 - 10;
     panel.setPosition(px, py);
     panel.setVisible(true);
     this.towerPanelBounds = { x: px - W / 2, y: py - H / 2, w: W, h: H };
 
-    const bg = this.add.rectangle(0, 0, W, H, 0x11172a, 0.95)
-      .setStrokeStyle(2, 0x2a3760);
-    panel.add(bg);
+    // Themed accent — same blue accent the HUD uses for info/wave bars.
+    const accent = 0x4a8acc;
+    const panelR = 8;
 
-    // little pointer nub at the bottom
-    const nub = this.add.triangle(0, H / 2 + 9, -6, -4, 6, -4, 0, 4, 0x11172a)
-      .setStrokeStyle(1, 0x2a3760);
+    // Rounded panel — matches Victory/Defeat language: dark navy fill,
+    // subtle inner stroke, themed outer stroke.
+    const panelG = this.add.graphics();
+    panelG.fillStyle(0x11172a, 0.97);
+    panelG.fillRoundedRect(-W / 2, -H / 2, W, H, panelR);
+    panelG.lineStyle(1, 0x2a3760, 0.7);
+    panelG.strokeRoundedRect(-W / 2 + 3, -H / 2 + 3, W - 6, H - 6, panelR - 2);
+    panelG.lineStyle(2, accent, 0.85);
+    panelG.strokeRoundedRect(-W / 2, -H / 2, W, H, panelR);
+    panel.add(panelG);
+
+    // Pointer nub
+    const nub = this.add.triangle(0, H / 2 + 8, -6, -4, 6, -4, 0, 4, 0x11172a)
+      .setStrokeStyle(1, accent);
     panel.add(nub);
 
-    // Title: LVL X
+    // Title
     const tr = this.sf;
-    const title = this.add.text(-W / 2 + 8, -H / 2 + 6, `${t.kind.toUpperCase()}  LVL ${t.level + 1}`, {
-      fontFamily: 'monospace', fontSize: '12px', color: '#7cc4ff'
+    const title = this.add.text(-W / 2 + 10, -H / 2 + 7, `${t.kind.toUpperCase()}  LVL ${t.level + 1}`, {
+      fontFamily: 'monospace', fontSize: '12px', fontStyle: 'bold', color: '#7cc4ff',
+      stroke: '#0b0f1a', strokeThickness: 2
     }).setResolution(tr);
     panel.add(title);
 
     const sellVal = Math.floor(t.totalSpent * 0.5);
 
-    // Current stats
+    // Stats
     const st = t.stats();
     const splashLine = st.splashRadius > 0 ? `  AOE ${st.splashRadius}` : '';
-    const stats = this.add.text(-W / 2 + 8, -H / 2 + 22,
+    const stats = this.add.text(-W / 2 + 10, -H / 2 + 24,
       `DMG ${st.damage}  RNG ${st.range}${splashLine}\nFIRE ${(1000 / st.fireRate).toFixed(1)}/s  HP ${t.hp}/${t.maxHp}`,
       { fontFamily: 'monospace', fontSize: '10px', color: '#ccd' }).setResolution(tr);
     panel.add(stats);
 
-    // Upgrade button
-    const btnW = 84, btnH = 22;
-    const btnY = H / 2 - btnH / 2 - 4;
+    // ---- Buttons — rounded, themed strokes (green=affordable, red=can't / sell)
+    const btnW = 80, btnH = 22, btnR = 5;
+    const btnY = H / 2 - btnH / 2 - 6;
+
+    // Upgrade
     const canUp = t.canUpgrade();
     const upCost = t.upgradeCost();
     const affordable = canUp && this.player.money >= upCost;
     const upLabel = canUp ? `UPGRADE $${upCost}` : 'MAX LEVEL';
-    const upColor = !canUp ? 0x3a3a4a : affordable ? 0x2a6b3a : 0x5a2a2a;
-    const upBg = this.add.rectangle(-W / 2 + btnW / 2 + 6, btnY, btnW, btnH, upColor)
-      .setStrokeStyle(1, 0x556);
-    const upTxt = this.add.text(upBg.x, upBg.y, upLabel, {
-      fontFamily: 'monospace', fontSize: '10px',
-      color: !canUp ? '#888' : affordable ? '#ffffff' : '#ff9a9a'
+    const upStroke = !canUp ? 0x556677 : affordable ? 0x4ad96a : 0xd94a4a;
+    const upTextColor = !canUp ? '#888' : affordable ? '#7cf29a' : '#ff9a9a';
+    const upX = -W / 2 + 8, upCX = upX + btnW / 2;
+    const upG = this.add.graphics();
+    let upHover = false;
+    const drawUp = () => {
+      upG.clear();
+      upG.fillStyle(upHover && canUp ? 0x1a2238 : 0x0b0f1a, 0.95);
+      upG.fillRoundedRect(upX, btnY - btnH / 2, btnW, btnH, btnR);
+      upG.lineStyle(1.5, upStroke, upHover && canUp ? 1 : 0.85);
+      upG.strokeRoundedRect(upX, btnY - btnH / 2, btnW, btnH, btnR);
+    };
+    drawUp();
+    const upTxt = this.add.text(upCX, btnY, upLabel, {
+      fontFamily: 'monospace', fontSize: '10px', fontStyle: 'bold', color: upTextColor,
+      stroke: '#0b0f1a', strokeThickness: 2
     }).setOrigin(0.5).setResolution(tr);
+    panel.add([upG, upTxt]);
     if (canUp) {
-      upBg.setInteractive({ useHandCursor: true });
-      upBg.on('pointerdown', (_p: any, _lx: any, _ly: any, ev: any) => {
+      const upHit = this.add.rectangle(upCX, btnY, btnW, btnH, 0x000000, 0).setInteractive({ useHandCursor: true });
+      upHit.on('pointerdown', (_p: any, _lx: any, _ly: any, ev: any) => {
         ev?.stopPropagation?.();
         this.doUpgradeSelected();
       });
-      upBg.on('pointerover', () => upBg.setFillStyle(affordable ? 0x3b8a4a : 0x7a3a3a));
-      upBg.on('pointerout',  () => upBg.setFillStyle(upColor));
+      upHit.on('pointerover', () => { upHover = true; drawUp(); });
+      upHit.on('pointerout',  () => { upHover = false; drawUp(); });
+      panel.add(upHit);
     }
-    panel.add([upBg, upTxt]);
 
-    // Sell button
-    const sellBg = this.add.rectangle(W / 2 - btnW / 2 - 6, btnY, btnW, btnH, 0x5a2a2a)
-      .setStrokeStyle(1, 0x556);
-    const sellTxt = this.add.text(sellBg.x, sellBg.y, `SELL $${sellVal}`, {
-      fontFamily: 'monospace', fontSize: '10px', color: '#ffd6c0'
+    // Sell
+    const sellX = W / 2 - 8 - btnW, sellCX = sellX + btnW / 2;
+    const sellG = this.add.graphics();
+    let sellHover = false;
+    const drawSell = () => {
+      sellG.clear();
+      sellG.fillStyle(sellHover ? 0x1a2238 : 0x0b0f1a, 0.95);
+      sellG.fillRoundedRect(sellX, btnY - btnH / 2, btnW, btnH, btnR);
+      sellG.lineStyle(1.5, 0xd94a4a, sellHover ? 1 : 0.85);
+      sellG.strokeRoundedRect(sellX, btnY - btnH / 2, btnW, btnH, btnR);
+    };
+    drawSell();
+    const sellTxt = this.add.text(sellCX, btnY, `SELL $${sellVal}`, {
+      fontFamily: 'monospace', fontSize: '10px', fontStyle: 'bold', color: '#ffd6c0',
+      stroke: '#0b0f1a', strokeThickness: 2
     }).setOrigin(0.5).setResolution(tr);
-    sellBg.setInteractive({ useHandCursor: true });
-    sellBg.on('pointerdown', (_p: any, _lx: any, _ly: any, ev: any) => {
+    const sellHit = this.add.rectangle(sellCX, btnY, btnW, btnH, 0x000000, 0).setInteractive({ useHandCursor: true });
+    sellHit.on('pointerdown', (_p: any, _lx: any, _ly: any, ev: any) => {
       ev?.stopPropagation?.();
       if (this.game.registry.get('tutorialActive')) return;
       this.doSellSelected();
     });
-    sellBg.on('pointerover', () => sellBg.setFillStyle(0x8a3a3a));
-    sellBg.on('pointerout',  () => sellBg.setFillStyle(0x5a2a2a));
-    panel.add([sellBg, sellTxt]);
+    sellHit.on('pointerover', () => { sellHover = true; drawSell(); });
+    sellHit.on('pointerout',  () => { sellHover = false; drawSell(); });
+    panel.add([sellG, sellTxt, sellHit]);
   }
 
   doUpgradeSelected() {
@@ -974,9 +1023,9 @@ export class GameScene extends Phaser.Scene {
     this.floatText(t.x, t.y - 40, `LVL ${t.level + 1}`, '#7cf29a');
     this.game.events.emit('tutorial-tower-upgraded');
     this.pushHud();
-    // refresh ring + panel
-    this.drawSelectionRing(t);
-    this.buildTowerPanel(t);
+    // Auto-close the panel — the upgrade succeeded so the player isn't
+    // about to do anything else with this tower.
+    this.deselectTower();
   }
 
   doSellSelected() {
@@ -1285,111 +1334,8 @@ export class GameScene extends Phaser.Scene {
     this.updateCoins(vd);
     this.updateSpawning(time, vd);
     this.updateDepthSort();
-    this.updateTowerIndicators();
     this.updateSellTimers();
     this.checkEndConditions();
-  }
-
-  updateTowerIndicators() {
-    const cam = this.cameras.main;
-    const pad = 28; // distance from screen edge
-    const cx = cam.width / 2;
-    const cy = cam.height / 2;
-    const margin = 40;
-    // Visible world rect — accounts for camera zoom so off-screen detection
-    // is correct on high-DPI displays (sf > 1) where cam.width != worldView width.
-    const wv = cam.worldView;
-
-    // Track which towers are still alive for cleanup
-    const alive = new Set(this.towers);
-
-    for (const t of this.towers) {
-      const onScreen = t.x > wv.x - margin && t.x < wv.right + margin &&
-                       t.y > wv.y - margin && t.y < wv.bottom + margin;
-
-      // Get or create indicator
-      let ind = this.towerIndicators.get(t);
-      if (!ind) {
-        const texKey = t.kind === 'arrow' ? 'ind_arrow' : 'ind_cannon';
-        const bg = this.add.sprite(0, 0, texKey)
-          .setScrollFactor(0).setDepth(500).setScale(0.5).setAlpha(0.85).setVisible(false);
-        const ptr = this.add.sprite(0, 0, 'ind_ptr')
-          .setScrollFactor(0).setDepth(500.1).setScale(0.5).setAlpha(0.85).setVisible(false);
-        ind = { bg, ptr };
-        this.towerIndicators.set(t, ind);
-      }
-
-      if (onScreen) {
-        ind.bg.setVisible(false);
-        ind.ptr.setVisible(false);
-        continue;
-      }
-
-      // Direction in world space → project onto screen-space rect for the edge marker
-      const dx = t.x - cam.midPoint.x;
-      const dy = t.y - cam.midPoint.y;
-      if (dx === 0 && dy === 0) continue;
-
-      const scaleX = dx !== 0 ? (cx - pad) / Math.abs(dx) : Infinity;
-      const scaleY = dy !== 0 ? (cy - pad) / Math.abs(dy) : Infinity;
-      const s = Math.min(scaleX, scaleY);
-
-      const edgeX = cx + dx * s;
-      const edgeY = cy + dy * s;
-      const angle = Math.atan2(dy, dx);
-
-      ind.bg.setPosition(edgeX, edgeY).setVisible(true);
-      ind.ptr.setPosition(edgeX + Math.cos(angle) * 18, edgeY + Math.sin(angle) * 18)
-        .setRotation(angle).setVisible(true);
-    }
-
-    // Cleanup destroyed towers
-    for (const [t, ind] of this.towerIndicators) {
-      if (!alive.has(t)) {
-        ind.bg.destroy();
-        ind.ptr.destroy();
-        this.towerIndicators.delete(t);
-      }
-    }
-
-    // Boss off-screen indicator — covers regular bosses and castle bosses
-    // (queen + dragon, both stored in this.boss by spawnCastleBoss)
-    const b = this.boss;
-    if (b && b.active && !b.dying) {
-      const bossOnScreen = b.x > wv.x - margin && b.x < wv.right + margin &&
-                           b.y > wv.y - margin && b.y < wv.bottom + margin;
-
-      if (!this.bossIndicator) {
-        const bg = this.add.sprite(0, 0, 'ind_boss')
-          .setScrollFactor(0).setDepth(500).setScale(0.5).setAlpha(0.85).setVisible(false);
-        const ptr = this.add.sprite(0, 0, 'ind_ptr')
-          .setScrollFactor(0).setDepth(500.1).setScale(0.5).setAlpha(0.85).setVisible(false);
-        this.bossIndicator = { bg, ptr };
-      }
-
-      if (bossOnScreen) {
-        this.bossIndicator.bg.setVisible(false);
-        this.bossIndicator.ptr.setVisible(false);
-      } else {
-        const dx = b.x - cam.midPoint.x;
-        const dy = b.y - cam.midPoint.y;
-        if (dx !== 0 || dy !== 0) {
-          const scaleX = dx !== 0 ? (cx - pad) / Math.abs(dx) : Infinity;
-          const scaleY = dy !== 0 ? (cy - pad) / Math.abs(dy) : Infinity;
-          const s = Math.min(scaleX, scaleY);
-          const edgeX = cx + dx * s;
-          const edgeY = cy + dy * s;
-          const angle = Math.atan2(dy, dx);
-          this.bossIndicator.bg.setPosition(edgeX, edgeY).setVisible(true);
-          this.bossIndicator.ptr.setPosition(edgeX + Math.cos(angle) * 18, edgeY + Math.sin(angle) * 18)
-            .setRotation(angle).setVisible(true);
-        }
-      }
-    } else if (this.bossIndicator) {
-      this.bossIndicator.bg.destroy();
-      this.bossIndicator.ptr.destroy();
-      this.bossIndicator = null;
-    }
   }
 
   // Y-based depth sort: objects lower on screen render in front
@@ -2045,6 +1991,15 @@ export class GameScene extends Phaser.Scene {
     return false;
   }
 
+  /** True when an enemy's center sits inside the visible world rect with a
+   *  small inset — enemies don't get to snipe the player while off-screen. */
+  private enemyOnScreen(e: Enemy): boolean {
+    const wv = this.cameras.main.worldView;
+    const inset = 20;
+    return e.x > wv.x + inset && e.x < wv.right - inset
+        && e.y > wv.y + inset && e.y < wv.bottom - inset;
+  }
+
   updateEnemies(time: number, _delta: number) {
     // Performance cull radius — enemies further than this from the player
     // skip AI/animation work this frame. Squared so we don't sqrt per enemy.
@@ -2088,8 +2043,8 @@ export class GameScene extends Phaser.Scene {
         return true;
       }
 
-      // Birds randomly poop while flying
-      if ((e.kind === 'crow' || e.kind === 'bat') && Math.random() < 0.0006) {
+      // Birds randomly poop while flying — only when visible to the player.
+      if ((e.kind === 'crow' || e.kind === 'bat') && Math.random() < 0.0006 && this.enemyOnScreen(e)) {
         this.spawnBirdPoop(e.x, e.y);
       }
 
@@ -2123,7 +2078,7 @@ export class GameScene extends Phaser.Scene {
           const pLen = Math.hypot(perpX, perpY) || 1;
           e.setVelocity((perpX / pLen) * e.speed * 0.3, (perpY / pLen) * e.speed * 0.3);
           if (e.anims.currentAnim?.key !== `${prefix}-atk`) e.play(`${prefix}-atk`);
-          if (time > e.attackCd) {
+          if (time > e.attackCd && this.enemyOnScreen(e)) {
             e.attackCd = time + CFG.river.mosquitoFireRate;
             this.spawnMosquitoDart(e.x, e.y, tx, ty);
           }
@@ -2139,49 +2094,35 @@ export class GameScene extends Phaser.Scene {
         return true;
       }
 
-      // Blighted Toad — hops toward player, lobs arcing toxic globs
+      // Blighted Toad — keeps hopping toward the player (pathfinding around
+      // trees/walls so it doesn't get stuck) AND lobs arcing toxic globs on
+      // cooldown whenever the player is inside range. Touch damage is still
+      // handled by the melee block lower down.
       if (e.kind === 'toad') {
         const toadRange = CFG.infected.toadRange;
         const dist = Math.sqrt(dist2);
         e.setFlipX(tx - e.x < 0);
 
-        // Toad state stored on the sprite instance
         const td = e as any;
         if (td._toadHopNext === undefined) {
           td._toadHopNext = time + CFG.infected.toadHopInterval;
           td._toadHopping = false;
           td._toadHopEnd = 0;
-          td._toadHopVx = 0;
-          td._toadHopVy = 0;
         }
 
-        // In range — stop and lob
-        if (dist < toadRange && dist > 40) {
-          // Check if toad or player is adjacent to a wall/tower/tree (blocks arc)
-          const toadAdj = this.isAdjacentToObstacle(e.x, e.y);
-          const playerAdj = this.isAdjacentToObstacle(tx, ty);
-
-          if (!td._toadHopping) {
-            e.setVelocity(0, 0);
-            if (e.anims.currentAnim?.key !== 'etd-idle') e.play('etd-idle');
-          }
-
-          if (time > e.attackCd && !td._toadHopping) {
-            e.attackCd = time + CFG.infected.toadFireRate;
-            e.play('etd-atk');
-            // Spawn glob after brief delay for animation
-            this.time.delayedCall(200 / this.timeMult, () => {
-              if (e.active && !e.dying) {
-                this.spawnToadGlob(e.x, e.y, tx, ty, toadAdj || playerAdj);
-              }
-            });
-          }
-          return true;
+        // Ranged glob attack — fires whenever in range and cooldown is up,
+        // independent of whether the toad is mid-hop. Skip during the hop's
+        // attack-anim window so we don't override etd-hop with etd-atk.
+        if (dist < toadRange && dist > 40 && time > e.attackCd && !td._toadHopping && this.enemyOnScreen(e)) {
+          e.attackCd = time + CFG.infected.toadFireRate;
+          e.play('etd-atk');
+          this.time.delayedCall(200 / this.timeMult, () => {
+            if (e.active && !e.dying) this.spawnToadGlob(e.x, e.y, tx, ty);
+          });
         }
 
-        // Out of range or too close — hop toward player
+        // Mid-hop — keep velocity until the hop window ends.
         if (td._toadHopping) {
-          // Currently mid-hop — keep velocity
           if (time > td._toadHopEnd) {
             td._toadHopping = false;
             e.setVelocity(0, 0);
@@ -2191,15 +2132,42 @@ export class GameScene extends Phaser.Scene {
           return true;
         }
 
-        // Waiting for next hop
+        // Waiting for next hop.
         if (time > td._toadHopNext) {
+          // Pick hop direction: straight at the player when LOS is clear,
+          // otherwise toward the next BFS waypoint so trees don't trap us.
+          let hopX = tx, hopY = ty;
+          if (this.lineBlocked(e.x, e.y, tx, ty)) {
+            const stale = time > e.lastPath + 400 || (e as any)._pv !== this.gridVersion || !e.path || e.path.length === 0;
+            if (stale && this.pathsThisFrame < 3) {
+              this.pathsThisFrame++;
+              e.lastPath = time;
+              (e as any)._pv = this.gridVersion;
+              const start = this.worldToTile(e.x, e.y);
+              const goal = this.worldToTile(tx, ty);
+              const saved = gridGet(this.grid, goal.x, goal.y);
+              if (saved >= 1) gridSet(this.grid, goal.x, goal.y, 0);
+              e.path = findPath(this.grid, start.x, start.y, goal.x, goal.y);
+              if (saved >= 1) gridSet(this.grid, goal.x, goal.y, saved);
+            }
+            if (e.path && e.path.length > 0) {
+              const t = CFG.tile;
+              // Drop waypoints we've already reached so we keep advancing.
+              while (e.path.length > 0) {
+                const wp = e.path[0];
+                const wx = wp.x * t + t / 2, wy = wp.y * t + t / 2;
+                if (Math.hypot(wx - e.x, wy - e.y) < 14) e.path.shift();
+                else { hopX = wx; hopY = wy; break; }
+              }
+            }
+          } else {
+            e.path = [];
+          }
+          const dxh = hopX - e.x, dyh = hopY - e.y;
+          const dh = Math.hypot(dxh, dyh) || 1;
           td._toadHopping = true;
           td._toadHopEnd = time + CFG.infected.toadHopDuration;
-          const dx = tx - e.x, dy = ty - e.y;
-          const d = dist || 1;
-          td._toadHopVx = (dx / d) * e.speed;
-          td._toadHopVy = (dy / d) * e.speed;
-          e.setVelocity(td._toadHopVx, td._toadHopVy);
+          e.setVelocity((dxh / dh) * e.speed, (dyh / dh) * e.speed);
           e.play('etd-hop');
         } else {
           e.setVelocity(0, 0);
@@ -2231,7 +2199,7 @@ export class GameScene extends Phaser.Scene {
           // In range — stop and cast
           e.setVelocity(0, 0);
           if (e.anims.currentAnim?.key !== `${prefix}-atk`) e.play(`${prefix}-atk`);
-          if (time > e.attackCd) {
+          if (time > e.attackCd && this.enemyOnScreen(e)) {
             e.attackCd = time + CFG.castle.warlockFireRate;
             this.spawnWarlockBolt(e.x, e.y, tx, ty);
           }
@@ -2529,6 +2497,13 @@ export class GameScene extends Phaser.Scene {
         }
         this.nextQueenOrb = time + CFG.castle.queenOrbFireRate;
       }
+      // Slow structure-damaging aura — telegraphs at the queen's current
+      // spot, then strikes after the windup. Position is locked at cast
+      // time so teleporting away mid-windup doesn't move the impact.
+      if (time >= this.nextQueenAura && onScreen) {
+        this.queenAuraStrike(b.x, b.y);
+        this.nextQueenAura = time + CFG.castle.queenAuraCooldown;
+      }
     }
 
     // --- Castle Dragon abilities ---
@@ -2693,6 +2668,53 @@ export class GameScene extends Phaser.Scene {
       this.pushHud();
       if (this.player.hp <= 0) this.lose();
     }
+  }
+
+  /** Phantom Queen's slow structure-damaging aura. Telegraphs an expanding
+   *  purple ring at the cast position; on completion deals queenAuraDmg to
+   *  every wall and tower inside queenAuraRadius. Player is unaffected
+   *  (touch damage from her body still applies separately). */
+  queenAuraStrike(cx: number, cy: number) {
+    const r = CFG.castle.queenAuraRadius;
+    const dmg = CFG.castle.queenAuraDmg;
+    const windup = CFG.castle.queenAuraWindup;
+
+    // Expanding telegraph ring — purple, grows from a dot to full radius
+    const ring = this.add.circle(cx, cy, r, 0x9040e0, 0)
+      .setStrokeStyle(3, 0x9040e0, 0.9)
+      .setDepth(13).setScale(0.1);
+    const fill = this.add.circle(cx, cy, r, 0x9040e0, 0.18)
+      .setDepth(12).setScale(0.1);
+    this.tweens.add({
+      targets: [ring, fill],
+      scale: 1,
+      duration: windup,
+      ease: 'Cubic.In',
+    });
+
+    this.time.delayedCall(windup, () => {
+      ring.destroy();
+      fill.destroy();
+      // Strike: damage every structure inside the locked radius.
+      for (const t of [...this.towers]) {
+        if (Phaser.Math.Distance.Between(cx, cy, t.x, t.y) < r + 16) {
+          t.hurt(dmg);
+          if (t.hp <= 0) this.destroyTower(t);
+        }
+      }
+      for (const w of [...this.walls]) {
+        if (Phaser.Math.Distance.Between(cx, cy, w.x, w.y) < r + 8) {
+          w.hurt(dmg);
+          if (w.hp <= 0) this.destroyWall(w);
+        }
+      }
+      // Burst VFX
+      const burst = this.add.circle(cx, cy, r, 0x9040e0, 0.45).setDepth(14);
+      this.tweens.add({ targets: burst, scale: 1.25, alpha: 0, duration: 350, ease: 'Cubic.Out', onComplete: () => burst.destroy() });
+      const shock = this.add.circle(cx, cy, r, 0x000000, 0)
+        .setStrokeStyle(3, 0xc080ff, 0.9).setDepth(15);
+      this.tweens.add({ targets: shock, scale: 1.3, alpha: { from: 1, to: 0 }, duration: 400, onComplete: () => shock.destroy() });
+    });
   }
 
   bossSlamImpact(b: Boss) {
@@ -3126,8 +3148,8 @@ export class GameScene extends Phaser.Scene {
   destroyTower(t: Tower) {
     this.cancelSellTimer(t);
     if (this.selectedTower === t) this.deselectTower();
-    const ind = this.towerIndicators.get(t);
-    if (ind) { ind.bg.destroy(); ind.ptr.destroy(); this.towerIndicators.delete(t); }
+    // Off-screen indicator cleanup happens in UIScene.updateIndicators()
+    // (it owns those sprites now).
     const idx = this.towers.indexOf(t);
     if (idx >= 0) this.towers.splice(idx, 1);
     for (let j = 0; j < t.size; j++)
@@ -3261,6 +3283,7 @@ export class GameScene extends Phaser.Scene {
       this.castlePhase = 1;
       this.nextQueenOrb = this.vTime + CFG.castle.queenOrbFireRate;
       this.nextQueenTeleport = this.vTime + CFG.castle.queenTeleportCooldown;
+      this.nextQueenAura = this.vTime + CFG.castle.queenAuraCooldown;
     } else {
       b.hp = CFG.castle.dragonHp; b.maxHp = CFG.castle.dragonHp;
       b.dmg = CFG.castle.dragonDmg; b.speed = CFG.castle.dragonSpeed;
@@ -3360,7 +3383,7 @@ export class GameScene extends Phaser.Scene {
     return false;
   }
 
-  spawnToadGlob(x: number, y: number, tx: number, ty: number, blockedByAdjacent: boolean) {
+  spawnToadGlob(x: number, y: number, tx: number, ty: number) {
     const glob = this.physics.add.sprite(x, y, 'tglob_0').setScale(0.8).setDepth(12);
     glob.play('tglob-spin');
     glob.setSize(10, 10).setOffset(3, 3);
@@ -3379,18 +3402,11 @@ export class GameScene extends Phaser.Scene {
     g._totalDist = dist;
     g._dmg = CFG.infected.toadGlobDmg;
     g._splash = CFG.infected.toadGlobSplash;
-    g._arcHeight = blockedByAdjacent ? 0 : CFG.infected.toadGlobArcHeight;
-    g._flat = blockedByAdjacent;
+    g._arcHeight = CFG.infected.toadGlobArcHeight;
+    g._flat = false;
     g._landed = false;
 
-    // Set velocity toward target
     glob.setVelocity((dx / dist) * spd, (dy / dist) * spd);
-
-    // If flat (adjacent), register wall/tower overlap so it can be blocked mid-flight
-    if (blockedByAdjacent) {
-      this.physics.add.overlap(glob, this.wallGroup, () => { if (!g._landed) this.landToadGlob(glob); });
-      this.physics.add.overlap(glob, this.towerGroup, () => { if (!g._landed) this.landToadGlob(glob); });
-    }
   }
 
   /** Glob reaches its target (or hits a wall). Stop, splash, damage, destroy. */
@@ -3417,9 +3433,10 @@ export class GameScene extends Phaser.Scene {
       if (this.player.hp <= 0) this.lose();
     }
 
-    // Splat visual + destroy
+    // Splat visual + destroy. Circle stays at exactly the damage radius for
+    // its full fade so the kill zone reads honestly — no scale tween.
     const splat = this.add.circle(glob.x, glob.y, splash, 0x40e060, 0.5).setDepth(5);
-    this.tweens.add({ targets: splat, alpha: 0, scale: 1.8, duration: 500, onComplete: () => splat.destroy() });
+    this.tweens.add({ targets: splat, alpha: 0, duration: 500, onComplete: () => splat.destroy() });
     // Brief green flash on the glob then destroy
     glob.setTintFill(0x40e060);
     this.tweens.add({ targets: glob, alpha: 0, scaleX: 1.2, scaleY: 0.3, duration: 200, onComplete: () => glob.destroy() });
@@ -3550,17 +3567,18 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    // Damage nearby towers
+    // Damage nearby towers and walls — fireballs hit structures 5x harder
+    // than they hit the player, so the dragon can credibly demolish a base.
+    const structDmg = Math.floor(dmg * 2.5);
     for (const t of this.towers) {
       if (Phaser.Math.Distance.Between(x, y, t.x, t.y) < splash) {
-        t.hurt(Math.floor(dmg * 0.5));
+        t.hurt(structDmg);
         if (t.hp <= 0) this.destroyTower(t);
       }
     }
-    // Damage nearby walls
     for (const w of this.walls) {
       if (Phaser.Math.Distance.Between(x, y, w.x, w.y) < splash) {
-        w.hurt(Math.floor(dmg * 0.5));
+        w.hurt(structDmg);
         if (w.hp <= 0) this.destroyWall(w);
       }
     }
@@ -4278,6 +4296,9 @@ export class GameScene extends Phaser.Scene {
       }
       // Start a collection window so the player can grab coins
       if (this.winDelayUntil === 0) {
+        // Hide the boss HP bar the instant the final boss dies — otherwise
+        // it sits at 0% behind the loot/victory countdown.
+        this.game.events.emit('boss-died');
         this.winDelayUntil = this.vTime + 12000;
         this.countdownColor = '#7cf29a';
         // Kill all remaining enemies when the boss dies — staggered so dozens

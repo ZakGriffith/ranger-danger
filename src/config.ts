@@ -40,10 +40,10 @@ export const CFG = {
 
   wall: {
     hp: 80,
-    cost: 5
+    cost: 3
   },
 
-  startMoney: 120,
+  startMoney: 130,
 
   enemy: {
     basic:  { hp: 20, speed: 60,  dmg: 8,  coin: 1, color: 0xd9412b },
@@ -67,7 +67,7 @@ export const CFG = {
     // Castle enemies
     skeleton:    { hp: 22, speed: 55,  dmg: 8,  coin: 1, color: 0xd8d0c0 },
     warlock:     { hp: 18, speed: 38,  dmg: 6,  coin: 2, color: 0x6a28a0 },
-    golem:       { hp: 55, speed: 28,  dmg: 14, coin: 3, color: 0x636d7a },
+    golem:       { hp: 55, speed: 28,  dmg: 14, coin: 3, color: 0x3c4250 },
     shadow_imp:  { hp: 16, speed: 90,  dmg: 6,  coin: 1, color: 0x2a1a38 },
     castle_bat:  { hp: 10, speed: 120, dmg: 4,  coin: 1, color: 0x3a2a3a },
     castle_rat:  { hp: 10, speed: 130, dmg: 4,  coin: 1, color: 0x5a4a38 }
@@ -113,11 +113,11 @@ export const CFG = {
     clusterSpread: 24,          // px spread within the cluster
     rampFactor: 0.88,           // faster ramp than normal (0.93)
     minInterval: 250,           // tighter floor than normal (350)
-    toadRange: 200,             // px — distance at which toad stops and lobs
+    toadRange: 300,             // px — distance at which toad starts lobbing globs (it keeps hopping while in range)
     toadFireRate: 2800,         // ms between lobs
     toadGlobSpeed: 120,         // slow arcing glob
     toadGlobDmg: 8,
-    toadGlobSplash: 16,         // ~half a tile, roughly one square
+    toadGlobSplash: 12,         // smaller than half a tile — easier to sidestep
     toadGlobLifetime: 3500,
     toadGlobArcHeight: 60,      // px — peak height of the arc
     toadHopInterval: 800,       // ms between hops
@@ -165,6 +165,13 @@ export const CFG = {
     queenOrbFireRate: 2400,    // ms between bursts (faster)
     queenTeleportCooldown: 4500, // ms between teleports (more frequent)
     queenTeleportRange: 170,   // px closer to player
+    // Slow structure-damaging aura — telegraphs a purple ring at the queen's
+    // current position, then strikes after the windup. Locked to cast spot
+    // even if she teleports.
+    queenAuraRadius: 110,
+    queenAuraDmg: 14,
+    queenAuraCooldown: 4000,
+    queenAuraWindup: 1100,
     // Castle Dragon (final boss)
     dragonHp: 2000,
     dragonSpeed: 22,

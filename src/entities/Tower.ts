@@ -151,7 +151,8 @@ export class Tower extends Phaser.Physics.Arcade.Sprite {
 
   drawHpBar() {
     this.hpBar.clear();
-    if (this.hp >= this.maxHp) return;
+    // Always render — even at 100% — so the player can spot freshly damaged
+    // towers immediately without having to wait for the bar to appear.
     const pct = Math.max(0, this.hp / this.maxHp);
     const w = 28, h = 3;
     const bx = this.x - w / 2;

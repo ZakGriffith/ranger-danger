@@ -32,6 +32,12 @@ export class UIScene extends Phaser.Scene {
   buildErrorText!: Phaser.GameObjects.Text;
   buildHintText!: Phaser.GameObjects.Text;
 
+  /** Off-screen markers — drawn here so they sit above the HUD elements
+   *  rather than under them (would happen if drawn in GameScene since
+   *  scenes layer in registration order). */
+  private towerIndicators = new Map<any, { bg: Phaser.GameObjects.Sprite; ptr: Phaser.GameObjects.Sprite }>();
+  private bossIndicator: { bg: Phaser.GameObjects.Sprite; ptr: Phaser.GameObjects.Sprite } | null = null;
+
   levelId = 1;
   difficulty: Difficulty = 'easy';
   biome: Biome = 'grasslands';
@@ -63,6 +69,8 @@ export class UIScene extends Phaser.Scene {
     this.endPanel = undefined;
     this.bossBarGfx = undefined;
     this.bossLabel = undefined;
+    this.towerIndicators = new Map();
+    this.bossIndicator = null;
     // Restore speedIdx if a prior incarnation persisted it (e.g. across a
     // viewport-driven scene restart on rotation). Default to 0 for fresh runs.
     this.speedIdx = (this.game.registry.get('uiSpeedIdx') as number) ?? 0;
@@ -162,7 +170,17 @@ export class UIScene extends Phaser.Scene {
     }).setOrigin(0.5);
     this.btnSpeed.add(this.speedLabel);
     this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE)
-      .on('down', () => this.cycleSpeed());
+      .on('down', () => {
+        // While a build mode is active, SPACE bails out of it instead of
+        // cycling game speed — gives the player a quick exit during wall
+        // placement without reaching for ESC.
+        const game = this.scene.get('Game') as any;
+        if (game?.buildKind && game.buildKind !== 'none') {
+          game.setBuild('none');
+          return;
+        }
+        this.cycleSpeed();
+      });
 
     // Level progress graphic (wave circles + boss skull)
     this.progressCircles = [];
@@ -252,6 +270,7 @@ export class UIScene extends Phaser.Scene {
     this.game.events.on('game-end', (s: any) => this.showEnd(s));
     this.game.events.on('boss-spawn', (s: any) => this.showBossBar(s));
     this.game.events.on('boss-hp', (s: any) => this.updateBossBar(s));
+    this.game.events.on('boss-died', () => this.hideBossBar());
     this.game.events.on('build-error', (msg: string) => {
       if (msg) {
         this.buildErrorText.setText(msg).setVisible(true);
@@ -784,29 +803,192 @@ export class UIScene extends Phaser.Scene {
     }
   }
 
+  /** Per-frame loop — Phaser auto-calls this on a running scene. We use it
+   *  to refresh the off-screen tower / boss indicators against GameScene
+   *  state. The indicators live here so they render above the HUD. */
+  update() {
+    this.updateIndicators();
+  }
+
+  private updateIndicators() {
+    const game = this.scene.get('Game') as any;
+    if (!game || !game.cameras?.main || !game.towers) return;
+    const gameCam = game.cameras.main;
+    const wv = gameCam.worldView;
+    const mid = gameCam.midPoint;
+
+    const W = this.scale.width, H = this.scale.height;
+    const cx = W / 2, cy = H / 2;
+    const pad = this.p(28);
+    const margin = 40;
+    const offset = this.p(18);
+    const iconScale = this.p(0.5);
+
+    // ---- Tower indicators
+    const towers = game.towers as any[];
+    const alive = new Set(towers);
+    for (const t of towers) {
+      const onScreen = t.x > wv.x - margin && t.x < wv.right + margin &&
+                       t.y > wv.y - margin && t.y < wv.bottom + margin;
+      let ind = this.towerIndicators.get(t);
+      if (!ind) {
+        const texKey = t.kind === 'arrow' ? 'ind_arrow' : 'ind_cannon';
+        const bg = this.add.sprite(0, 0, texKey)
+          .setDepth(950).setScale(iconScale).setAlpha(0.9).setVisible(false);
+        const ptr = this.add.sprite(0, 0, 'ind_ptr')
+          .setDepth(950.1).setScale(iconScale).setAlpha(0.9).setVisible(false);
+        ind = { bg, ptr };
+        this.towerIndicators.set(t, ind);
+      }
+      if (onScreen) {
+        ind.bg.setVisible(false);
+        ind.ptr.setVisible(false);
+        continue;
+      }
+      const dx = t.x - mid.x;
+      const dy = t.y - mid.y;
+      if (dx === 0 && dy === 0) continue;
+      const sX = dx !== 0 ? (cx - pad) / Math.abs(dx) : Infinity;
+      const sY = dy !== 0 ? (cy - pad) / Math.abs(dy) : Infinity;
+      const s = Math.min(sX, sY);
+      const edgeX = cx + dx * s;
+      const edgeY = cy + dy * s;
+      const angle = Math.atan2(dy, dx);
+      ind.bg.setPosition(edgeX, edgeY).setVisible(true);
+      ind.ptr.setPosition(edgeX + Math.cos(angle) * offset, edgeY + Math.sin(angle) * offset)
+        .setRotation(angle).setVisible(true);
+    }
+    // Cleanup destroyed towers
+    for (const [t, ind] of this.towerIndicators) {
+      if (!alive.has(t)) {
+        ind.bg.destroy();
+        ind.ptr.destroy();
+        this.towerIndicators.delete(t);
+      }
+    }
+
+    // ---- Boss indicator (regular bosses + castle queen/dragon)
+    const b = game.boss;
+    if (b && b.active && !b.dying) {
+      const bossOnScreen = b.x > wv.x - margin && b.x < wv.right + margin &&
+                           b.y > wv.y - margin && b.y < wv.bottom + margin;
+      if (!this.bossIndicator) {
+        const bg = this.add.sprite(0, 0, 'ind_boss')
+          .setDepth(950).setScale(iconScale).setAlpha(0.9).setVisible(false);
+        const ptr = this.add.sprite(0, 0, 'ind_ptr')
+          .setDepth(950.1).setScale(iconScale).setAlpha(0.9).setVisible(false);
+        this.bossIndicator = { bg, ptr };
+      }
+      if (bossOnScreen) {
+        this.bossIndicator.bg.setVisible(false);
+        this.bossIndicator.ptr.setVisible(false);
+      } else {
+        const dx = b.x - mid.x;
+        const dy = b.y - mid.y;
+        if (dx !== 0 || dy !== 0) {
+          const sX = dx !== 0 ? (cx - pad) / Math.abs(dx) : Infinity;
+          const sY = dy !== 0 ? (cy - pad) / Math.abs(dy) : Infinity;
+          const s = Math.min(sX, sY);
+          const edgeX = cx + dx * s;
+          const edgeY = cy + dy * s;
+          const angle = Math.atan2(dy, dx);
+          this.bossIndicator.bg.setPosition(edgeX, edgeY).setVisible(true);
+          this.bossIndicator.ptr.setPosition(edgeX + Math.cos(angle) * offset, edgeY + Math.sin(angle) * offset)
+            .setRotation(angle).setVisible(true);
+        }
+      }
+    } else if (this.bossIndicator) {
+      this.bossIndicator.bg.destroy();
+      this.bossIndicator.ptr.destroy();
+      this.bossIndicator = null;
+    }
+  }
+
   showEnd(s: any) {
     if (this.endPanel) return;
     if (s.win) saveMedal(this.levelId, this.difficulty);
     const W = this.scale.width, H = this.scale.height;
+
+    // Themed colors — green for VICTORY, red for DEFEAT. Hex strings used
+    // for text, packed ints for Graphics fills/strokes.
+    const accent = s.win ? 0x4ad96a : 0xd94a4a;
+    const titleHex = s.win ? '#7cf29a' : '#ff6a6a';
+
+    // Fullscreen dim
     const bg = this.add.rectangle(0, 0, W, H, 0x000000, 0.7).setOrigin(0);
-    const box = this.add.rectangle(W / 2, H / 2, this.p(380), this.p(200), 0x11172a).setStrokeStyle(this.p(2), 0x2a3760);
-    const title = this.add.text(W / 2, H / 2 - this.p(60), s.win ? 'VICTORY' : 'DEFEAT',
-      { fontFamily: 'monospace', fontSize: this.fs(32), color: s.win ? '#7cf29a' : '#ff6a6a' }).setOrigin(0.5);
-    const sub = this.add.text(W / 2, H / 2 - this.p(10), `${s.name}   Kills: ${s.kills}   $ ${s.money}`,
-      { fontFamily: 'monospace', fontSize: this.fs(14), color: '#ccd' }).setOrigin(0.5);
-    const btn = this.makeButton(W / 2, H / 2 + this.p(40), this.p(140), this.p(32), 'RETURN TO MAP', () => {
+
+    // Modal panel — matches the HUD's rounded-rect language: dark navy fill,
+    // subtle inner stroke, themed outer stroke. Same colour family as the
+    // HP / wave / boss bars.
+    const boxW = this.p(380), boxH = this.p(200);
+    const boxX = W / 2 - boxW / 2, boxY = H / 2 - boxH / 2;
+    const boxR = this.p(10);
+    const panel = this.add.graphics();
+    panel.fillStyle(0x11172a, 0.97);
+    panel.fillRoundedRect(boxX, boxY, boxW, boxH, boxR);
+    panel.lineStyle(this.p(1), 0x2a3760, 0.7);
+    panel.strokeRoundedRect(boxX + this.p(3), boxY + this.p(3), boxW - this.p(6), boxH - this.p(6), boxR - this.p(2));
+    panel.lineStyle(this.p(2), accent, 0.9);
+    panel.strokeRoundedRect(boxX, boxY, boxW, boxH, boxR);
+
+    // Title
+    const title = this.add.text(W / 2, H / 2 - this.p(60), s.win ? 'VICTORY' : 'DEFEAT', {
+      fontFamily: 'monospace', fontSize: this.fs(32), fontStyle: 'bold',
+      color: titleHex, stroke: '#0b0f1a', strokeThickness: this.p(4)
+    }).setOrigin(0.5);
+
+    // Stats line
+    const sub = this.add.text(W / 2, H / 2 - this.p(15), `${s.name}   Kills: ${s.kills}   $ ${s.money}`, {
+      fontFamily: 'monospace', fontSize: this.fs(14), color: '#ccd',
+      stroke: '#0b0f1a', strokeThickness: this.p(2)
+    }).setOrigin(0.5);
+
+    // RETURN TO MAP button — rounded, themed border, text in accent colour.
+    const btnW = this.p(160), btnH = this.p(36);
+    const btnCX = W / 2, btnCY = H / 2 + this.p(45);
+    const btnX = btnCX - btnW / 2, btnY = btnCY - btnH / 2;
+    const btnR = this.p(7);
+    const btnG = this.add.graphics();
+    const drawBtn = (hover: boolean) => {
+      btnG.clear();
+      btnG.fillStyle(hover ? 0x1a2238 : 0x0b0f1a, 0.95);
+      btnG.fillRoundedRect(btnX, btnY, btnW, btnH, btnR);
+      btnG.lineStyle(this.p(1.5), accent, hover ? 1 : 0.85);
+      btnG.strokeRoundedRect(btnX, btnY, btnW, btnH, btnR);
+    };
+    drawBtn(false);
+    const btnText = this.add.text(btnCX, btnCY, 'RETURN TO MAP', {
+      fontFamily: 'monospace', fontSize: this.fs(13), fontStyle: 'bold',
+      color: titleHex, stroke: '#0b0f1a', strokeThickness: this.p(2)
+    }).setOrigin(0.5);
+    const btnHit = this.add.rectangle(btnCX, btnCY, btnW, btnH, 0x000000, 0).setInteractive({ useHandCursor: true });
+    btnHit.on('pointerdown', () => {
+      SFX.play('click');
       this.scene.stop('Game');
       this.scene.stop('UI');
       this.scene.start('LevelSelect');
     });
-    this.endPanel = this.add.container(0, 0, [bg, box, title, sub, btn]);
+    btnHit.on('pointerover', () => drawBtn(true));
+    btnHit.on('pointerout', () => drawBtn(false));
+
+    this.endPanel = this.add.container(0, 0, [bg, panel, title, sub, btnG, btnText, btnHit]).setDepth(1000);
   }
 
   shutdown() {
+    // Drop any lingering off-screen indicator sprites — they're tied to the
+    // GameScene tower/boss instances which don't survive a scene restart.
+    for (const [, ind] of this.towerIndicators) { ind.bg.destroy(); ind.ptr.destroy(); }
+    this.towerIndicators.clear();
+    if (this.bossIndicator) {
+      this.bossIndicator.bg.destroy();
+      this.bossIndicator.ptr.destroy();
+      this.bossIndicator = null;
+    }
     this.game.events.off('hud');
     this.game.events.off('game-end');
     this.game.events.off('boss-spawn');
     this.game.events.off('boss-hp');
+    this.game.events.off('boss-died');
     this.game.events.off('build-error');
     this.game.events.off('build-mode');
   }
