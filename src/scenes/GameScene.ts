@@ -617,6 +617,46 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
+  // Per-frame countdown branches were calling pushHud 60×/sec even when the
+  // displayed text/color had not changed. UIScene.updateHud is heavy
+  // (HP redraw, progress-circle restyles, wave-bar fill), so the redundant
+  // emits caused mobile chop. syncCountdown only emits on a real change.
+  private syncCountdown(msg: string, color?: string) {
+    const nextColor = color ?? this.countdownColor;
+    if (this.countdownMsg === msg && this.countdownColor === nextColor) return;
+    this.countdownMsg = msg;
+    this.countdownColor = nextColor;
+    this.pushHud();
+  }
+
+  // The wave-break "WAVE N IN Ns" label is rendered in UIScene from
+  // s.waveBreakUntil and s.vTime, so we have to push HUD updates while the
+  // break is ticking. Track the last-emitted integer second so we push
+  // ~5–6 times per break instead of ~300 (5s × 60fps).
+  private _lastWaveBreakUntil = 0;
+  private _lastWaveBreakSecond = -1;
+
+  // Pool of hidden fx-pop sprites reused for coin pickups. Big bursts (wave
+  // ends with many coins magneting in at once) used to allocate + destroy a
+  // Sprite + its physics-free GameObject per coin, churning the display list.
+  // Same texture/animation as before — just recycled instead of recreated.
+  private _coinFxPool: Phaser.GameObjects.Sprite[] = [];
+
+  private playCoinFxPop(x: number, y: number) {
+    let pop = this._coinFxPool.pop();
+    if (pop) {
+      pop.setPosition(x, y);
+      pop.setActive(true).setVisible(true);
+    } else {
+      pop = this.add.sprite(x, y, 'fx_pop_0').setDepth(15).setScale(0.5);
+    }
+    pop.play('fx-pop');
+    pop.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => {
+      pop!.setActive(false).setVisible(false);
+      this._coinFxPool.push(pop!);
+    });
+  }
+
   setTimeScale(mult: number) {
     this.timeMult = mult;
     // Phaser's physics.world.timeScale is inverted: lower = faster.
@@ -1011,38 +1051,88 @@ export class GameScene extends Phaser.Scene {
     const panel = this.towerPanel;
     panel.removeAll(true);
 
-    const W = 184, H = 76;
+    // Mobile gets a 1.5× larger panel so the buttons are tap-friendly. Every
+    // literal pixel size below is multiplied by `ms` so the layout stays
+    // proportional at the larger size (text included via fontSize: `${n*ms}px`).
+    const isMobile = !!this.game.registry.get('isMobile');
+    const ms = isMobile ? 1.5 : 1;
+
+    const W = 184 * ms, H = 76 * ms;
+    const towerHalfH = CFG.tile * t.size / 2;
+    const standoff = 10 * ms;
+
+    // Default: panel above the tower with the nub pointing down at it.
+    let py = t.y - towerHalfH - H / 2 - standoff;
+    let nubAtBottom = true;
+
+    // Mobile: if the panel would clip off the top of the screen OR sit
+    // underneath the HUD (which lives in the top ~80 design-pixels of the
+    // canvas), flip below the tower with the nub pointing up. The HUD is
+    // rendered in canvas pixels, so convert that vertical extent to world
+    // units via uiScale / camera zoom before comparing against worldView.
+    if (isMobile) {
+      const view = this.cameras.main.worldView;
+      const sf = this.game.registry.get('sf') || 1;
+      const camZoom = this.cameras.main.zoom || 1;
+      const hudClearWorld = (90 * sf) / camZoom; // 80px HUD region + a little padding
+      if (py - H / 2 < view.y + hudClearWorld) {
+        py = t.y + towerHalfH + H / 2 + standoff;
+        nubAtBottom = false;
+      }
+    }
+
     const px = t.x;
-    const py = t.y - CFG.tile * t.size / 2 - H / 2 - 10;
     panel.setPosition(px, py);
     panel.setVisible(true);
     this.towerPanelBounds = { x: px - W / 2, y: py - H / 2, w: W, h: H };
 
     // Themed accent — same blue accent the HUD uses for info/wave bars.
     const accent = 0x4a8acc;
-    const panelR = 8;
+    const panelR = 8 * ms;
 
     // Rounded panel — matches Victory/Defeat language: dark navy fill,
     // subtle inner stroke, themed outer stroke.
     const panelG = this.add.graphics();
     panelG.fillStyle(0x11172a, 0.97);
     panelG.fillRoundedRect(-W / 2, -H / 2, W, H, panelR);
-    panelG.lineStyle(1, 0x2a3760, 0.7);
-    panelG.strokeRoundedRect(-W / 2 + 3, -H / 2 + 3, W - 6, H - 6, panelR - 2);
-    panelG.lineStyle(2, accent, 0.85);
+    panelG.lineStyle(1 * ms, 0x2a3760, 0.7);
+    panelG.strokeRoundedRect(-W / 2 + 3 * ms, -H / 2 + 3 * ms, W - 6 * ms, H - 6 * ms, panelR - 2 * ms);
+    panelG.lineStyle(2 * ms, accent, 0.85);
     panelG.strokeRoundedRect(-W / 2, -H / 2, W, H, panelR);
     panel.add(panelG);
 
-    // Pointer nub
-    const nub = this.add.triangle(0, H / 2 + 8, -6, -4, 6, -4, 0, 4, 0x11172a)
-      .setStrokeStyle(1, accent);
-    panel.add(nub);
+    // Pointer nub — drawn with Graphics rather than the Triangle Shape so
+    // it (a) lands centered horizontally on the panel (Phaser's Triangle
+    // Shape uses Math.max(x1,x2,x3) for its width, which throws centering
+    // off when vertex coords straddle 0), and (b) has its base flush with
+    // the panel edge so the nub and panel touch with no visible gap.
+    const nubHalfW = 6 * ms;
+    const nubH = 8 * ms;
+    const baseY = nubAtBottom ? H / 2 : -H / 2;
+    const apexY = nubAtBottom ? baseY + nubH : baseY - nubH;
+    const nubG = this.add.graphics();
+    nubG.fillStyle(0x11172a, 1);
+    nubG.beginPath();
+    nubG.moveTo(-nubHalfW, baseY);
+    nubG.lineTo(nubHalfW, baseY);
+    nubG.lineTo(0, apexY);
+    nubG.closePath();
+    nubG.fillPath();
+    // Stroke only the two slanted sides — the base sits on top of the
+    // panel's outline, so a base stroke would just double-draw it.
+    nubG.lineStyle(1 * ms, accent, 1);
+    nubG.beginPath();
+    nubG.moveTo(-nubHalfW, baseY);
+    nubG.lineTo(0, apexY);
+    nubG.lineTo(nubHalfW, baseY);
+    nubG.strokePath();
+    panel.add(nubG);
 
     // Title
     const tr = this.sf;
-    const title = this.add.text(-W / 2 + 10, -H / 2 + 7, `${t.kind.toUpperCase()}  LVL ${t.level + 1}`, {
-      fontFamily: 'monospace', fontSize: '12px', fontStyle: 'bold', color: '#7cc4ff',
-      stroke: '#0b0f1a', strokeThickness: 2
+    const title = this.add.text(-W / 2 + 10 * ms, -H / 2 + 7 * ms, `${t.kind.toUpperCase()}  LVL ${t.level + 1}`, {
+      fontFamily: 'monospace', fontSize: `${12 * ms}px`, fontStyle: 'bold', color: '#7cc4ff',
+      stroke: '#0b0f1a', strokeThickness: 2 * ms
     }).setResolution(tr);
     panel.add(title);
 
@@ -1051,14 +1141,14 @@ export class GameScene extends Phaser.Scene {
     // Stats
     const st = t.stats();
     const splashLine = st.splashRadius > 0 ? `  AOE ${st.splashRadius}` : '';
-    const stats = this.add.text(-W / 2 + 10, -H / 2 + 24,
+    const stats = this.add.text(-W / 2 + 10 * ms, -H / 2 + 24 * ms,
       `DMG ${st.damage}  RNG ${st.range}${splashLine}\nFIRE ${(1000 / st.fireRate).toFixed(1)}/s  HP ${t.hp}/${t.maxHp}`,
-      { fontFamily: 'monospace', fontSize: '10px', color: '#ccd' }).setResolution(tr);
+      { fontFamily: 'monospace', fontSize: `${10 * ms}px`, color: '#ccd' }).setResolution(tr);
     panel.add(stats);
 
     // ---- Buttons — rounded, themed strokes (green=affordable, red=can't / sell)
-    const btnW = 80, btnH = 22, btnR = 5;
-    const btnY = H / 2 - btnH / 2 - 6;
+    const btnW = 80 * ms, btnH = 22 * ms, btnR = 5 * ms;
+    const btnY = H / 2 - btnH / 2 - 6 * ms;
 
     // Upgrade
     const canUp = t.canUpgrade();
@@ -1067,20 +1157,20 @@ export class GameScene extends Phaser.Scene {
     const upLabel = canUp ? `UPGRADE $${upCost}` : 'MAX LEVEL';
     const upStroke = !canUp ? 0x556677 : affordable ? 0x4ad96a : 0xd94a4a;
     const upTextColor = !canUp ? '#888' : affordable ? '#7cf29a' : '#ff9a9a';
-    const upX = -W / 2 + 8, upCX = upX + btnW / 2;
+    const upX = -W / 2 + 8 * ms, upCX = upX + btnW / 2;
     const upG = this.add.graphics();
     let upHover = false;
     const drawUp = () => {
       upG.clear();
       upG.fillStyle(upHover && canUp ? 0x1a2238 : 0x0b0f1a, 0.95);
       upG.fillRoundedRect(upX, btnY - btnH / 2, btnW, btnH, btnR);
-      upG.lineStyle(1.5, upStroke, upHover && canUp ? 1 : 0.85);
+      upG.lineStyle(1.5 * ms, upStroke, upHover && canUp ? 1 : 0.85);
       upG.strokeRoundedRect(upX, btnY - btnH / 2, btnW, btnH, btnR);
     };
     drawUp();
     const upTxt = this.add.text(upCX, btnY, upLabel, {
-      fontFamily: 'monospace', fontSize: '10px', fontStyle: 'bold', color: upTextColor,
-      stroke: '#0b0f1a', strokeThickness: 2
+      fontFamily: 'monospace', fontSize: `${10 * ms}px`, fontStyle: 'bold', color: upTextColor,
+      stroke: '#0b0f1a', strokeThickness: 2 * ms
     }).setOrigin(0.5).setResolution(tr);
     panel.add([upG, upTxt]);
     if (canUp) {
@@ -1095,20 +1185,20 @@ export class GameScene extends Phaser.Scene {
     }
 
     // Sell
-    const sellX = W / 2 - 8 - btnW, sellCX = sellX + btnW / 2;
+    const sellX = W / 2 - 8 * ms - btnW, sellCX = sellX + btnW / 2;
     const sellG = this.add.graphics();
     let sellHover = false;
     const drawSell = () => {
       sellG.clear();
       sellG.fillStyle(sellHover ? 0x1a2238 : 0x0b0f1a, 0.95);
       sellG.fillRoundedRect(sellX, btnY - btnH / 2, btnW, btnH, btnR);
-      sellG.lineStyle(1.5, 0xd94a4a, sellHover ? 1 : 0.85);
+      sellG.lineStyle(1.5 * ms, 0xd94a4a, sellHover ? 1 : 0.85);
       sellG.strokeRoundedRect(sellX, btnY - btnH / 2, btnW, btnH, btnR);
     };
     drawSell();
     const sellTxt = this.add.text(sellCX, btnY, `SELL $${sellVal}`, {
-      fontFamily: 'monospace', fontSize: '10px', fontStyle: 'bold', color: '#ffd6c0',
-      stroke: '#0b0f1a', strokeThickness: 2
+      fontFamily: 'monospace', fontSize: `${10 * ms}px`, fontStyle: 'bold', color: '#ffd6c0',
+      stroke: '#0b0f1a', strokeThickness: 2 * ms
     }).setOrigin(0.5).setResolution(tr);
     const sellHit = this.add.rectangle(sellCX, btnY, btnW, btnH, 0x000000, 0).setInteractive({ useHandCursor: true });
     sellHit.on('pointerdown', (_p: any, _lx: any, _ly: any, ev: any) => {
@@ -1314,6 +1404,8 @@ export class GameScene extends Phaser.Scene {
   private _lastGridOverlayLeft = NaN;
   private _lastGridOverlayTop = NaN;
   private _lastGridOverlayZoom = NaN;
+  private _lastGridOverlayCols = NaN;
+  private _lastGridOverlayRows = NaN;
   /** Last build-error string emitted — skip the per-frame event re-emit
    *  when the message didn't change so UIScene doesn't churn its toast. */
   private _lastBuildErr = '';
@@ -1321,24 +1413,30 @@ export class GameScene extends Phaser.Scene {
   redrawGridOverlay() {
     const cam = this.cameras.main;
     const tile = CFG.tile;
-    // cam.width / cam.height are canvas pixels; divide by zoom to get
-    // visible world size. Without this, on full-window canvases the
-    // overlay draws far more lines than needed and the per-frame Graphics
-    // rebuild becomes noticeable in build mode.
-    const visW = cam.width / cam.zoom;
-    const visH = cam.height / cam.zoom;
-    const left = Math.floor(cam.scrollX / tile) - 1;
-    const top = Math.floor(cam.scrollY / tile) - 1;
+    // cam.worldView is Phaser's authoritative visible-world rectangle —
+    // it accounts for zoom and origin correctly. cam.scrollX/scrollY are
+    // pixel-space scroll offsets, NOT the visible-world left/top, so using
+    // them here would (and did) draw the grid offset and at the wrong size
+    // when zoom != 1.
+    const view = cam.worldView;
+    const left = Math.floor(view.x / tile) - 1;
+    const top = Math.floor(view.y / tile) - 1;
+    const cols = Math.ceil(view.width / tile) + 2;
+    const rows = Math.ceil(view.height / tile) + 2;
     if (left === this._lastGridOverlayLeft &&
         top === this._lastGridOverlayTop &&
-        cam.zoom === this._lastGridOverlayZoom) {
+        cam.zoom === this._lastGridOverlayZoom &&
+        cols === this._lastGridOverlayCols &&
+        rows === this._lastGridOverlayRows) {
       return;
     }
     this._lastGridOverlayLeft = left;
     this._lastGridOverlayTop = top;
     this._lastGridOverlayZoom = cam.zoom;
-    const right = left + Math.ceil(visW / tile) + 2;
-    const bottom = top + Math.ceil(visH / tile) + 2;
+    this._lastGridOverlayCols = cols;
+    this._lastGridOverlayRows = rows;
+    const right = left + cols;
+    const bottom = top + rows;
     const g = this.gridOverlay;
     g.clear();
     g.lineStyle(1, 0xffffff, 0.18);
@@ -1403,8 +1501,13 @@ export class GameScene extends Phaser.Scene {
         this.ghost.setPosition(tx * CFG.tile + CFG.tile / 2, ty * CFG.tile + CFG.tile / 2);
         // Hovering an existing wall? Show a red X — clicking will start
         // the sell countdown to tear it down. Skip the BFS pathing check
-        // entirely (way cheaper, and there's nothing to validate).
+        // entirely (way cheaper, and there's nothing to validate). Mobile
+        // has no real hover (the pointer stays parked on the last touch),
+        // so suppress the red X there — it would spuriously appear over
+        // the just-placed wall every time the player taps to build. Tap-
+        // to-sell still works through the regular pointer-down handler.
         const wallHere = !this.game.registry.get('tutorialActive')
+          && !this.game.registry.get('isMobile')
           && this.walls.find(w => w.tileX === tx && w.tileY === ty);
         if (wallHere) {
           this.ghost.setVisible(false);
@@ -1448,9 +1551,16 @@ export class GameScene extends Phaser.Scene {
             }
           }
           const canAffordWall = this.player.money >= CFG.wall.cost;
+          // Suppress the "Blocked" / "Blocks path" toasts on mobile when
+          // building walls — the pointer parks on the last touch position,
+          // so these would spuriously fire over the just-placed tile every
+          // frame. The red ghost tint already conveys "can't place here".
+          // The "Not enough gold" toast still shows since it isn't tied to
+          // cursor location.
+          const suppressPlacementToast = !!this.game.registry.get('isMobile');
           if (!canAffordWall) buildErr = 'Not enough gold';
-          else if (tileBlocked) buildErr = 'Blocked';
-          else if (!valid) buildErr = 'Blocks path';
+          else if (tileBlocked && !suppressPlacementToast) buildErr = 'Blocked';
+          else if (!valid && !suppressPlacementToast) buildErr = 'Blocks path';
           this.ghost.setTint(valid && canAffordWall ? 0x88ff88 : 0xff8888);
         }
       }
@@ -4210,9 +4320,7 @@ export class GameScene extends Phaser.Scene {
         if (this.game.registry.get('tutorialActive')) {
           this.game.events.emit('tutorial-coin-collected');
         }
-        const pop = this.add.sprite(coin.x, coin.y, 'fx_pop_0').setDepth(15).setScale(0.5);
-        pop.play('fx-pop');
-        pop.once('animationcomplete', () => pop.destroy());
+        this.playCoinFxPop(coin.x, coin.y);
         coin.destroy();
         return true;
       }
@@ -4228,14 +4336,11 @@ export class GameScene extends Phaser.Scene {
     // initial build phase — show countdown, don't spawn anything yet
     if (time < this.waveStartAt) {
       if (this.waveStartAt === Infinity) {
-        this.countdownMsg = '';
-        this.pushHud();
+        this.syncCountdown('');
         return;
       }
       const secs = Math.ceil((this.waveStartAt - time) / 1000);
-      this.countdownMsg = `BUILD PHASE — ${secs}s`;
-      this.countdownColor = '#7cc4ff';
-      this.pushHud();
+      this.syncCountdown(`BUILD PHASE — ${secs}s`, '#7cc4ff');
       return;
     }
 
@@ -4267,14 +4372,23 @@ export class GameScene extends Phaser.Scene {
 
     // Boss already out — nothing to show/spawn here
     if (this.bossSpawned) {
-      if (this.countdownMsg) { this.countdownMsg = ''; this.pushHud(); }
+      this.syncCountdown('');
       return;
     }
 
-    // Between-wave build break (wave bar shows countdown via hudState)
+    // Between-wave build break (wave bar shows countdown via hudState).
+    // UIScene reads waveBreakUntil/vTime to render "WAVE N IN Ns", so we
+    // must push when the displayed second flips — but no more often.
     if (time < this.waveBreakUntil) {
-      if (this.countdownMsg) { this.countdownMsg = ''; }
-      this.pushHud();
+      const secs = Math.ceil((this.waveBreakUntil - time) / 1000);
+      let needsPush = false;
+      if (this.countdownMsg) { this.countdownMsg = ''; needsPush = true; }
+      if (this._lastWaveBreakUntil !== this.waveBreakUntil || this._lastWaveBreakSecond !== secs) {
+        this._lastWaveBreakUntil = this.waveBreakUntil;
+        this._lastWaveBreakSecond = secs;
+        needsPush = true;
+      }
+      if (needsPush) this.pushHud();
       return;
     }
 
@@ -4283,9 +4397,7 @@ export class GameScene extends Phaser.Scene {
       const live = this.liveEnemyCount();
       const left = Math.max(live, waveSize - this.waveKills);
       if (left > 0) {
-        this.countdownMsg = `KILL THE STRAGGLERS — ${left} LEFT`;
-        this.countdownColor = '#ff9a4a';
-        this.pushHud();
+        this.syncCountdown(`KILL THE STRAGGLERS — ${left} LEFT`, '#ff9a4a');
       } else {
         if (this.bossCountdownUntil === 0) {
           this.bossCountdownUntil = time + CFG.boss.prepTime;
@@ -4307,9 +4419,7 @@ export class GameScene extends Phaser.Scene {
                        : this.biome === 'castle' && this.castlePhase === 0 ? 'PHANTOM QUEEN'
                        : this.biome === 'castle' && this.castlePhase === 2 ? 'CASTLE DRAGON'
                        : 'ANCIENT RAM';
-        this.countdownMsg = `${bossName} SPAWNING IN ${secs}`;
-        this.countdownColor = '#ff5050';
-        this.pushHud();
+        this.syncCountdown(`${bossName} SPAWNING IN ${secs}`, '#ff5050');
       }
       return;
     }
@@ -4324,7 +4434,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     // Active wave — clear countdown text, wave bar shows progress
-    if (this.countdownMsg) { this.countdownMsg = ''; this.pushHud(); }
+    this.syncCountdown('');
 
     // Ramp difficulty, spawn until this wave's quota is met.
     this.spawnTimer += delta;
@@ -4577,8 +4687,7 @@ export class GameScene extends Phaser.Scene {
         }
       }
       const remaining = Math.max(0, Math.ceil((this.winDelayUntil - this.vTime) / 1000));
-      this.countdownMsg = `VICTORY! Collect your loot! ${remaining}s`;
-      this.pushHud();
+      this.syncCountdown(`VICTORY! Collect your loot! ${remaining}s`, '#7cf29a');
       if (this.vTime >= this.winDelayUntil) {
         this.win();
       } else if (this.coins.countActive() === 0 && this.winCollectedAt === 0) {

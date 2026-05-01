@@ -117,8 +117,20 @@ export class TutorialScene extends Phaser.Scene {
       });
     };
     this.game.events.on('viewport-changed', onViewportChanged);
+    // The scale resize event fires whenever any scene calls setGameSize —
+    // critically, when GameScene expands the canvas back to the full device
+    // viewport on map load. Without this listener the skip button stays
+    // anchored to the LevelSelect-sized canvas and (in mobile landscape)
+    // ends up overlapping the hotbar until the user rotates.
+    const onScaleResize = () => {
+      this.sf = this.game.registry.get('sf') || 1;
+      this.repositionSkipBtn();
+      if (!this.pendingStep) this.showStep();
+    };
+    this.scale.on(Phaser.Scale.Events.RESIZE, onScaleResize);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.game.events.off('viewport-changed', onViewportChanged);
+      this.scale.off(Phaser.Scale.Events.RESIZE, onScaleResize);
     });
 
     // Listen for events
@@ -585,9 +597,10 @@ export class TutorialScene extends Phaser.Scene {
     return money >= upgradeCost ? 'game_click_tower' : 'game_collect_60';
   }
 
-  /** Show prompt with "Click to continue" and advance to nextStep on click */
+  /** Show prompt with "Click/Tap to continue" and advance to nextStep on click */
   showClickPrompt(text: string, y: number, nextStep: Step, nextDelay = 0) {
-    this.showPrompt(text + '\n\nClick to continue.', y);
+    const continueHint = this.isMobile ? '\n\nTap to continue.' : '\n\nClick to continue.';
+    this.showPrompt(text + continueHint, y);
     const W = this.scale.width;
     const H = this.scale.height;
     this.continueZone = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0)
@@ -612,14 +625,20 @@ export class TutorialScene extends Phaser.Scene {
    *   - Mobile portrait: vertically centered on the right edge so the user's
    *     thumb (which usually rests near the bottom holding the phone) doesn't
    *     hit it accidentally.
-   *   - Mobile landscape & desktop: lower-right corner (the legacy spot). */
+   *   - Mobile landscape: bottom-right with extra vertical standoff so the
+   *     link clears the Vibe Jam 2026 badge anchored to the bottom-right of
+   *     the viewport.
+   *   - Desktop: lower-right corner (the legacy spot). */
   private repositionSkipBtn() {
     if (!this.skipBtn) return;
     const W = this.scale.width;
     const H = this.scale.height;
     const isPortraitMobile = this.isMobile && H > W;
+    const isLandscapeMobile = this.isMobile && W > H;
     if (isPortraitMobile) {
       this.skipBtn.setPosition(W - this.p(20), H / 2).setOrigin(1, 0.5);
+    } else if (isLandscapeMobile) {
+      this.skipBtn.setPosition(W - this.p(20), H - this.p(48)).setOrigin(1, 1);
     } else {
       this.skipBtn.setPosition(W - this.p(20), H - this.p(12)).setOrigin(1, 1);
     }
@@ -627,7 +646,21 @@ export class TutorialScene extends Phaser.Scene {
 
   showPrompt(text: string, y: number, anchorY: number = 0.5) {
     const W = this.scale.width;
-    this.promptText.setOrigin(0.5, anchorY).setText(text).setPosition(W / 2, y);
+    const H = this.scale.height;
+    // In-game tutorial steps (`game_*`) on mobile landscape float the prompt
+    // on the right edge so the gameplay area stays clear. Portrait and
+    // level-select (`ls_*`) keep the original centered layout. Orientation
+    // changes re-run showStep → showPrompt so this branch picks the right
+    // side automatically when the device rotates.
+    const inGameMobileLandscape = this.isMobile && W > H && this.step.startsWith('game_');
+    if (inGameMobileLandscape) {
+      const wrapW = Math.max(this.p(200), Math.min(W * 0.34, this.p(360)));
+      this.promptText.setWordWrapWidth(wrapW);
+      this.promptText.setOrigin(1, 0.5).setText(text).setPosition(W - this.p(20), H / 2);
+    } else {
+      this.promptText.setWordWrapWidth(W - this.p(100));
+      this.promptText.setOrigin(0.5, anchorY).setText(text).setPosition(W / 2, y);
+    }
 
     // Draw text background panel
     const bounds = this.promptText.getBounds();
