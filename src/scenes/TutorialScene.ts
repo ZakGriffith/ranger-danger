@@ -627,7 +627,21 @@ export class TutorialScene extends Phaser.Scene {
 
   showPrompt(text: string, y: number, anchorY: number = 0.5) {
     const W = this.scale.width;
-    this.promptText.setOrigin(0.5, anchorY).setText(text).setPosition(W / 2, y);
+    const H = this.scale.height;
+    // In-game tutorial steps (`game_*`) on mobile landscape float the prompt
+    // on the right edge so the gameplay area stays clear. Portrait and
+    // level-select (`ls_*`) keep the original centered layout. Orientation
+    // changes re-run showStep → showPrompt so this branch picks the right
+    // side automatically when the device rotates.
+    const inGameMobileLandscape = this.isMobile && W > H && this.step.startsWith('game_');
+    if (inGameMobileLandscape) {
+      const wrapW = Math.max(this.p(200), Math.min(W * 0.34, this.p(360)));
+      this.promptText.setWordWrapWidth(wrapW);
+      this.promptText.setOrigin(1, 0.5).setText(text).setPosition(W - this.p(20), H / 2);
+    } else {
+      this.promptText.setWordWrapWidth(W - this.p(100));
+      this.promptText.setOrigin(0.5, anchorY).setText(text).setPosition(W / 2, y);
+    }
 
     // Draw text background panel
     const bounds = this.promptText.getBounds();
