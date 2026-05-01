@@ -166,7 +166,7 @@ export class UIScene extends Phaser.Scene {
     };
     this.btnMage.add(buildLockOverlay());
     if (cannonLocked) this.btnCannon.add(buildLockOverlay());
-    this.btnWall = this.makeHotbarSlot(slotX(3), hotbarY, slotSize, slotSize, '4', 'wall', 'WALL', '$5',
+    this.btnWall = this.makeHotbarSlot(slotX(3), hotbarY, slotSize, slotSize, '4', 'wall', 'WALL', `$${CFG.wall.cost}`,
       () => this.game.events.emit('ui-build', 'wall'));
     this.btnSpeed = this.makeHotbarSlot(slotX(4), hotbarY, slotSize, slotSize, '5', 'speed', 'SPEED', '',
       () => { if (!this.speedLocked) this.cycleSpeed(); });
@@ -1059,7 +1059,7 @@ export class UIScene extends Phaser.Scene {
     this.showIntroToast(
       'SPEED UP UNLOCKED!\n\nTap the speed slot or press 5\nto cycle through game speeds.',
       0xc4a850, // gold/yellow accent matching the speed label
-      this.p(110),
+      this.p(150), // matches the in-game tutorial prompt y so it clears the wave bar
       5000
     );
   }
