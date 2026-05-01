@@ -1032,7 +1032,7 @@ export class UIScene extends Phaser.Scene {
     this.showIntroToast(
       'WATCH OUT!\n\nThere will be more waves and\ntwo bosses on this level!',
       0xc4a850, // gold accent — castle / royalty vibe
-      this.p(110)
+      this.p(150)
     );
   }
 
