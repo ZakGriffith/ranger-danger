@@ -9,7 +9,7 @@ import { Coin } from '../entities/Coin';
 import { Boss } from '../entities/Boss';
 import { createSparseGrid, findPath, canReachFromSpawnDirections, gridGet, gridSet, SparseGrid } from '../systems/Pathfinding';
 import { SFX } from '../audio/sfx';
-import { createGroundChunk, TREE_PATTERNS, generateAllArt, registerAnimations, getRiverTileGrid, riverCenterPx, RIVER_HALF_W, riverHorizontalCenterY } from '../assets/generateArt';
+import { createGroundChunk, TREE_PATTERNS, SPIKE_PATTERNS, SPIKE_VARIANT_COUNT, generateAllArt, registerAnimations, getRiverTileGrid, riverCenterPx, RIVER_HALF_W, riverHorizontalCenterY } from '../assets/generateArt';
 import { Difficulty, Biome, LEVELS } from '../levels';
 import { computeViewport, viewportWorldSize } from '../viewport';
 
@@ -59,6 +59,7 @@ export class GameScene extends Phaser.Scene {
   nextRunnerPack = 0;
   playerStoppedAt = 0;
   ghost!: Phaser.GameObjects.Sprite;
+  deleteIcon!: Phaser.GameObjects.Graphics;
   gridOverlay!: Phaser.GameObjects.Graphics;
 
   spawnTimer = 0;
@@ -121,15 +122,28 @@ export class GameScene extends Phaser.Scene {
   birdPoops: { sprite: Phaser.GameObjects.Image; expireAt: number; dmgCd: number }[] = [];
   treeSprites: Phaser.GameObjects.GameObject[] = [];
   treeChunksGenerated = new Set<string>();
+  // Castle-only floor-spike obstacles. Same chunk-level deterministic
+  // generator as trees, but spikes block enemy pathing while letting the
+  // player walk through (with a slow + DOT applied in updatePlayer).
+  spikeSprites: Phaser.GameObjects.GameObject[] = [];
+  spikeChunksGenerated = new Set<string>();
+  /** Real-time timestamp the player can next take spike damage. Throttled
+   *  so a brief stumble onto a spike doesn't melt the HP bar. */
+  private nextSpikeDmgAt = 0;
   riverChunksGenerated = new Set<string>();
   riverSquiggles: { sprite: Phaser.GameObjects.Image; age: number; life: number; dx: number; dy: number }[] = [];
   squiggleTimer = 0;
   treeSeed = 0;
   sf = 1; // native resolution scale factor
-  /** Effective spawn/chunk radius in tiles. Desktop: CFG.spawnDist (unchanged).
-   *  Mobile: grown when the viewport shows more world than the desktop default covers. */
+  /** Effective spawn/chunk radius in tiles. Always grown to cover the
+   *  current camera's visible-corner distance plus a margin so enemies
+   *  spawn comfortably off-screen even with camera-follow lerp lag. */
   spawnDist = CFG.spawnDist;
-  _wallCheckCache = { key: '', valid: false };
+  /** Per-tile cache of "would placing a wall here strangle pathing?" Cleared
+   *  whenever the grid changes (wall/tower placed/destroyed/sold) or the
+   *  player moves to a new tile. Sweeping the cursor across already-hovered
+   *  tiles is then free — only the first hover of each tile pays for BFS. */
+  _wallCheckCache = new Map<string, boolean>();
   _lastWallCheckPlayerTile = '';
   _warmupFrames = 0;
 
@@ -187,6 +201,9 @@ export class GameScene extends Phaser.Scene {
     this.birdPoops = [];
     this.treeSprites = [];
     this.treeChunksGenerated = new Set();
+    this.spikeSprites = [];
+    this.spikeChunksGenerated = new Set();
+    this.nextSpikeDmgAt = 0;
     this.riverChunksGenerated = new Set();
     this.riverSquiggles = [];
     this.squiggleTimer = 0;
@@ -305,12 +322,22 @@ export class GameScene extends Phaser.Scene {
     this.wallLayer.setDepth(-1);
 
     // Expand the canvas back to the full device viewport (LevelSelectScene
-    // shrunk it to a 3:2 fit). On desktop this is a no-op since the viewport
-    // size equals 3:2 * sf already; on mobile this kills the letterbox.
+    // shrunk it to a 3:2 fit). On desktop this widens past 3:2; on mobile
+    // it kills the letterbox.
     {
       const vp = computeViewport();
+      // Tell UIScene to skip its one-time side effects (intro toasts) on
+      // its first create — that initial pass runs against the old
+      // LevelSelect gameSize and is about to be restarted at the right
+      // size on the next tick.
+      this.game.registry.set('uiBootingForResize', true);
       this.scale.setGameSize(vp.renderW, vp.renderH);
       this.scale.refresh();
+      this.time.delayedCall(0, () => {
+        this.game.registry.set('uiBootingForResize', false);
+        const ui = this.scene.get('UI');
+        if (ui?.scene.isActive()) ui.scene.restart();
+      });
     }
 
     // player — starts at origin, camera follows
@@ -361,6 +388,13 @@ export class GameScene extends Phaser.Scene {
       this.generatedChunks.forEach(key => {
         const [cx, cy] = key.split(',').map(Number);
         this.placeTreesInChunk(cx, cy);
+      });
+    }
+    // Castle gets floor spikes — same deterministic chunk generator.
+    if (this.biome === 'castle') {
+      this.generatedChunks.forEach(key => {
+        const [cx, cy] = key.split(',').map(Number);
+        this.placeSpikesInChunk(cx, cy);
       });
     }
 
@@ -421,6 +455,17 @@ export class GameScene extends Phaser.Scene {
 
     // build ghost
     this.ghost = this.add.sprite(0, 0, 'wall').setAlpha(0.5).setDepth(800).setVisible(false).setOrigin(0.5).setScale(0.5);
+
+    // Red X overlay shown in wall build mode when the cursor is on an
+    // existing wall — hint that clicking will start the sell countdown.
+    this.deleteIcon = this.add.graphics().setDepth(801).setVisible(false);
+    const dr = CFG.tile * 0.32;
+    this.deleteIcon.lineStyle(4, 0x000000, 0.6);
+    this.deleteIcon.lineBetween(-dr, -dr, dr, dr);
+    this.deleteIcon.lineBetween(-dr, dr, dr, -dr);
+    this.deleteIcon.lineStyle(2.5, 0xff4040, 1);
+    this.deleteIcon.lineBetween(-dr, -dr, dr, dr);
+    this.deleteIcon.lineBetween(-dr, dr, dr, -dr);
 
     // grid overlay (redrawn each frame while building)
     this.gridOverlay = this.add.graphics().setDepth(799).setVisible(false);
@@ -616,6 +661,7 @@ export class GameScene extends Phaser.Scene {
     this.buildKind = k;
     if (k === 'tower' && towerKind) this.buildTowerKind = towerKind;
     this.ghost.setVisible(k !== 'none');
+    if (this.deleteIcon) this.deleteIcon.setVisible(false);
     if (this.gridOverlay) this.gridOverlay.setVisible(k !== 'none');
     this.game.events.emit('build-mode', k !== 'none', k, towerKind);
     if (k === 'none') this.game.events.emit('build-error', '');
@@ -702,8 +748,21 @@ export class GameScene extends Phaser.Scene {
       const hit = this.towers.find(t =>
         tx >= t.tileX && tx < t.tileX + t.size &&
         ty >= t.tileY && ty < t.tileY + t.size);
-      if (hit) this.selectTower(hit);
-      else this.deselectTower();
+      if (hit) {
+        this.selectTower(hit);
+        return;
+      }
+      // No tower under cursor — if it's a wall, start the sell countdown
+      // (click it again to cancel). Towers still need the upgrade panel
+      // for sell, so we don't auto-sell them on click.
+      if (!this.game.registry.get('tutorialActive')) {
+        const wHit = this.walls.find(w => w.tileX === tx && w.tileY === ty);
+        if (wHit) {
+          this.startSellTimer(wHit);
+          return;
+        }
+      }
+      this.deselectTower();
       return;
     }
 
@@ -730,8 +789,9 @@ export class GameScene extends Phaser.Scene {
       const t = new Tower(this, ox, oy, this.buildTowerKind);
       this.towers.push(t);
       this.towerGroup.add(t);
+      this.applyTowerDepth(t); // static — set once, skipped in updateDepthSort
       for (let j = 0; j < s; j++) for (let i = 0; i < s; i++) gridSet(this.grid, ox + i, oy + j, 2);
-      this.gridVersion++; this._wallCheckCache = { key: '', valid: false }; this.rebuildGapBlockers(); this.rebuildGapBlockers();
+      this.gridVersion++; this._wallCheckCache.clear(); this.rebuildGapBlockers(); this.rebuildGapBlockers();
       this.pushHud();
       SFX.play('towerPlace');
       if (this.game.registry.get('tutorialActive')) this.game.events.emit('tutorial-tower-placed');
@@ -740,6 +800,16 @@ export class GameScene extends Phaser.Scene {
     }
 
     // wall
+    // Click on an existing wall while in wall build mode = start the
+    // sell countdown instead of trying (and failing) to place. Skip
+    // during tutorial since we don't allow selling there.
+    if (!this.game.registry.get('tutorialActive')) {
+      const wHit = this.walls.find(w => w.tileX === tx && w.tileY === ty);
+      if (wHit) {
+        this.startSellTimer(wHit);
+        return;
+      }
+    }
     // Tutorial caps placements at 3 walls.
     if (this.game.registry.get('tutorialActive') && this.walls.length >= 3) return;
     if (gridGet(this.grid, tx, ty) !== 0) return;
@@ -758,7 +828,7 @@ export class GameScene extends Phaser.Scene {
     gridSet(this.grid, tx, ty, 1);
     this.syncWallTile(tx, ty, true);
     this.updateWallNeighbors(tx, ty);
-    this.gridVersion++; this._wallCheckCache = { key: '', valid: false }; this.rebuildGapBlockers();
+    this.gridVersion++; this._wallCheckCache.clear(); this.rebuildGapBlockers();
     this.pushHud();
     SFX.play('wallPlace');
     if (this.game.registry.get('tutorialActive')) this.game.events.emit('tutorial-wall-placed');
@@ -786,8 +856,39 @@ export class GameScene extends Phaser.Scene {
       this.cancelSellTimer(target);
       return;
     }
+    SFX.play('click');
     const gfx = this.add.graphics().setDepth(200);
     this.sellTimers.set(target, { startTime: this.vTime, duration: 3000, gfx });
+    // Paint at 100% remaining immediately so the marker is visible even
+    // when the click happens during a paused build menu — updateSellTimers
+    // doesn't run while paused, so without this initial draw the pie
+    // stays invisible until the player exits build mode.
+    this.drawSellTimerGfx(target, gfx, 1);
+  }
+
+  private drawSellTimerGfx(target: Tower | Wall, gfx: Phaser.GameObjects.Graphics, remaining: number) {
+    const cx = target.x, cy = target.y;
+    const radius = target instanceof Tower ? CFG.tile * 0.9 : CFG.tile * 0.45;
+    const startAngle = -Math.PI / 2;
+    const endAngle = startAngle + remaining * Math.PI * 2;
+    gfx.clear();
+    // Red pie countdown
+    gfx.fillStyle(0xff2222, 0.3);
+    gfx.beginPath();
+    gfx.moveTo(cx, cy);
+    gfx.arc(cx, cy, radius, startAngle, endAngle, false);
+    gfx.closePath();
+    gfx.fillPath();
+    gfx.lineStyle(2, 0xff4444, 0.6);
+    gfx.beginPath();
+    gfx.arc(cx, cy, radius, startAngle, endAngle, false);
+    gfx.strokePath();
+    // Persistent dark-red X — keeps the "marked for destruction" read
+    // even when the pie shrinks down toward the wedge.
+    const xr = radius * 0.5;
+    gfx.lineStyle(3, 0x8a0000, 0.95);
+    gfx.lineBetween(cx - xr, cy - xr, cx + xr, cy + xr);
+    gfx.lineBetween(cx - xr, cy + xr, cx + xr, cy - xr);
   }
 
   cancelSellTimer(target: Tower | Wall) {
@@ -811,25 +912,7 @@ export class GameScene extends Phaser.Scene {
         continue;
       }
 
-      // Draw red pie countdown over the target
-      const remaining = 1 - progress;
-      const cx = target.x, cy = target.y;
-      const radius = target instanceof Tower ? CFG.tile * 0.9 : CFG.tile * 0.45;
-      const startAngle = -Math.PI / 2; // 12 o'clock
-      const endAngle = startAngle + remaining * Math.PI * 2;
-
-      timer.gfx.clear();
-      timer.gfx.fillStyle(0xff2222, 0.3);
-      timer.gfx.beginPath();
-      timer.gfx.moveTo(cx, cy);
-      timer.gfx.arc(cx, cy, radius, startAngle, endAngle, false);
-      timer.gfx.closePath();
-      timer.gfx.fillPath();
-      // Thin red border
-      timer.gfx.lineStyle(2, 0xff4444, 0.6);
-      timer.gfx.beginPath();
-      timer.gfx.arc(cx, cy, radius, startAngle, endAngle, false);
-      timer.gfx.strokePath();
+      this.drawSellTimerGfx(target, timer.gfx, 1 - progress);
     }
   }
 
@@ -866,6 +949,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   executeSell(target: Tower | Wall) {
+    SFX.play('structDestroy');
     if (target instanceof Tower) {
       const t = target;
       if (this.selectedTower === t) this.deselectTower();
@@ -878,7 +962,9 @@ export class GameScene extends Phaser.Scene {
       t.destroyTower();
     } else {
       const w = target;
-      this.player.money += Math.floor(CFG.wall.cost * 0.5);
+      // Walls refund $2 (cost is $3) — slight loss to discourage churn but
+      // not so harsh that re-routing your defenses feels punishing.
+      this.player.money += 2;
       const idx = this.walls.indexOf(w);
       if (idx >= 0) this.walls.splice(idx, 1);
       gridSet(this.grid, w.tileX, w.tileY, 0);
@@ -886,7 +972,7 @@ export class GameScene extends Phaser.Scene {
       this.updateWallNeighbors(w.tileX, w.tileY);
       w.destroy();
     }
-    this.gridVersion++; this._wallCheckCache = { key: '', valid: false }; this.rebuildGapBlockers();
+    this.gridVersion++; this._wallCheckCache.clear(); this.rebuildGapBlockers();
     this.pushHud();
   }
 
@@ -1074,7 +1160,10 @@ export class GameScene extends Phaser.Scene {
   doSellSelected() {
     const t = this.selectedTower;
     if (!t) return;
-    this.executeSell(t);
+    // Start the same red-pie countdown walls use, then close the panel
+    // immediately so the world resumes — towers no longer sell instantly.
+    this.startSellTimer(t);
+    this.deselectTower();
   }
 
   floatText(x: number, y: number, msg: string, color: string) {
@@ -1114,18 +1203,16 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  /** Recompute the effective spawn radius from the current viewport. Desktop
-   *  always resolves to CFG.spawnDist; mobile grows it to cover the camera's
-   *  corner distance plus a 2-tile margin so enemies still spawn off-screen. */
+  /** Recompute the effective spawn radius from the current viewport. Uses
+   *  the camera's corner distance (in tiles) plus a 4-tile margin so
+   *  enemies still spawn off-screen even when the camera lerp is trailing
+   *  the player, regardless of platform or window aspect. CFG.spawnDist
+   *  is the floor — the formula only grows it. */
   recomputeSpawnDist() {
     const vp = computeViewport();
-    if (vp.isMobile) {
-      const { w: viewW, h: viewH } = viewportWorldSize(vp);
-      const cornerTiles = Math.ceil(Math.hypot(viewW / 2, viewH / 2) / CFG.tile);
-      this.spawnDist = Math.max(CFG.spawnDist, cornerTiles + 2);
-    } else {
-      this.spawnDist = CFG.spawnDist;
-    }
+    const { w: viewW, h: viewH } = viewportWorldSize(vp);
+    const cornerTiles = Math.ceil(Math.hypot(viewW / 2, viewH / 2) / CFG.tile);
+    this.spawnDist = Math.max(CFG.spawnDist, cornerTiles + 4);
   }
 
   /** Count how many of the 4 cardinal spawn directions can reach (px, py). */
@@ -1228,6 +1315,7 @@ export class GameScene extends Phaser.Scene {
       this.chunkImages.set(`${ccx},${ccy}`, chunkImg);
       // Generate trees for this chunk if forest biome
       if (this.biome === 'forest' || this.biome === 'infected') this.placeTreesInChunk(ccx, ccy);
+      if (this.biome === 'castle') this.placeSpikesInChunk(ccx, ccy);
       // Generate river terrain blockers
       if (this.biome === 'river') this.placeRiverInChunk(ccx, ccy);
       processed++;
@@ -1304,32 +1392,57 @@ export class GameScene extends Phaser.Scene {
         this.ghost.setTint(canPlace && canAffordTower ? 0x88ff88 : 0xff8888);
       } else {
         this.ghost.setPosition(tx * CFG.tile + CFG.tile / 2, ty * CFG.tile + CFG.tile / 2);
-        // Invalidate cache when player moves to a new tile
-        const ptKey = `${Math.floor(this.player.x / CFG.tile)},${Math.floor(this.player.y / CFG.tile)}`;
-        if (ptKey !== this._lastWallCheckPlayerTile) {
-          this._lastWallCheckPlayerTile = ptKey;
-          this._wallCheckCache = { key: '', valid: false };
-        }
-        let valid = gridGet(this.grid, tx, ty) === 0;
-        let tileBlocked = !valid;
-        if (valid) {
-          // Cache path check per tile to avoid running BFS every frame
-          const cacheKey = `${tx},${ty}`;
-          if (this._wallCheckCache.key === cacheKey) {
-            valid = this._wallCheckCache.valid;
+        // Hovering an existing wall? Show a red X — clicking will start
+        // the sell countdown to tear it down. Skip the BFS pathing check
+        // entirely (way cheaper, and there's nothing to validate).
+        const wallHere = !this.game.registry.get('tutorialActive')
+          && this.walls.find(w => w.tileX === tx && w.tileY === ty);
+        if (wallHere) {
+          this.ghost.setVisible(false);
+          // If the wall already has a pending sell timer the marker is
+          // drawn over the wall itself — skip the hover hint to avoid a
+          // doubled-up X.
+          if (this.sellTimers.has(wallHere)) {
+            this.deleteIcon.setVisible(false);
           } else {
-            const pt = this.worldToTile(this.player.x, this.player.y);
-            // Check how many directions are reachable WITHOUT the wall
-            const beforeReach = this.countReachableDirections(pt.x, pt.y);
-            // Now test WITH the wall
-            gridSet(this.grid, tx, ty, 1);
-            const afterReach = this.countReachableDirections(pt.x, pt.y);
-            gridSet(this.grid, tx, ty, 0);
-            // Allow if placing the wall doesn't reduce reachable directions,
-            // or at least 2 directions still work
-            valid = afterReach >= Math.min(beforeReach, 2);
-            this._wallCheckCache = { key: cacheKey, valid };
+            this.deleteIcon.setPosition(tx * CFG.tile + CFG.tile / 2, ty * CFG.tile + CFG.tile / 2)
+              .setVisible(true);
           }
+        } else {
+          this.ghost.setVisible(true);
+          this.deleteIcon.setVisible(false);
+
+          // Invalidate cache when player moves to a new tile
+          const ptKey = `${Math.floor(this.player.x / CFG.tile)},${Math.floor(this.player.y / CFG.tile)}`;
+          if (ptKey !== this._lastWallCheckPlayerTile) {
+            this._lastWallCheckPlayerTile = ptKey;
+            this._wallCheckCache.clear();
+          }
+          let valid = gridGet(this.grid, tx, ty) === 0;
+          let tileBlocked = !valid;
+          if (valid) {
+            // Per-tile cache — cleared on player move and on any grid
+            // change. Sweeping the cursor over already-hovered tiles is
+            // free; only first-hovered tiles pay for BFS.
+            const cacheKey = `${tx},${ty}`;
+            const cached = this._wallCheckCache.get(cacheKey);
+            if (cached !== undefined) {
+              valid = cached;
+            } else {
+              const pt = this.worldToTile(this.player.x, this.player.y);
+              const beforeReach = this.countReachableDirections(pt.x, pt.y);
+              gridSet(this.grid, tx, ty, 1);
+              const afterReach = this.countReachableDirections(pt.x, pt.y);
+              gridSet(this.grid, tx, ty, 0);
+              valid = afterReach >= Math.min(beforeReach, 2);
+              this._wallCheckCache.set(cacheKey, valid);
+            }
+          }
+          const canAffordWall = this.player.money >= CFG.wall.cost;
+          if (!canAffordWall) buildErr = 'Not enough gold';
+          else if (tileBlocked) buildErr = 'Blocked';
+          else if (!valid) buildErr = 'Blocks path';
+          this.ghost.setTint(valid && canAffordWall ? 0x88ff88 : 0xff8888);
         }
         const canAffordWall = this.player.money >= CFG.wall.cost;
         if (!canAffordWall) buildErr = 'Not enough gold';
@@ -1388,49 +1501,51 @@ export class GameScene extends Phaser.Scene {
   }
 
   // Y-based depth sort: objects lower on screen render in front
+  /** Y-based depth used by everything that sorts by world position. Inlined
+   *  so the per-frame depth-sort loop doesn't pay for a function call per
+   *  entity. */
+  private static yDepth(y: number) { return 100 + y * 0.1; }
+
+  /** Apply tower-base + stand + top + nocked-arrow depths once. Towers
+   *  don't move so this is set at placement and the per-frame loop skips
+   *  them entirely. */
+  applyTowerDepth(t: Tower) {
+    const d = GameScene.yDepth(t.y);
+    t.setDepth(d);
+    if (t.stand) t.stand.setDepth(d + 0.1);
+    t.top.setDepth(d + 0.2);
+    if (t.nockedArrow) t.nockedArrow.setDepth(d + 5);
+  }
+
   updateDepthSort() {
-    const yDepth = (y: number) => 100 + y * 0.1;
+    const yD = GameScene.yDepth;
 
-    // Player
-    this.player.setDepth(yDepth(this.player.y));
-    this.player.bow.setDepth(yDepth(this.player.y) + 0.5);
-    this.player.nockedArrow.setDepth(yDepth(this.player.y) + 1);
+    // Player (and bow/nocked arrow ride with it)
+    const py = this.player.y;
+    const pd = yD(py);
+    this.player.setDepth(pd);
+    this.player.bow.setDepth(pd + 0.5);
+    this.player.nockedArrow.setDepth(pd + 1);
 
-    // Towers: base, archer/stand, bow/top all sort by tower Y.
-    // Nocked arrow uses a larger offset so it always renders above the tower
-    // base sprite's parapet/corner-tower decorations, which belong to the
-    // single 't_base' sprite at depth d.
-    for (const tower of this.towers) {
-      const d = yDepth(tower.y);
-      tower.setDepth(d);
-      if (tower.stand) tower.stand.setDepth(d + 0.1);
-      tower.top.setDepth(d + 0.2);
-      if (tower.nockedArrow) tower.nockedArrow.setDepth(d + 5);
-    }
-
-    // Enemies
+    // Enemies move every frame — keep sorting them.
     const enemies = this.enemies.getChildren() as Phaser.Physics.Arcade.Sprite[];
     for (let i = 0; i < enemies.length; i++) {
       const e = enemies[i];
-      if (e.active) e.setDepth(yDepth(e.y));
+      if (e.active) e.setDepth(yD(e.y));
     }
 
-    // Coins
-    const coins = this.coins.getChildren() as Phaser.Physics.Arcade.Sprite[];
-    for (let i = 0; i < coins.length; i++) {
-      const c = coins[i];
-      if (c.active) c.setDepth(yDepth(c.y));
-    }
-
-    // Arrow projectiles need y-based depth so they don't get hidden behind
-    // tower/wall sprites they fly over. Cannonballs keep their fixed depth
-    // because they arc visually above terrain.
+    // Arrow projectiles fly across the map, so depth needs to track y.
+    // Cannonballs keep their fixed (high) depth because they arc above
+    // terrain visually.
     const projs = this.projectiles.getChildren() as Projectile[];
     for (let i = 0; i < projs.length; i++) {
       const p = projs[i];
       if (!p.active || p.groundTarget) continue;
-      p.setDepth(yDepth(p.y) + 5);
+      p.setDepth(yD(p.y) + 5);
     }
+
+    // Towers + coins are static — depth is set once at spawn (see
+    // applyTowerDepth + Coin constructor) and skipped here every frame.
   }
 
   // Sync a single tile in the collision tilemap (wall placed or removed)
@@ -1515,7 +1630,7 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    this.gridVersion++; this._wallCheckCache = { key: '', valid: false };
+    this.gridVersion++; this._wallCheckCache.clear();
   }
 
   // ---------- RIVER TERRAIN (river biome) ----------
@@ -1691,6 +1806,78 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  /** Castle floor spikes — same deterministic chunk generator as trees,
+   *  but spikes block enemy pathing only (grid value 6) without joining
+   *  wallGroup, so the player can walk through and take damage. */
+  placeSpikesInChunk(cx: number, cy: number) {
+    const chunkKey = `${cx},${cy}`;
+    if (this.spikeChunksGenerated.has(chunkKey)) return;
+    this.spikeChunksGenerated.add(chunkKey);
+
+    const t = CFG.tile;
+    const cs = CFG.chunkSize;
+    const spikesPerChunk = 4; // a touch denser than tree clusters
+    const maxAttempts = spikesPerChunk * 6;
+
+    // Independent seed from trees so swapping biomes doesn't reuse layouts.
+    let seed = ((this.treeSeed * 2654435761 + cx * 73856093 + cy * 19349669 + 31337) >>> 0) || 1;
+    const rng = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+
+    const ptx = Math.floor(this.player.x / t);
+    const pty = Math.floor(this.player.y / t);
+    const nearSpawn = Math.abs(cx * cs) < this.spawnDist + cs && Math.abs(cy * cs) < this.spawnDist + cs;
+
+    const chunkTileX = cx * cs;
+    const chunkTileY = cy * cs;
+
+    let placed = 0;
+    let attempts = 0;
+    while (placed < spikesPerChunk && attempts < maxAttempts) {
+      attempts++;
+      const pattern = SPIKE_PATTERNS[Math.floor(rng() * SPIKE_PATTERNS.length)];
+      const ox = chunkTileX + Math.floor(rng() * (cs - pattern.w));
+      const oy = chunkTileY + Math.floor(rng() * (cs - pattern.h));
+
+      // Don't place too close to player spawn
+      if (Math.abs(ox) < 3 && Math.abs(oy) < 3) continue;
+
+      // All target tiles must be empty AND not adjacent to player spawn
+      let blocked = false;
+      for (const tile of pattern.tiles) {
+        const gx = ox + tile.dx, gy = oy + tile.dy;
+        if (gridGet(this.grid, gx, gy) !== 0) { blocked = true; break; }
+        if (Math.abs(gx - ptx) <= 1 && Math.abs(gy - pty) <= 1) { blocked = true; break; }
+      }
+      if (blocked) continue;
+
+      // Tentatively mark as obstacles (grid value 6 = spike)
+      for (const tile of pattern.tiles) {
+        gridSet(this.grid, ox + tile.dx, oy + tile.dy, 6);
+      }
+
+      // Don't strangle pathing near spawn — same check trees use.
+      if (nearSpawn && !canReachFromSpawnDirections(this.grid, ptx, pty, this.spawnDist, 3)) {
+        for (const tile of pattern.tiles) {
+          gridSet(this.grid, ox + tile.dx, oy + tile.dy, 0);
+        }
+        continue;
+      }
+
+      // Per-tile spike sprite (no wallGroup → player walks through). Each
+      // tile within a cluster picks its own jitter variant so a 3-tile
+      // strip doesn't look stamped.
+      for (const tile of pattern.tiles) {
+        const gx = ox + tile.dx, gy = oy + tile.dy;
+        const wx = gx * t + t / 2;
+        const wy = gy * t + t / 2;
+        const variant = Math.floor(rng() * SPIKE_VARIANT_COUNT);
+        const spr = this.add.image(wx, wy, `castle_spikes_${variant}`).setDepth(100 + wy * 0.1);
+        this.spikeSprites.push(spr);
+      }
+      placed++;
+    }
+  }
+
   // ---------- PLAYER ----------
   updatePlayer(time: number, _delta: number) {
     const k = this.keys;
@@ -1714,11 +1901,30 @@ export class GameScene extends Phaser.Scene {
       vy += jy / jmag;
     }
 
+    // Castle floor spikes — when the player's tile is a spike (grid value
+    // 6), halve their move speed and tick contact damage every 500ms.
+    const playerTx = Math.floor(this.player.x / CFG.tile);
+    const playerTy = Math.floor(this.player.y / CFG.tile);
+    const onSpike = gridGet(this.grid, playerTx, playerTy) === 6;
+    if (onSpike) {
+      if (time >= this.nextSpikeDmgAt) {
+        this.nextSpikeDmgAt = time + 500;
+        this.player.hurt(5, this);
+        this.pushHud();
+        if (this.player.hp <= 0) this.lose();
+      }
+    } else {
+      // Reset cooldown the moment they step off — re-entering should bite
+      // immediately, not wait for a stale timer.
+      this.nextSpikeDmgAt = 0;
+    }
+    const speedMult = onSpike ? 0.5 : 1;
+
     const moving = vx !== 0 || vy !== 0;
     if (moving) {
       const len = Math.hypot(vx, vy);
       vx /= len; vy /= len;
-      this.player.setVelocity(vx * CFG.player.speed, vy * CFG.player.speed);
+      this.player.setVelocity(vx * CFG.player.speed * speedMult, vy * CFG.player.speed * speedMult);
       if (vx !== 0) this.player.facingRight = vx > 0;
       this.player.setFlipX(!this.player.facingRight);
       if (this.player.anims.currentAnim?.key !== 'player-move') this.player.play('player-move');
@@ -1826,6 +2032,11 @@ export class GameScene extends Phaser.Scene {
   updateTowers(time: number) {
     for (const tower of this.towers) {
       tower.drawHpBar();
+      // Pending sale — tower stops firing during the sell countdown so the
+      // player can't milk damage from a tower they've already cashed out.
+      // Walls keep blocking enemies until the timer completes (handled by
+      // the grid still containing them until executeSell).
+      if (this.sellTimers.has(tower)) continue;
       const st = tower.stats();
 
       if (st.splashRadius > 0) {
@@ -3204,10 +3415,11 @@ export class GameScene extends Phaser.Scene {
     for (let j = 0; j < t.size; j++)
       for (let i = 0; i < t.size; i++)
         gridSet(this.grid, t.tileX + i, t.tileY + j, 0);
-    this.gridVersion++; this._wallCheckCache = { key: '', valid: false }; this.rebuildGapBlockers();
+    this.gridVersion++; this._wallCheckCache.clear(); this.rebuildGapBlockers();
     const burst = this.add.sprite(t.x, t.y, 'fx_death_0').setDepth(15).setScale(0.5);
     burst.play('fx-death');
     burst.once('animationcomplete', () => burst.destroy());
+    SFX.play('structDestroy');
     t.destroyTower();
   }
   destroyWall(w: Wall) {
@@ -3217,7 +3429,8 @@ export class GameScene extends Phaser.Scene {
     const tx = w.tileX, ty = w.tileY;
     gridSet(this.grid, tx, ty, 0);
     this.syncWallTile(tx, ty, false);
-    this.gridVersion++; this._wallCheckCache = { key: '', valid: false }; this.rebuildGapBlockers();
+    this.gridVersion++; this._wallCheckCache.clear(); this.rebuildGapBlockers();
+    SFX.play('structDestroy');
     w.destroy();
     this.updateWallNeighbors(tx, ty);
   }
@@ -3314,7 +3527,7 @@ export class GameScene extends Phaser.Scene {
 
   spawnCastleBoss(kind: 'queen' | 'dragon') {
     this.bossSpawned = true;
-    const spawnR = CFG.spawnDist * CFG.tile;
+    const spawnR = this.spawnDist * CFG.tile;
     const px = this.player.x, py = this.player.y;
     const corners = [
       { x: px - spawnR, y: py - spawnR },

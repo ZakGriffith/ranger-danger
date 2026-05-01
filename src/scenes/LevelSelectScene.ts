@@ -255,6 +255,35 @@ export class LevelSelectScene extends Phaser.Scene {
         g.fillStyle(0xffcc44, 1);
         g.fillTriangle(cx, cy - 2 * s, cx - 2 * s, cy + 3 * s, cx + 2 * s, cy + 3 * s);
         break;
+      case 'castle': {
+        const stone = 0x8a8a98;
+        const stoneDark = 0x5a5a68;
+        const gate = 0x2a1a18;
+        const flag = 0xd94a4a;
+        // Keep — main wall + two side tower-tops + center battlement
+        g.fillStyle(stone, 1);
+        g.fillRect(cx - 7 * s, cy - 2 * s, 14 * s, 8 * s);
+        g.fillRect(cx - 7 * s, cy - 5 * s, 4 * s, 4 * s);
+        g.fillRect(cx + 3 * s, cy - 5 * s, 4 * s, 4 * s);
+        g.fillRect(cx - 1 * s, cy - 4 * s, 2 * s, 3 * s);
+        // Tower window slits
+        g.fillStyle(stoneDark, 1);
+        g.fillRect(cx - 6 * s, cy - 4 * s, 1 * s, 2 * s);
+        g.fillRect(cx + 5 * s, cy - 4 * s, 1 * s, 2 * s);
+        // Dark archway gate
+        g.fillStyle(gate, 1);
+        g.fillRect(cx - 2 * s, cy + 1 * s, 4 * s, 5 * s);
+        // Flagpole + red pennant on the left tower
+        g.fillStyle(stoneDark, 1);
+        g.fillRect(cx - 5 * s, cy - 8 * s, 1 * s, 3 * s);
+        g.fillStyle(flag, 1);
+        g.fillTriangle(
+          cx - 4 * s, cy - 8 * s,
+          cx - 4 * s, cy - 6 * s,
+          cx - 1 * s, cy - 7 * s
+        );
+        break;
+      }
     }
   }
 

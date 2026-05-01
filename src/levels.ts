@@ -85,6 +85,31 @@ export function saveMedal(levelId: number, diff: Difficulty): void {
   if (!store[key]) store[key] = { easy: false, medium: false, hard: false, oneHP: false };
   store[key][diff] = true;
   localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+  // Engaged player just earned progress — ask the browser to mark this
+  // origin's storage as persistent so it survives ITP / quota eviction.
+  // Silent in Chrome (engagement-gated auto-grant); a small infobar in
+  // Firefox; no-op in Safari. Storage works the same regardless.
+  requestPersistentStorage();
+}
+
+/** Tracks across calls so we don't spam the browser. */
+let _persistRequested = false;
+
+/** Best-effort request to make this origin's storage persistent. The
+ *  browser may auto-grant, prompt, or no-op depending on the engine —
+ *  any outcome is fine because the underlying APIs work either way. */
+function requestPersistentStorage(): void {
+  if (_persistRequested) return;
+  _persistRequested = true;
+  try {
+    const s = (navigator as any).storage;
+    if (s && typeof s.persist === 'function') {
+      // Don't await — this isn't on any critical path.
+      s.persist().catch(() => { /* user denied / unsupported — fine */ });
+    }
+  } catch {
+    // Some private-browsing modes throw on storage access. Ignore.
+  }
 }
 
 export function hasMedal(store: MedalStore, levelId: number): boolean {

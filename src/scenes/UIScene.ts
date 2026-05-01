@@ -179,9 +179,9 @@ export class UIScene extends Phaser.Scene {
     };
     this.btnMage.add(buildLockOverlay());
     if (cannonLocked) this.btnCannon.add(buildLockOverlay());
-    this.btnWall = this.makeHotbarSlot(slotX(3), hotbarY, slotSize, slotSize, '4', 'wall', 'WALL', '$5',
+    this.btnWall = this.makeHotbarSlot(slotX(3), hotbarY, slotSize, slotSize, '4', 'wall', 'WALL', `$${CFG.wall.cost}`,
       () => this.game.events.emit('ui-build', 'wall'));
-    this.btnSpeed = this.makeHotbarSlot(slotX(4), hotbarY, slotSize, slotSize, '5', 'speed', 'SPEED', '',
+    this.btnSpeed = this.makeHotbarSlot(slotX(4), hotbarY, slotSize, slotSize, 'SPC', 'speed', 'SPEED', '',
       () => { if (!this.speedLocked) this.cycleSpeed(); });
     // Speed cycle text overlay — initial text matches the persisted speedIdx
     // so a restart (e.g. viewport rotation) doesn't desync from GameScene.
@@ -213,7 +213,6 @@ export class UIScene extends Phaser.Scene {
       if (!this.speedLocked) this.cycleSpeed();
     };
     this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE).on('down', tryCycleSpeed);
-    this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.FIVE).on('down', tryCycleSpeed);
 
     // Level progress graphic (wave circles + boss skull)
     this.progressCircles = [];
@@ -352,10 +351,18 @@ export class UIScene extends Phaser.Scene {
       this.buildHintText.setVisible(true);
     }
 
+    // GameScene runs setGameSize during its create() and immediately
+    // schedules a UIScene restart so the HUD lays out at the final size.
+    // On that throwaway first pass we skip one-time side effects (intro
+    // toasts) — they'd fire against the wrong layout, set their
+    // localStorage flags, and then get cancelled by the restart, eating
+    // the player's only chance to see them.
+    const bootingForResize = !!this.game.registry.get('uiBootingForResize');
+
     // First time the player drops into the forest level (level 2), pop a
     // 6-second tooltip introducing the now-unlocked cannon tower. Flag is
     // stored in localStorage so it only fires once across sessions.
-    if (this.levelId === 2 && localStorage.getItem('td_seen_forest_intro') !== 'true') {
+    if (!bootingForResize && this.levelId === 2 && localStorage.getItem('td_seen_forest_intro') !== 'true') {
       this.showForestIntroToast();
       localStorage.setItem('td_seen_forest_intro', 'true');
     }
@@ -364,9 +371,17 @@ export class UIScene extends Phaser.Scene {
     // warn them about ranged enemies — toads here, mosquitos and others
     // later — and explain that some projectiles arc over walls/towers
     // while others get blocked.
-    if (this.levelId === 3 && localStorage.getItem('td_seen_infected_intro') !== 'true') {
+    if (!bootingForResize && this.levelId === 3 && localStorage.getItem('td_seen_infected_intro') !== 'true') {
       this.showInfectedIntroToast();
       localStorage.setItem('td_seen_infected_intro', 'true');
+    }
+
+    // First time the player drops into the castle level (level 5), warn
+    // them about the unique 2-boss / 4-wave structure so they pace
+    // resources accordingly (mid-boss after wave 2, final after wave 4).
+    if (!bootingForResize && this.levelId === 5 && localStorage.getItem('td_seen_castle_intro') !== 'true') {
+      this.showCastleIntroToast();
+      localStorage.setItem('td_seen_castle_intro', 'true');
     }
 
 
@@ -1008,7 +1023,7 @@ export class UIScene extends Phaser.Scene {
     this.showIntroToast(
       'CANNON TOWER UNLOCKED!\n\nGreat for AoE damage against\nclusters of enemies.',
       0x4a8acc, // blue info accent
-      this.p(110)
+      this.p(150) // sit below the wave/phase bar so it doesn't cover it
     );
   }
 
@@ -1019,6 +1034,17 @@ export class UIScene extends Phaser.Scene {
     this.showIntroToast(
       'RANGED ENEMIES INCOMING!\n\nSome projectiles can\'t shoot through\nwalls or towers — others arc right over them.\nPosition your defenses carefully.',
       0x9a5ac0, // purple/infected accent
+      this.p(110)
+    );
+  }
+
+  /** First time the player enters the castle level — heads-up that this
+   *  level breaks the usual "waves then a boss" pattern: two bosses and
+   *  only four waves total (mid-boss after wave 2, final after wave 4). */
+  private showCastleIntroToast() {
+    this.showIntroToast(
+      'WATCH OUT!\n\nThere will be more waves and\ntwo bosses on this level!',
+      0xc4a850, // gold accent — castle / royalty vibe
       this.p(110)
     );
   }
@@ -1043,9 +1069,9 @@ export class UIScene extends Phaser.Scene {
       this.speedLockOverlay = null;
     }
     this.showIntroToast(
-      'SPEED UP UNLOCKED!\n\nTap the speed slot or press 5\nto cycle through game speeds.',
+      'SPEED UP UNLOCKED!\n\nTap the speed slot or press SPACE\nto cycle through game speeds.',
       0xc4a850, // gold/yellow accent matching the speed label
-      this.p(110),
+      this.p(150), // matches the in-game tutorial prompt y so it clears the wave bar
       5000
     );
   }
