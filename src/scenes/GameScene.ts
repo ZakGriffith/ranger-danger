@@ -138,7 +138,11 @@ export class GameScene extends Phaser.Scene {
   /** Effective spawn/chunk radius in tiles. Desktop: CFG.spawnDist (unchanged).
    *  Mobile: grown when the viewport shows more world than the desktop default covers. */
   spawnDist = CFG.spawnDist;
-  _wallCheckCache = { key: '', valid: false };
+  /** Per-tile cache of "would placing a wall here strangle pathing?" Cleared
+   *  whenever the grid changes (wall/tower placed/destroyed/sold) or the
+   *  player moves to a new tile. Sweeping the cursor across already-hovered
+   *  tiles is then free — only the first hover of each tile pays for BFS. */
+  _wallCheckCache = new Map<string, boolean>();
   _lastWallCheckPlayerTile = '';
   _warmupFrames = 0;
 
@@ -767,7 +771,7 @@ export class GameScene extends Phaser.Scene {
       this.towers.push(t);
       this.towerGroup.add(t);
       for (let j = 0; j < s; j++) for (let i = 0; i < s; i++) gridSet(this.grid, ox + i, oy + j, 2);
-      this.gridVersion++; this._wallCheckCache = { key: '', valid: false }; this.rebuildGapBlockers(); this.rebuildGapBlockers();
+      this.gridVersion++; this._wallCheckCache.clear(); this.rebuildGapBlockers(); this.rebuildGapBlockers();
       this.pushHud();
       SFX.play('towerPlace');
       if (this.game.registry.get('tutorialActive')) this.game.events.emit('tutorial-tower-placed');
@@ -804,7 +808,7 @@ export class GameScene extends Phaser.Scene {
     gridSet(this.grid, tx, ty, 1);
     this.syncWallTile(tx, ty, true);
     this.updateWallNeighbors(tx, ty);
-    this.gridVersion++; this._wallCheckCache = { key: '', valid: false }; this.rebuildGapBlockers();
+    this.gridVersion++; this._wallCheckCache.clear(); this.rebuildGapBlockers();
     this.pushHud();
     SFX.play('wallPlace');
     if (this.game.registry.get('tutorialActive')) this.game.events.emit('tutorial-wall-placed');
@@ -948,7 +952,7 @@ export class GameScene extends Phaser.Scene {
       this.updateWallNeighbors(w.tileX, w.tileY);
       w.destroy();
     }
-    this.gridVersion++; this._wallCheckCache = { key: '', valid: false }; this.rebuildGapBlockers();
+    this.gridVersion++; this._wallCheckCache.clear(); this.rebuildGapBlockers();
     this.pushHud();
   }
 
@@ -1391,27 +1395,26 @@ export class GameScene extends Phaser.Scene {
           const ptKey = `${Math.floor(this.player.x / CFG.tile)},${Math.floor(this.player.y / CFG.tile)}`;
           if (ptKey !== this._lastWallCheckPlayerTile) {
             this._lastWallCheckPlayerTile = ptKey;
-            this._wallCheckCache = { key: '', valid: false };
+            this._wallCheckCache.clear();
           }
           let valid = gridGet(this.grid, tx, ty) === 0;
           let tileBlocked = !valid;
           if (valid) {
-            // Cache path check per tile to avoid running BFS every frame
+            // Per-tile cache — cleared on player move and on any grid
+            // change. Sweeping the cursor over already-hovered tiles is
+            // free; only first-hovered tiles pay for BFS.
             const cacheKey = `${tx},${ty}`;
-            if (this._wallCheckCache.key === cacheKey) {
-              valid = this._wallCheckCache.valid;
+            const cached = this._wallCheckCache.get(cacheKey);
+            if (cached !== undefined) {
+              valid = cached;
             } else {
               const pt = this.worldToTile(this.player.x, this.player.y);
-              // Check how many directions are reachable WITHOUT the wall
               const beforeReach = this.countReachableDirections(pt.x, pt.y);
-              // Now test WITH the wall
               gridSet(this.grid, tx, ty, 1);
               const afterReach = this.countReachableDirections(pt.x, pt.y);
               gridSet(this.grid, tx, ty, 0);
-              // Allow if placing the wall doesn't reduce reachable directions,
-              // or at least 2 directions still work
               valid = afterReach >= Math.min(beforeReach, 2);
-              this._wallCheckCache = { key: cacheKey, valid };
+              this._wallCheckCache.set(cacheKey, valid);
             }
           }
           const canAffordWall = this.player.money >= CFG.wall.cost;
@@ -1593,7 +1596,7 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    this.gridVersion++; this._wallCheckCache = { key: '', valid: false };
+    this.gridVersion++; this._wallCheckCache.clear();
   }
 
   // ---------- RIVER TERRAIN (river biome) ----------
@@ -3378,7 +3381,7 @@ export class GameScene extends Phaser.Scene {
     for (let j = 0; j < t.size; j++)
       for (let i = 0; i < t.size; i++)
         gridSet(this.grid, t.tileX + i, t.tileY + j, 0);
-    this.gridVersion++; this._wallCheckCache = { key: '', valid: false }; this.rebuildGapBlockers();
+    this.gridVersion++; this._wallCheckCache.clear(); this.rebuildGapBlockers();
     const burst = this.add.sprite(t.x, t.y, 'fx_death_0').setDepth(15).setScale(0.5);
     burst.play('fx-death');
     burst.once('animationcomplete', () => burst.destroy());
@@ -3392,7 +3395,7 @@ export class GameScene extends Phaser.Scene {
     const tx = w.tileX, ty = w.tileY;
     gridSet(this.grid, tx, ty, 0);
     this.syncWallTile(tx, ty, false);
-    this.gridVersion++; this._wallCheckCache = { key: '', valid: false }; this.rebuildGapBlockers();
+    this.gridVersion++; this._wallCheckCache.clear(); this.rebuildGapBlockers();
     SFX.play('structDestroy');
     w.destroy();
     this.updateWallNeighbors(tx, ty);
