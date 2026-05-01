@@ -636,6 +636,27 @@ export class GameScene extends Phaser.Scene {
   private _lastWaveBreakUntil = 0;
   private _lastWaveBreakSecond = -1;
 
+  // Pool of hidden fx-pop sprites reused for coin pickups. Big bursts (wave
+  // ends with many coins magneting in at once) used to allocate + destroy a
+  // Sprite + its physics-free GameObject per coin, churning the display list.
+  // Same texture/animation as before — just recycled instead of recreated.
+  private _coinFxPool: Phaser.GameObjects.Sprite[] = [];
+
+  private playCoinFxPop(x: number, y: number) {
+    let pop = this._coinFxPool.pop();
+    if (pop) {
+      pop.setPosition(x, y);
+      pop.setActive(true).setVisible(true);
+    } else {
+      pop = this.add.sprite(x, y, 'fx_pop_0').setDepth(15).setScale(0.5);
+    }
+    pop.play('fx-pop');
+    pop.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => {
+      pop!.setActive(false).setVisible(false);
+      this._coinFxPool.push(pop!);
+    });
+  }
+
   setTimeScale(mult: number) {
     this.timeMult = mult;
     // Phaser's physics.world.timeScale is inverted: lower = faster.
@@ -4199,9 +4220,7 @@ export class GameScene extends Phaser.Scene {
         if (this.game.registry.get('tutorialActive')) {
           this.game.events.emit('tutorial-coin-collected');
         }
-        const pop = this.add.sprite(coin.x, coin.y, 'fx_pop_0').setDepth(15).setScale(0.5);
-        pop.play('fx-pop');
-        pop.once('animationcomplete', () => pop.destroy());
+        this.playCoinFxPop(coin.x, coin.y);
         coin.destroy();
         return true;
       }
