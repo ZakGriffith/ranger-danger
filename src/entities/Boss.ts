@@ -66,13 +66,33 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     this.nextBoulder = now + 3000;
   }
 
+  /** Cached values from the last bar repaint — skip the Graphics rebuild
+   *  when nothing changed. The bar follows the boss via Graphics position
+   *  (cheap), so the expensive clear/fill path only runs when HP shifts. */
+  private _lastDrawnHp = -1;
+  private _lastDrawnMaxHp = -1;
+  private _barCleared = false;
+
   drawHpBar() {
-    this.hpBar.clear();
-    if (this.dying || !this.active) return;
+    if (this.dying || !this.active) {
+      if (!this._barCleared) {
+        this.hpBar.clear();
+        this._barCleared = true;
+      }
+      return;
+    }
+    // Position the Graphics object to follow the boss; the bar geometry
+    // is drawn in local coords (0,0) so we don't need to repaint it.
+    this.hpBar.setPosition(this.x, this.y + 30);
+    if (this.hp === this._lastDrawnHp && this.maxHp === this._lastDrawnMaxHp) return;
+    this._lastDrawnHp = this.hp;
+    this._lastDrawnMaxHp = this.maxHp;
+    this._barCleared = false;
     const pct = Math.max(0, this.hp / this.maxHp);
     const w = 44, h = 4;
-    const bx = this.x - w / 2;
-    const by = this.y + 30;
+    const bx = -w / 2;
+    const by = 0;
+    this.hpBar.clear();
     this.hpBar.fillStyle(0x111826, 0.85);
     this.hpBar.fillRect(bx - 1, by - 1, w + 2, h + 2);
     const color = pct > 0.5 ? 0xd94a4a : pct > 0.25 ? 0xd97a4a : 0xff3030;
