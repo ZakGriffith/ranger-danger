@@ -168,7 +168,7 @@ export class UIScene extends Phaser.Scene {
     if (cannonLocked) this.btnCannon.add(buildLockOverlay());
     this.btnWall = this.makeHotbarSlot(slotX(3), hotbarY, slotSize, slotSize, '4', 'wall', 'WALL', `$${CFG.wall.cost}`,
       () => this.game.events.emit('ui-build', 'wall'));
-    this.btnSpeed = this.makeHotbarSlot(slotX(4), hotbarY, slotSize, slotSize, '5', 'speed', 'SPEED', '',
+    this.btnSpeed = this.makeHotbarSlot(slotX(4), hotbarY, slotSize, slotSize, 'SPC', 'speed', 'SPEED', '',
       () => { if (!this.speedLocked) this.cycleSpeed(); });
     // Speed cycle text overlay — initial text matches the persisted speedIdx
     // so a restart (e.g. viewport rotation) doesn't desync from GameScene.
@@ -200,7 +200,6 @@ export class UIScene extends Phaser.Scene {
       if (!this.speedLocked) this.cycleSpeed();
     };
     this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE).on('down', tryCycleSpeed);
-    this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.FIVE).on('down', tryCycleSpeed);
 
     // Level progress graphic (wave circles + boss skull)
     this.progressCircles = [];
@@ -1057,7 +1056,7 @@ export class UIScene extends Phaser.Scene {
       this.speedLockOverlay = null;
     }
     this.showIntroToast(
-      'SPEED UP UNLOCKED!\n\nTap the speed slot or press 5\nto cycle through game speeds.',
+      'SPEED UP UNLOCKED!\n\nTap the speed slot or press SPACE\nto cycle through game speeds.',
       0xc4a850, // gold/yellow accent matching the speed label
       this.p(150), // matches the in-game tutorial prompt y so it clears the wave bar
       5000

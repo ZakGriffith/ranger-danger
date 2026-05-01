@@ -149,7 +149,15 @@ export class Tower extends Phaser.Physics.Arcade.Sprite {
     this.scene.time.delayedCall(60, () => { this.applyTierVisual(); });
   }
 
+  /** Cached values from the last drawHpBar paint — skip re-rendering when
+   *  nothing changed (most frames, since most towers are full HP). */
+  private _lastDrawnHp = -1;
+  private _lastDrawnMaxHp = -1;
+
   drawHpBar() {
+    if (this.hp === this._lastDrawnHp && this.maxHp === this._lastDrawnMaxHp) return;
+    this._lastDrawnHp = this.hp;
+    this._lastDrawnMaxHp = this.maxHp;
     this.hpBar.clear();
     // Always render — even at 100% — so the player can spot freshly damaged
     // towers immediately without having to wait for the bar to appear.

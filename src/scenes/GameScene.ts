@@ -770,6 +770,7 @@ export class GameScene extends Phaser.Scene {
       const t = new Tower(this, ox, oy, this.buildTowerKind);
       this.towers.push(t);
       this.towerGroup.add(t);
+      this.applyTowerDepth(t); // static — set once, skipped in updateDepthSort
       for (let j = 0; j < s; j++) for (let i = 0; i < s; i++) gridSet(this.grid, ox + i, oy + j, 2);
       this.gridVersion++; this._wallCheckCache.clear(); this.rebuildGapBlockers(); this.rebuildGapBlockers();
       this.pushHud();
@@ -1469,49 +1470,51 @@ export class GameScene extends Phaser.Scene {
   }
 
   // Y-based depth sort: objects lower on screen render in front
+  /** Y-based depth used by everything that sorts by world position. Inlined
+   *  so the per-frame depth-sort loop doesn't pay for a function call per
+   *  entity. */
+  private static yDepth(y: number) { return 100 + y * 0.1; }
+
+  /** Apply tower-base + stand + top + nocked-arrow depths once. Towers
+   *  don't move so this is set at placement and the per-frame loop skips
+   *  them entirely. */
+  applyTowerDepth(t: Tower) {
+    const d = GameScene.yDepth(t.y);
+    t.setDepth(d);
+    if (t.stand) t.stand.setDepth(d + 0.1);
+    t.top.setDepth(d + 0.2);
+    if (t.nockedArrow) t.nockedArrow.setDepth(d + 5);
+  }
+
   updateDepthSort() {
-    const yDepth = (y: number) => 100 + y * 0.1;
+    const yD = GameScene.yDepth;
 
-    // Player
-    this.player.setDepth(yDepth(this.player.y));
-    this.player.bow.setDepth(yDepth(this.player.y) + 0.5);
-    this.player.nockedArrow.setDepth(yDepth(this.player.y) + 1);
+    // Player (and bow/nocked arrow ride with it)
+    const py = this.player.y;
+    const pd = yD(py);
+    this.player.setDepth(pd);
+    this.player.bow.setDepth(pd + 0.5);
+    this.player.nockedArrow.setDepth(pd + 1);
 
-    // Towers: base, archer/stand, bow/top all sort by tower Y.
-    // Nocked arrow uses a larger offset so it always renders above the tower
-    // base sprite's parapet/corner-tower decorations, which belong to the
-    // single 't_base' sprite at depth d.
-    for (const tower of this.towers) {
-      const d = yDepth(tower.y);
-      tower.setDepth(d);
-      if (tower.stand) tower.stand.setDepth(d + 0.1);
-      tower.top.setDepth(d + 0.2);
-      if (tower.nockedArrow) tower.nockedArrow.setDepth(d + 5);
-    }
-
-    // Enemies
+    // Enemies move every frame — keep sorting them.
     const enemies = this.enemies.getChildren() as Phaser.Physics.Arcade.Sprite[];
     for (let i = 0; i < enemies.length; i++) {
       const e = enemies[i];
-      if (e.active) e.setDepth(yDepth(e.y));
+      if (e.active) e.setDepth(yD(e.y));
     }
 
-    // Coins
-    const coins = this.coins.getChildren() as Phaser.Physics.Arcade.Sprite[];
-    for (let i = 0; i < coins.length; i++) {
-      const c = coins[i];
-      if (c.active) c.setDepth(yDepth(c.y));
-    }
-
-    // Arrow projectiles need y-based depth so they don't get hidden behind
-    // tower/wall sprites they fly over. Cannonballs keep their fixed depth
-    // because they arc visually above terrain.
+    // Arrow projectiles fly across the map, so depth needs to track y.
+    // Cannonballs keep their fixed (high) depth because they arc above
+    // terrain visually.
     const projs = this.projectiles.getChildren() as Projectile[];
     for (let i = 0; i < projs.length; i++) {
       const p = projs[i];
       if (!p.active || p.groundTarget) continue;
-      p.setDepth(yDepth(p.y) + 5);
+      p.setDepth(yD(p.y) + 5);
     }
+
+    // Towers + coins are static — depth is set once at spawn (see
+    // applyTowerDepth + Coin constructor) and skipped here every frame.
   }
 
   // Sync a single tile in the collision tilemap (wall placed or removed)

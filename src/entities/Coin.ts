@@ -16,7 +16,11 @@ export class Coin extends Phaser.Physics.Arcade.Sprite {
     this.tier = tier;
     this.value = tier === 'gold' ? 3 : tier === 'silver' ? 2 : 1;
     this.born = (scene as any).vTime ?? scene.time.now;
-    this.setDepth(7);
+    // Match GameScene.yDepth so the coin sorts correctly with player /
+    // enemies / projectiles. Coins don't move after spawn (auto-collect
+    // destroys them), so this is set once and skipped in the per-frame
+    // depth-sort loop.
+    this.setDepth(100 + y * 0.1);
     this.setSize(24, 24).setOffset(20, 20);
     this.play(`coin-${tier}-spin`);
     // little pop on spawn
