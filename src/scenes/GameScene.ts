@@ -646,7 +646,10 @@ export class GameScene extends Phaser.Scene {
     if (this.deleteIcon) this.deleteIcon.setVisible(false);
     if (this.gridOverlay) this.gridOverlay.setVisible(k !== 'none');
     this.game.events.emit('build-mode', k !== 'none', k, towerKind);
-    if (k === 'none') this.game.events.emit('build-error', '');
+    if (k === 'none') {
+      this.game.events.emit('build-error', '');
+      this._lastBuildErr = '';
+    }
     if (k === 'tower') {
       this.ghost.setTexture(this.buildTowerKind === 'cannon' ? 'c_base' : 't_base');
       const baseTint = Tower.TIER_TINT[this.buildTowerKind][0];
@@ -1305,15 +1308,39 @@ export class GameScene extends Phaser.Scene {
   }
 
   // Redraw the grid overlay around the current camera view
+  /** Last camera scroll tile + zoom we drew the grid overlay against —
+   *  skip the redraw entirely when nothing relevant changed (which is
+   *  most frames while the player is standing or barely drifting). */
+  private _lastGridOverlayLeft = NaN;
+  private _lastGridOverlayTop = NaN;
+  private _lastGridOverlayZoom = NaN;
+  /** Last build-error string emitted — skip the per-frame event re-emit
+   *  when the message didn't change so UIScene doesn't churn its toast. */
+  private _lastBuildErr = '';
+
   redrawGridOverlay() {
-    const g = this.gridOverlay;
-    g.clear();
     const cam = this.cameras.main;
     const tile = CFG.tile;
+    // cam.width / cam.height are canvas pixels; divide by zoom to get
+    // visible world size. Without this, on full-window canvases the
+    // overlay draws far more lines than needed and the per-frame Graphics
+    // rebuild becomes noticeable in build mode.
+    const visW = cam.width / cam.zoom;
+    const visH = cam.height / cam.zoom;
     const left = Math.floor(cam.scrollX / tile) - 1;
     const top = Math.floor(cam.scrollY / tile) - 1;
-    const right = left + Math.ceil(cam.width / tile) + 2;
-    const bottom = top + Math.ceil(cam.height / tile) + 2;
+    if (left === this._lastGridOverlayLeft &&
+        top === this._lastGridOverlayTop &&
+        cam.zoom === this._lastGridOverlayZoom) {
+      return;
+    }
+    this._lastGridOverlayLeft = left;
+    this._lastGridOverlayTop = top;
+    this._lastGridOverlayZoom = cam.zoom;
+    const right = left + Math.ceil(visW / tile) + 2;
+    const bottom = top + Math.ceil(visH / tile) + 2;
+    const g = this.gridOverlay;
+    g.clear();
     g.lineStyle(1, 0xffffff, 0.18);
     for (let x = left; x <= right; x++) {
       g.lineBetween(x * tile, top * tile, x * tile, bottom * tile);
@@ -1427,7 +1454,10 @@ export class GameScene extends Phaser.Scene {
           this.ghost.setTint(valid && canAffordWall ? 0x88ff88 : 0xff8888);
         }
       }
-      this.game.events.emit('build-error', buildErr);
+      if (buildErr !== this._lastBuildErr) {
+        this._lastBuildErr = buildErr;
+        this.game.events.emit('build-error', buildErr);
+      }
       } // end !overJoystick
     }
 
