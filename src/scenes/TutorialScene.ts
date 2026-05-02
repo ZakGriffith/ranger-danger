@@ -511,30 +511,14 @@ export class TutorialScene extends Phaser.Scene {
 
       case 'game_click_tower': {
         // No pause / dim — by this point the player has 60+ coins and is
-        // playing freely. The glow rings still locate the tower for them.
+        // playing freely. Just the prompt — the highlight ring never
+        // landed correctly on the tower so it was removed.
         this.showPrompt(
           this.isMobile
             ? 'Tap on your Arrow Tower to select it.'
             : 'Click on your Arrow Tower to select it.',
           this.p(150)
         );
-        // Bright pulsing highlight ring on the tower
-        const gsTower = this.scene.get('Game') as any;
-        const tower = gsTower?.towers?.[0];
-        if (tower) {
-          // Convert tower world coords to screen-space via the Game camera so
-          // the highlight lands on the tower regardless of pan / zoom.
-          const cam = gsTower.cameras.main;
-          const sx = (tower.x - cam.scrollX) * cam.zoom;
-          const sy = (tower.y - cam.scrollY) * cam.zoom;
-          const r = CFG.tower.tiles * CFG.tile * 0.7 * cam.zoom;
-          // Dual glow rings
-          this.overlay.lineStyle(this.p(4), 0x4ad96a, 0.9);
-          this.overlay.strokeCircle(sx, sy, r);
-          this.overlay.lineStyle(this.p(8), 0x4ad96a, 0.3);
-          this.overlay.strokeCircle(sx, sy, r + this.p(4));
-          this.drawArrow(sx, sy - r - this.p(12), 'down');
-        }
         break;
       }
 
