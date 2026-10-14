@@ -6,3 +6,5 @@ dist
 .vite
 src/**/*.js
 .vercel
+
+.yarn/
