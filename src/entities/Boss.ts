@@ -1,5 +1,8 @@
 import Phaser from 'phaser';
 import { Biome } from '../levels';
+import { applyEntityVisual } from '../assets/spriteOverrides';
+import { Shadow } from './Shadow';
+import { measureOpaqueBounds } from './spriteBounds';
 
 export type BossState =
   | 'chase'
@@ -7,6 +10,8 @@ export type BossState =
   | 'charge_wind'
   | 'charging'
   | 'dying';
+
+export type BossKind = '' | 'queen' | 'dragon' | 'fissure_burrower' | 'desert_scorpion' | 'sandstorm_beast' | 'dune_wraith' | 'temple_construct' | 'sun_priest';
 
 export class Boss extends Phaser.Physics.Arcade.Sprite {
   hp = 1500;
@@ -22,6 +27,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
   nextBoulder = 0;
   contactCd = 0;
   dying = false;
+  flying = false;  // queen + fog phantom hover; controls shadow altitude
 
   chargeDirX = 1;
   chargeDirY = 0;
@@ -34,28 +40,58 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
   _pv = -1; // grid version tracker
 
   hpBar: Phaser.GameObjects.Graphics;
+  shadow: Shadow | null = null;
 
   // Animation prefix — 'boss' for meadow, 'fboss' for forest
   animPrefix: string;
 
-  bossKind: string = ''; // e.g. 'queen', 'dragon' for castle bosses
+  bossKind: BossKind = '';
 
-  constructor(scene: Phaser.Scene, x: number, y: number, biome: Biome = 'grasslands', bossKind = '') {
+  constructor(scene: Phaser.Scene, x: number, y: number, biome: Biome = 'grasslands', bossKind: BossKind = '') {
     const prefix = bossKind === 'queen' ? 'cqboss'
                  : bossKind === 'dragon' ? 'cdboss'
+                 : bossKind === 'fissure_burrower' ? 'dfboss'
+                 : bossKind === 'desert_scorpion' ? 'dsboss'
+                 : bossKind === 'sandstorm_beast' ? 'sbboss'
+                 : bossKind === 'dune_wraith' ? 'dwboss'
+                 : bossKind === 'temple_construct' ? 'dtboss'
+                 : bossKind === 'sun_priest' ? 'spboss'
                  : biome === 'forest' ? 'fboss'
                  : biome === 'infected' ? 'iboss'
                  : biome === 'river' ? 'rboss'
                  : 'ram';
+    const folder = bossKind === 'queen' ? 'boss_castle_q'
+                 : bossKind === 'dragon' ? 'boss_castle_d'
+                 : bossKind === 'fissure_burrower' ? 'boss_desert_burrower'
+                 : bossKind === 'desert_scorpion' ? 'boss_desert_scorpion'
+                 : bossKind === 'sandstorm_beast' ? 'boss_desert_sandstorm'
+                 : bossKind === 'dune_wraith' ? 'boss_desert_wraith'
+                 : bossKind === 'temple_construct' ? 'boss_desert_construct'
+                 : bossKind === 'sun_priest' ? 'boss_desert_sun_priest'
+                 : biome === 'forest' ? 'boss_forest'
+                 : biome === 'infected' ? 'boss_infected'
+                 : biome === 'river' ? 'boss_river'
+                 : 'boss_meadow';
     super(scene, x, y, `${prefix}_idle0`);
     this.bossKind = bossKind;
     this.animPrefix = prefix;
-    this.setScale(0.5);
+    this.flying = prefix === 'cqboss' || prefix === 'rboss' || prefix === 'dwboss' || prefix === 'spboss';
     scene.add.existing(this);
     scene.physics.add.existing(this);
     this.setDepth(9);
-    this.setSize(44, 44).setOffset(42, 52);
+    applyEntityVisual(this, folder, 'move', 0.5, 44, 44, 42, 52);
     this.play(`${prefix}-idle`);
+
+    // Measure where the visible boss ends so the HP bar sits just below the
+    // sprite rather than overlapping it. Different boss PNGs have wildly
+    // different aspect ratios; a fixed offset can't fit all of them.
+    this.hpBarYOffset = this.measureBarYOffset(`${prefix}_idle0`);
+
+    // Shadow uses the same visible-pixel measurement under the hood, picking
+    // up the boss's actual silhouette width and feet location regardless of
+    // transparent padding.
+    this.shadow = Shadow.fromSprite(scene, this, `${prefix}_idle0`, { flying: this.flying });
+    this.shadow.update(this);
 
     this.hpBar = scene.add.graphics().setDepth(20);
 
@@ -73,6 +109,22 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
   private _lastDrawnMaxHp = -1;
   private _barCleared = false;
 
+  /** World-space Y distance from sprite center to where the HP bar should
+   *  sit. Computed once at construction by scanning the idle frame for the
+   *  lowest non-transparent row, so the bar lines up with the visible
+   *  bottom of the sprite even when bosses have very different heights. */
+  private hpBarYOffset = 45;
+
+  /** Distance from sprite center to where the HP bar should sit — just below
+   *  the visible bottom of the boss. Reuses the shared opaque-bounds helper
+   *  so transparent padding doesn't push the bar away. */
+  private measureBarYOffset(textureKey: string): number {
+    const bounds = measureOpaqueBounds(this.scene, textureKey);
+    if (!bounds) return 45;
+    const padding = 8;
+    return (bounds.bottom - bounds.sourceH / 2) * this.scaleY + padding;
+  }
+
   drawHpBar() {
     if (this.dying || !this.active) {
       if (!this._barCleared) {
@@ -83,7 +135,8 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     }
     // Position the Graphics object to follow the boss; the bar geometry
     // is drawn in local coords (0,0) so we don't need to repaint it.
-    this.hpBar.setPosition(this.x, this.y + 30);
+    this.hpBar.setPosition(this.x, this.y + this.hpBarYOffset);
+    this.shadow?.update(this);
     if (this.hp === this._lastDrawnHp && this.maxHp === this._lastDrawnMaxHp) return;
     this._lastDrawnHp = this.hp;
     this._lastDrawnMaxHp = this.maxHp;
@@ -107,13 +160,21 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     this.scene.time.delayedCall(60, () => { if (!this.dying) this.clearTint(); });
     if (this.hp <= 0) {
       this.dying = true;
-      this.state = 'dying';
       this.setVelocity(0, 0);
       (this.body as Phaser.Physics.Arcade.Body).enable = false;
       this.hpBar.destroy();
-      const dieAnim = `${this.animPrefix}-die`;
-      this.play(dieAnim);
-      this.once(`animationcomplete-${dieAnim}`, () => this.destroy());
+      // Boss death uses the same fx-death pop as enemies, scaled up to roughly
+      // match the boss footprint (2× the 64-px enemy pop ≈ 128 world px).
+      const pop = this.scene.add.sprite(this.x, this.y, 'fx_death_0').setDepth(this.depth + 0.5).setScale(2);
+      pop.play('fx-death');
+      pop.once('animationcomplete', () => pop.destroy());
+      this.destroy();
     }
+  }
+
+  destroy(fromScene?: boolean) {
+    this.shadow?.destroy();
+    this.shadow = null;
+    super.destroy(fromScene);
   }
 }

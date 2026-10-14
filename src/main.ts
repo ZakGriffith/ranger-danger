@@ -5,8 +5,12 @@ import { LevelSelectScene } from './scenes/LevelSelectScene';
 import { GameScene } from './scenes/GameScene';
 import { UIScene } from './scenes/UIScene';
 import { TutorialScene } from './scenes/TutorialScene';
+import { DebugGalleryScene, isDebugGalleryRequested } from './scenes/DebugGalleryScene';
 import { SFX } from './audio/sfx';
 import { installViewportResizeListener } from './viewport';
+import { getRegistry } from './core/registry';
+import { getEvents } from './core/events';
+import { PlayerProgressState } from './state/PlayerProgressState';
 
 const overlay = document.getElementById('overlay') as HTMLDivElement;
 const startBtn = document.getElementById('startBtn') as HTMLButtonElement;
@@ -18,12 +22,22 @@ let started = false;
 let playBtnBuffer: ArrayBuffer | null = null;
 fetch('/audio/PlayButton.wav').then(r => r.arrayBuffer()).then(b => { playBtnBuffer = b; }).catch(() => {});
 
+type ScreenWakeLockSentinel = EventTarget & {
+  release?: () => Promise<void>;
+};
+
+type WakeLockNavigator = Navigator & {
+  wakeLock?: {
+    request(type: 'screen'): Promise<ScreenWakeLockSentinel>;
+  };
+};
+
 // Keep the screen awake so the game doesn't pause/restart when the user
 // walks away. Re-acquires the lock whenever the tab becomes visible again.
-let wakeLock: any = null;
+let wakeLock: ScreenWakeLockSentinel | null = null;
 async function requestWakeLock() {
   try {
-    const nav: any = navigator;
+    const nav = navigator as WakeLockNavigator;
     if (nav.wakeLock && typeof nav.wakeLock.request === 'function') {
       wakeLock = await nav.wakeLock.request('screen');
       wakeLock.addEventListener?.('release', () => { wakeLock = null; });
@@ -94,19 +108,36 @@ function start() {
       default: 'arcade',
       arcade: { gravity: { x: 0, y: 0 }, debug: false }
     },
+    // Allow up to 3 simultaneous touch points so mobile players can hold the
+    // virtual joystick and tap a hotbar slot (or speed button) at the same
+    // time. Phaser defaults to 1 active touch pointer, which silently drops
+    // every additional finger.
+    input: { activePointers: 3 },
     scale: {
       mode: Phaser.Scale.FIT,
       autoCenter: Phaser.Scale.NO_CENTER
     },
-    scene: [BootScene, LevelSelectScene, GameScene, UIScene, TutorialScene]
+    scene: [BootScene, LevelSelectScene, GameScene, UIScene, TutorialScene, DebugGalleryScene]
   });
 
   // Hide overlay once GameScene is ready (after "Generating world..." from level select)
-  game.events.on('game-ready', () => {
+  getEvents(game.events).on('game-ready', () => {
     overlay.classList.add('hidden');
     const landing = document.getElementById('landingPanel');
     if (landing) landing.classList.remove('loading');
   });
+
+  // Load meta-progression state (player XP / level / unlocks) once at
+  // boot. The single instance lives on the typed registry and is read
+  // from any scene that needs it. saves to localStorage on every
+  // addXp() so we don't have to plumb writes into scene shutdown.
+  const reg = getRegistry(game);
+  reg.set('playerProgress', PlayerProgressState.load());
+
+  // Dev convenience: window.tdProgress in the browser console for
+  // setLevel / wipe / inspect during playtesting.
+  (window as unknown as { tdProgress?: PlayerProgressState }).tdProgress =
+    reg.get('playerProgress');
 
   // Resize / orientation handling. When the viewport changes, update the
   // shared scale registry values and broadcast a `viewport-changed` event.
@@ -114,12 +145,16 @@ function start() {
   // to a 3:2 fit; GameScene fills the device viewport), so this top-level
   // handler intentionally does NOT call setGameSize itself.
   installViewportResizeListener((vp) => {
-    game.registry.set('sf', vp.uiScale);
-    game.registry.set('cameraZoom', vp.cameraZoom);
-    game.registry.set('uiScale', vp.uiScale);
-    game.registry.set('isMobile', vp.isMobile);
-    game.events.emit('viewport-changed', vp);
+    reg.set('sf', vp.uiScale);
+    reg.set('cameraZoom', vp.cameraZoom);
+    reg.set('uiScale', vp.uiScale);
+    reg.set('isMobile', vp.isMobile);
+    getEvents(game.events).emit('viewport-changed', vp);
   });
 }
 
 startBtn.addEventListener('click', start);
+
+if (isDebugGalleryRequested()) {
+  start();
+}

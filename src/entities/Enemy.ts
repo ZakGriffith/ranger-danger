@@ -1,7 +1,9 @@
 import Phaser from 'phaser';
 import { CFG } from '../config';
+import { applyEntityVisual } from '../assets/spriteOverrides';
+import { Shadow } from './Shadow';
 
-export type EnemyKind = 'basic' | 'heavy' | 'runner' | 'snake' | 'rat' | 'deer' | 'wolf' | 'bear' | 'spider' | 'infected_basic' | 'infected_heavy' | 'infected_runner' | 'toad' | 'crow' | 'bat' | 'dragonfly' | 'mosquito' | 'skeleton' | 'warlock' | 'golem' | 'shadow_imp' | 'castle_bat' | 'castle_rat';
+export type EnemyKind = 'basic' | 'heavy' | 'runner' | 'snake' | 'rat' | 'deer' | 'wolf' | 'bear' | 'spider' | 'infected_basic' | 'infected_heavy' | 'infected_runner' | 'toad' | 'crow' | 'bat' | 'dragonfly' | 'mosquito' | 'skeleton' | 'warlock' | 'golem' | 'shadow_imp' | 'castle_bat' | 'castle_rat' | 'scorpion' | 'boss_scorpion' | 'scarab' | 'sand_mite' | 'cactus_hopper' | 'dune_strider' | 'sand_wraith' | 'temple_guardian' | 'sun_mote';
 
 export class Enemy extends Phaser.Physics.Arcade.Sprite {
   kind: EnemyKind;
@@ -20,6 +22,29 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
   noCoinDrop = false; // boss-spawned enemies don't drop coins
   targetRef: any = null; // current target object (player, tower, wall)
   facing: 'r' | 'l' = 'r'; // directional facing for bear
+  shadow: Shadow | null = null;
+  /** vTime of the last frame this enemy was actually moving. Used by the
+   *  stragglers-phase stuck-teleport in EnemyBossSystem to unwedge the
+   *  last enemy or two when terrain blocks the path or the AI cull
+   *  freezes them off-screen. 0 = uninitialized; set on first iteration. */
+  lastMovingAt = 0;
+  /** Previous-frame world position. Compared against the current position to
+   *  detect "commanding velocity but not displacing" — i.e. wedged on a tree
+   *  corner. Initialized to spawn position in the constructor so the first
+   *  frame doesn't register as a huge displacement. */
+  prevX = 0;
+  prevY = 0;
+  /** Accumulated ms the enemy has been pressing into something without
+   *  actually moving. EnemyBossSystem escalates: 300ms → force path recompute,
+   *  600ms → perpendicular nudge, 2000ms → teleport to spawn ring. */
+  stuckMsec = 0;
+  /** Sliding-window stuck check: position at the start of the current
+   *  4-second window. If net displacement across the window is below a
+   *  threshold, the enemy is wedged or sliding tangentially along terrain
+   *  without progress, and EnemyBossSystem teleports them. 0 = uninit. */
+  windowStartX = 0;
+  windowStartY = 0;
+  windowStartedAt = 0;
 
   constructor(scene: Phaser.Scene, x: number, y: number, kind: EnemyKind) {
     const dataMap: Record<EnemyKind, typeof CFG.enemy.basic> = {
@@ -30,6 +55,10 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
       crow: CFG.enemy.crow, bat: CFG.enemy.bat, dragonfly: CFG.enemy.dragonfly, mosquito: CFG.enemy.mosquito,
       skeleton: CFG.enemy.skeleton, warlock: CFG.enemy.warlock, golem: CFG.enemy.golem,
       shadow_imp: CFG.enemy.shadow_imp, castle_bat: CFG.enemy.castle_bat, castle_rat: CFG.enemy.castle_rat,
+      scorpion: CFG.enemy.scorpion, boss_scorpion: CFG.enemy.boss_scorpion, scarab: CFG.enemy.scarab, sand_mite: CFG.enemy.sand_mite,
+      cactus_hopper: CFG.enemy.cactus_hopper, dune_strider: CFG.enemy.dune_strider,
+      sand_wraith: CFG.enemy.sand_wraith, temple_guardian: CFG.enemy.temple_guardian,
+      sun_mote: CFG.enemy.sun_mote,
     };
     const data = dataMap[kind];
     const texPrefix = Enemy.texPrefix(kind);
@@ -47,41 +76,44 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
 
     switch (kind) {
       case 'basic':
-        this.setScale(0.5).setSize(24, 24).setOffset(20, 24);
+        applyEntityVisual(this, 'basic', 'move', 0.5, 24, 24, 20, 24);
         this.play('eb-move');
         break;
       case 'heavy':
-        this.setScale(0.5).setSize(32, 32).setOffset(16, 20);
+        applyEntityVisual(this, 'heavy', 'move', 0.5, 32, 32, 16, 20);
         this.play('eh-move');
         break;
       case 'runner':
-        this.setScale(0.425).setSize(20, 20).setOffset(22, 26);
+        applyEntityVisual(this, 'basic', 'move', 0.425, 20, 20, 22, 26);
         this.play('eb-move');
         this.baseTint = 0x6af078;
         this.setTint(this.baseTint);
         break;
       case 'snake':
-        this.setScale(0.5).setSize(24, 16).setOffset(16, 18);
+        applyEntityVisual(this, 'snake', 'move', 0.5, 24, 16, 16, 18);
         this.play('esnk-move');
         break;
       case 'rat':
-        this.setScale(0.45).setSize(22, 20).setOffset(20, 24);
+        applyEntityVisual(this, 'rat', 'move', 0.45, 22, 20, 20, 24);
         this.play('erat-move');
         break;
       case 'deer':
-        this.setScale(0.55).setSize(30, 28).setOffset(14, 16);
+        applyEntityVisual(this, 'deer', 'move', 0.55, 30, 28, 14, 16);
         this.play('eder-move');
         break;
       case 'wolf':
-        this.setScale(0.45).setSize(22, 18).setOffset(21, 26);
+        applyEntityVisual(this, 'wolf', 'move', 0.45, 22, 18, 21, 26);
         this.play('ew-move');
         break;
       case 'bear':
-        this.setScale(0.55).setSize(30, 30).setOffset(17, 20);
+        // Body sized to the visible bear silhouette in bear/move.png. The bear's
+        // pngScaleMultiplier of 3.0 magnifies any padding around the character,
+        // so the body's source values need to match the PNG, not a 32×32 stub.
+        applyEntityVisual(this, 'bear', 'move', 0.55, 23, 15, 5, 8);
         this.play('ear-move');
         break;
       case 'spider': {
-        this.setScale(0.45).setSize(24, 22).setOffset(20, 24);
+        applyEntityVisual(this, 'spider', 'move', 0.45, 24, 22, 20, 24);
         this.play('es-move');
         // Random forest spider color variety
         const spiderTints = [
@@ -97,70 +129,125 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
         break;
       }
       case 'infected_basic':
-        this.setScale(0.5).setSize(24, 24).setOffset(20, 24);
+        applyEntityVisual(this, 'infected_basic', 'move', 0.5, 24, 24, 20, 24);
         this.play('eib-move');
         break;
       case 'infected_heavy':
-        this.setScale(0.5).setSize(32, 32).setOffset(16, 20);
+        applyEntityVisual(this, 'infected_heavy', 'move', 0.5, 32, 32, 16, 20);
         this.play('eih-move');
         break;
       case 'infected_runner':
-        this.setScale(0.425).setSize(20, 20).setOffset(22, 26);
+        applyEntityVisual(this, 'infected_basic', 'move', 0.425, 20, 20, 22, 26);
         this.play('eib-move');
         this.baseTint = 0xe0d020; // yellow tint for infected runners
         this.setTint(this.baseTint);
         break;
       case 'toad':
-        this.setScale(0.55).setSize(28, 24).setOffset(18, 22);
+        applyEntityVisual(this, 'toad', 'move', 0.55, 28, 24, 18, 22);
         this.play('etd-idle');
         break;
       case 'crow':
-        this.setScale(0.5).setSize(24, 24).setOffset(20, 20);
+        applyEntityVisual(this, 'crow', 'move', 0.5, 24, 24, 20, 20);
         this.play('ecr-move');
         this.flying = true;
         break;
       case 'bat':
-        this.setScale(0.5).setSize(26, 26).setOffset(19, 19);
+        applyEntityVisual(this, 'bat', 'move', 0.5, 26, 26, 19, 19);
         this.play('ebt-move');
         this.flying = true;
         break;
       case 'dragonfly':
-        this.setScale(0.45).setSize(20, 20).setOffset(22, 22);
+        applyEntityVisual(this, 'dragonfly', 'move', 0.45, 20, 20, 22, 22);
         this.play('edf-move');
         this.flying = true;
         break;
       case 'mosquito':
-        this.setScale(0.45).setSize(20, 20).setOffset(22, 22);
+        applyEntityVisual(this, 'mosquito', 'move', 0.45, 20, 20, 22, 22);
         this.play('emq-move');
         this.flying = true;
         break;
       // Castle enemies
       case 'skeleton':
-        this.setScale(0.5).setSize(24, 24).setOffset(20, 24);
+        applyEntityVisual(this, 'skeleton', 'move', 0.5, 24, 24, 20, 24);
         this.play('esk-move');
         break;
       case 'warlock':
-        this.setScale(0.5).setSize(24, 24).setOffset(20, 24);
+        applyEntityVisual(this, 'warlock', 'move', 0.5, 24, 24, 20, 24);
         this.play('ewl-move');
         break;
       case 'golem':
-        this.setScale(0.55).setSize(30, 30).setOffset(17, 20);
+        // Wider body than other enemies — needed for the same-kind collider in
+        // GameScene to give visible spacing between golems. Width narrowed to
+        // fit inside the golem PNG silhouette so arrows don't trigger in the
+        // empty pixels beside it.
+        applyEntityVisual(this, 'golem', 'move', 0.55, 38, 50, 13, 14);
         this.play('ego-move');
         break;
       case 'shadow_imp':
-        this.setScale(0.45).setSize(20, 20).setOffset(22, 26);
+        applyEntityVisual(this, 'shadow_imp', 'move', 0.45, 20, 20, 22, 26);
         this.play('esi-move');
         break;
       case 'castle_bat':
-        this.setScale(0.45).setSize(20, 20).setOffset(22, 22);
+        applyEntityVisual(this, 'castle_bat', 'move', 0.45, 20, 20, 22, 22);
         this.play('ecb-move');
         this.flying = true;
         break;
       case 'castle_rat':
-        this.setScale(0.45).setSize(22, 20).setOffset(20, 24);
+        applyEntityVisual(this, 'castle_rat', 'move', 0.45, 22, 20, 20, 24);
         this.play('ecrat-move');
         break;
+      case 'scorpion':
+        applyEntityVisual(this, 'scorpion', 'move', 0.5, 26, 22, 19, 23);
+        this.play('escp-move');
+        break;
+      case 'boss_scorpion':
+        applyEntityVisual(this, 'boss_scorpion', 'move', 0.42, 22, 18, 21, 25);
+        this.play('ebsc-move');
+        break;
+      case 'scarab':
+        applyEntityVisual(this, 'scarab', 'move', 0.45, 22, 20, 20, 24);
+        this.play('esrb-move');
+        break;
+      case 'sand_mite':
+        applyEntityVisual(this, 'sand_mite', 'move', 0.4, 20, 18, 22, 25);
+        this.play('esmt-move');
+        break;
+      case 'cactus_hopper':
+        applyEntityVisual(this, 'cactus_hopper', 'move', 0.5, 24, 28, 20, 18);
+        this.play('echp-move');
+        break;
+      case 'dune_strider':
+        applyEntityVisual(this, 'dune_strider', 'move', 0.45, 24, 20, 20, 24);
+        this.play('edst-move');
+        break;
+      case 'sand_wraith':
+        applyEntityVisual(this, 'sand_wraith', 'move', 0.5, 26, 28, 19, 18);
+        this.play('eswr-move');
+        break;
+      case 'temple_guardian':
+        applyEntityVisual(this, 'temple_guardian', 'move', 0.55, 28, 32, 18, 16);
+        this.play('etgd-move');
+        break;
+      case 'sun_mote':
+        applyEntityVisual(this, 'sun_mote', 'move', 0.45, 20, 20, 22, 22);
+        this.play('esun-move');
+        this.flying = true;
+        break;
     }
+    this.randomizeCurrentAnimationProgress();
+
+    // Shadow size and ground offset come from the visible pixel bounds of
+    // the active texture, so transparent padding in the sheet doesn't shift
+    // or oversize the shadow. Flying kinds get an additional altitude bump
+    // applied inside Shadow. Snakes slither directly on the ground so they
+    // skip the shadow entirely.
+    if (kind !== 'snake') {
+      this.shadow = Shadow.fromSprite(scene, this, this.texture.key, { flying: this.flying });
+      this.shadow.update(this);
+    }
+
+    this.prevX = this.x;
+    this.prevY = this.y;
   }
 
   static texPrefix(kind: EnemyKind): string {
@@ -186,6 +273,15 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
       case 'shadow_imp': return 'esi';
       case 'castle_bat': return 'ecb';
       case 'castle_rat': return 'ecrat';
+      case 'scorpion': return 'escp';
+      case 'boss_scorpion': return 'ebsc';
+      case 'scarab': return 'esrb';
+      case 'sand_mite': return 'esmt';
+      case 'cactus_hopper': return 'echp';
+      case 'dune_strider': return 'edst';
+      case 'sand_wraith': return 'eswr';
+      case 'temple_guardian': return 'etgd';
+      case 'sun_mote': return 'esun';
       default: return 'eb';
     }
   }
@@ -209,20 +305,25 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
 
   /** Returns true if this enemy kind should rotate to face movement direction. */
   get rotates(): boolean {
-    return this.kind === 'snake' || this.kind === 'rat' || this.kind === 'castle_rat';
+    return this.kind === 'snake' || this.kind === 'rat' || this.kind === 'castle_rat' || this.kind === 'scorpion' || this.kind === 'boss_scorpion' || this.kind === 'scarab' || this.kind === 'sand_mite';
+  }
+
+  private randomizeCurrentAnimationProgress(): void {
+    if (!this.anims.currentAnim) return;
+    this.anims.setProgress(Math.random());
   }
 
   /** Set rotation from a movement vector. Sprites face right at rotation 0.
-   *  When moving left, flips X and negates the angle so the sprite never appears backwards. */
+   *  When moving left, mirror horizontally (flipX) and offset the angle by π so the
+   *  sprite faces movement direction without going belly-up — flipY is never used. */
   rotateToward(dx: number, dy: number) {
     if (dx === 0 && dy === 0) return;
+    this.setFlipY(false);
     if (dx < 0) {
       this.setFlipX(true);
-      this.setFlipY(true);
       this.setRotation(Math.atan2(-dy, -dx));
     } else {
       this.setFlipX(false);
-      this.setFlipY(false);
       this.setRotation(Math.atan2(dy, dx));
     }
   }
@@ -241,9 +342,22 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
       this.setVelocity(0, 0);
       if (this.rotates) this.setRotation(0);
       (this.body as Phaser.Physics.Arcade.Body).enable = false;
-      const prefix = this.dirPrefix();
-      this.play(`${prefix}-die`);
-      this.once('animationcomplete', () => this.destroy());
+      const pop = this.scene.add.sprite(this.x, this.y, 'fx_death_0').setDepth(this.depth + 0.5);
+      pop.play('fx-death');
+      pop.once('animationcomplete', () => pop.destroy());
+      this.destroy();
     }
+  }
+
+  /** Keep the cast shadow tracking the sprite's current world position.
+   *  Called from EnemyBossSystem.updateEnemies each frame. */
+  updateShadow(): void {
+    this.shadow?.update(this);
+  }
+
+  destroy(fromScene?: boolean) {
+    this.shadow?.destroy();
+    this.shadow = null;
+    super.destroy(fromScene);
   }
 }

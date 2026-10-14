@@ -1,4 +1,6 @@
 import Phaser from 'phaser';
+import { getRegistry } from '../core/registry';
+import { getEvents } from '../core/events';
 import { CFG } from '../config';
 import { SFX } from '../audio/sfx';
 import { computeViewport } from '../viewport';
@@ -6,7 +8,24 @@ import {
   LEVELS, LevelDef, Difficulty, DIFFICULTY_ORDER, DIFFICULTY_LABELS,
   MEDAL_COLORS, BIOME_COLORS, loadMedals, totalMedals, isLevelUnlocked, MedalStore
 } from '../levels';
-import { isTutorialNeeded } from './TutorialScene';
+import { isTutorialNeeded, markTutorialDone } from './TutorialScene';
+import { PlayerProfilePanel } from '../ui/PlayerProfilePanel';
+
+/** Testing toggle — when on, every map level is treated as unlocked,
+ *  regardless of medals or implementation status. Persisted in localStorage
+ *  so it survives reloads. Not exposed in the production build path; the
+ *  checkbox is just a small label on the map. */
+const TEST_UNLOCK_KEY = 'td_test_unlock_all';
+
+function loadTestUnlock(): boolean {
+  try { return localStorage.getItem(TEST_UNLOCK_KEY) === 'true'; }
+  catch { return false; }
+}
+
+function saveTestUnlock(v: boolean): void {
+  try { localStorage.setItem(TEST_UNLOCK_KEY, v ? 'true' : 'false'); }
+  catch { /* private mode — toggle still works in-session */ }
+}
 
 export class LevelSelectScene extends Phaser.Scene {
   medalStore!: MedalStore;
@@ -18,13 +37,21 @@ export class LevelSelectScene extends Phaser.Scene {
   tooltip: Phaser.GameObjects.Container | null = null;
   tooltipTimer?: Phaser.Time.TimerEvent;
   diffButtons: { bg: Phaser.GameObjects.Graphics; text: Phaser.GameObjects.Text; diff: Difficulty }[] = [];
+  testUnlockAll = false;
+
+  /** Unlocked-for-the-UI: wraps the medal-based isLevelUnlocked check
+   *  with the testing override that opens every level. */
+  private unlockedFor(levelId: number): boolean {
+    if (this.testUnlockAll) return true;
+    return isLevelUnlocked(this.medalStore, levelId);
+  }
 
   /** Scale factor: all base-resolution (960×640) coordinates get multiplied by this */
   private sf = 1;
   /** Scale a value from base resolution to native */
-  private p(v: number) { return v * this.sf; }
+  p(v: number) { return v * this.sf; }
   /** Build a font-size string at the scaled resolution */
-  private fs(px: number) { return `${Math.round(px * this.sf)}px`; }
+  fs(px: number) { return `${Math.round(px * this.sf)}px`; }
   /** Play the door-open pitched sound, falling back to a click if the buffer isn't loaded yet. */
   private playDoorOpen(volume: number, rate: number, offset = 0) {
     SFX.hasBuffer('doorOpen') ? SFX.playPitched('doorOpen', volume, rate, offset) : SFX.play('click');
@@ -70,10 +97,10 @@ export class LevelSelectScene extends Phaser.Scene {
     // Store all three scales in the registry so GameScene and UIScene can use
     // them. GameScene's create() will resize the canvas back to the full
     // viewport when gameplay starts.
-    this.game.registry.set('sf', vp.uiScale);
-    this.game.registry.set('cameraZoom', vp.cameraZoom);
-    this.game.registry.set('uiScale', vp.uiScale);
-    this.game.registry.set('isMobile', vp.isMobile);
+    getRegistry(this.game).set('sf', vp.uiScale);
+    getRegistry(this.game).set('cameraZoom', vp.cameraZoom);
+    getRegistry(this.game).set('uiScale', vp.uiScale);
+    getRegistry(this.game).set('isMobile', vp.isMobile);
 
     // Layout uses the 3:2-fitted canvas, so the legacy min-ratio formula now
     // resolves to native/CFG (ratio is identical on both axes by construction).
@@ -85,13 +112,14 @@ export class LevelSelectScene extends Phaser.Scene {
       // Only restart while LevelSelect is the active scene.
       if (this.scene.isActive('LevelSelect')) this.scene.restart();
     };
-    this.game.events.once('viewport-changed', onViewportChanged);
+    getEvents(this.game.events).once('viewport-changed', onViewportChanged);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
-      this.game.events.off('viewport-changed', onViewportChanged);
+      getEvents(this.game.events).off('viewport-changed', onViewportChanged);
     });
 
     this.medalStore = loadMedals();
     this.medalCount = totalMedals(this.medalStore);
+    this.testUnlockAll = loadTestUnlock();
     this.selectedLevel = null;
     this.selectedDiff = null;
     this.panel = null;
@@ -134,9 +162,12 @@ export class LevelSelectScene extends Phaser.Scene {
       stroke: '#000', strokeThickness: this.p(2)
     }).setOrigin(0.5).setDepth(2);
 
+    this.drawPlayerLevelBanner();
+    this.drawTestUnlockToggle();
+
     // Launch tutorial for first-time players
     if (isTutorialNeeded()) {
-      this.game.registry.set('tutorialActive', true);
+      getRegistry(this.game).set('tutorialActive', true);
       this.scene.launch('Tutorial');
     }
   }
@@ -152,7 +183,7 @@ export class LevelSelectScene extends Phaser.Scene {
         const target = levelMap.get(targetId);
         if (!target) continue;
 
-        const unlocked = isLevelUnlocked(this.medalStore, target.id);
+        const unlocked = this.unlockedFor(target.id);
 
         const x0 = this.p(level.x), y0 = this.p(level.y);
         const x1 = this.p(target.x), y1 = this.p(target.y);
@@ -163,9 +194,11 @@ export class LevelSelectScene extends Phaser.Scene {
 
         for (let pass = 0; pass < 2; pass++) {
           if (pass === 0) {
-            g.lineStyle(this.p(6), 0x000000, unlocked ? 0.7 : 0.3);
+            g.lineStyle(this.p(6), 0x000000, unlocked ? 0.55 : 0.3);
           } else {
-            g.lineStyle(this.p(3), unlocked ? 0x3a2a18 : 0x2a2018, unlocked ? 0.9 : 0.4);
+            // Unlocked paths use the same tan as the unlocked-node ring so
+            // the "you've earned this" signal carries from node to path.
+            g.lineStyle(this.p(3), unlocked ? 0xc8a86a : 0x2a2018, unlocked ? 1 : 0.4);
           }
           for (let i = 0; i < segments; i++) {
             if (i % 2 !== 0) continue;
@@ -287,11 +320,153 @@ export class LevelSelectScene extends Phaser.Scene {
     }
   }
 
+  // ---- PLAYER LEVEL BANNER ----
+  /** Top-left pill showing player level + XP progress toward next.
+   *  Mirrors the top-right medal counter so the two HUD pieces balance. */
+  drawPlayerLevelBanner() {
+    const progress = getRegistry(this.game).get('playerProgress');
+    if (!progress) return;
+    const lvl = progress.level;
+    const inLvl = progress.xpInCurrentLevel;
+    const need = progress.xpToNextLevel;
+    const pillW = this.p(158), pillH = this.p(48);
+    const pillX = this.p(12), pillY = this.p(6);
+    const g = this.add.graphics().setDepth(2);
+    g.fillStyle(0x11172a, 0.85);
+    g.fillRoundedRect(pillX, pillY, pillW, pillH, this.p(8));
+    g.lineStyle(this.p(1), 0x2a3760, 0.8);
+    g.strokeRoundedRect(pillX, pillY, pillW, pillH, this.p(8));
+    this.add.text(pillX + pillW / 2, pillY + this.p(12), `LVL ${lvl}`, {
+      fontFamily: 'monospace', fontSize: this.fs(13), fontStyle: 'bold', color: '#b4a8ff',
+      stroke: '#000', strokeThickness: this.p(2),
+    }).setOrigin(0.5).setDepth(2);
+    // XP bar inside the pill
+    const barX = pillX + this.p(10);
+    const barY = pillY + this.p(25);
+    const barW = pillW - this.p(20);
+    const barH = this.p(6);
+    g.fillStyle(0x0b0f1a, 0.9);
+    g.fillRoundedRect(barX, barY, barW, barH, this.p(2));
+    const pct = Math.max(0, Math.min(1, inLvl / need));
+    g.fillStyle(0x8a78ff, 0.95);
+    g.fillRoundedRect(barX, barY, barW * pct, barH, this.p(2));
+    this.add.text(pillX + pillW / 2, pillY + this.p(40), `${inLvl} / ${need} XP`, {
+      fontFamily: 'monospace', fontSize: this.fs(9), color: '#9ab0d0',
+    }).setOrigin(0.5).setDepth(2);
+    // Click pill → open player profile modal. Hover redraws the pill
+    // border in the progression purple so the affordance reads.
+    const hit = this.add.rectangle(pillX, pillY, pillW, pillH, 0x000000, 0)
+      .setOrigin(0, 0)
+      .setDepth(3)
+      .setInteractive({ useHandCursor: true });
+    const redrawHover = (hover: boolean) => {
+      g.lineStyle(this.p(hover ? 2 : 1), hover ? 0x8a78ff : 0x2a3760, hover ? 0.9 : 0.8);
+      g.strokeRoundedRect(pillX, pillY, pillW, pillH, this.p(8));
+    };
+    hit.on('pointerover', () => redrawHover(true));
+    hit.on('pointerout', () => redrawHover(false));
+    hit.on('pointerdown', () => this.openPlayerProfile());
+  }
+
+  private playerProfile: PlayerProfilePanel | null = null;
+  private openPlayerProfile() {
+    if (this.playerProfile) return;
+    this.playerProfile = new PlayerProfilePanel(this, () => { this.playerProfile = null; });
+  }
+
   // ---- LEVEL NODES ----
+  /** Bottom-left "unlock all (test)" checkbox. Toggles the test flag in
+   *  localStorage and restarts the scene so node states + path lines
+   *  re-render against the new unlock predicate. */
+  drawTestUnlockToggle() {
+    const x = this.p(12);
+    const y = this.scale.height - this.p(20);
+    const boxSize = this.p(14);
+    const box = this.add.graphics().setDepth(2);
+    const drawBox = () => {
+      box.clear();
+      box.fillStyle(0x11172a, 0.85);
+      box.fillRoundedRect(x, y - boxSize / 2, boxSize, boxSize, this.p(2));
+      box.lineStyle(this.p(1), 0x6a8acc, 0.85);
+      box.strokeRoundedRect(x, y - boxSize / 2, boxSize, boxSize, this.p(2));
+      if (this.testUnlockAll) {
+        // Filled checkmark — short ✓
+        box.lineStyle(this.p(2), 0x4ad96a, 1);
+        box.beginPath();
+        box.moveTo(x + this.p(3), y);
+        box.lineTo(x + this.p(6), y + this.p(3));
+        box.lineTo(x + this.p(11), y - this.p(3));
+        box.strokePath();
+      }
+    };
+    drawBox();
+    const label = this.add.text(x + boxSize + this.p(6), y, 'Unlock all (test)', {
+      fontFamily: 'monospace', fontSize: this.fs(11),
+      color: this.testUnlockAll ? '#4ad96a' : '#7a8aaa',
+      stroke: '#000', strokeThickness: this.p(2),
+    }).setOrigin(0, 0.5).setDepth(2);
+    const hit = this.add.rectangle(
+      x, y - boxSize / 2,
+      boxSize + label.width + this.p(10), boxSize,
+      0x000000, 0
+    ).setOrigin(0).setInteractive({ useHandCursor: true });
+    hit.on('pointerdown', () => {
+      this.testUnlockAll = !this.testUnlockAll;
+      saveTestUnlock(this.testUnlockAll);
+      SFX.play('click');
+      // Turning the toggle ON also ends the tutorial so the tester can
+      // jump straight into any unlocked level. The tutorial otherwise
+      // walls them off to the Meadow → Easy → Start path.
+      if (this.testUnlockAll && getRegistry(this.game).get('tutorialActive')) {
+        markTutorialDone();
+        getRegistry(this.game).set('tutorialActive', false);
+        getRegistry(this.game).set('tutorialStep', null);
+        if (this.scene.isActive('Tutorial')) this.scene.stop('Tutorial');
+      }
+      // Restart so path lines + node states re-render against the new
+      // unlock predicate. Cheap — LevelSelect has no game state to lose.
+      this.scene.restart();
+    });
+
+    this.drawDebugGalleryButton(label.x + label.width + this.p(14), y);
+  }
+
+  private drawDebugGalleryButton(x: number, y: number) {
+    const buttonH = this.p(18);
+    const padX = this.p(8);
+    const text = this.add.text(x + padX, y, 'Debug gallery', {
+      fontFamily: 'monospace', fontSize: this.fs(10),
+      color: '#7cc4ff',
+      stroke: '#000', strokeThickness: this.p(2),
+    }).setOrigin(0, 0.5).setDepth(3);
+    const buttonW = text.width + padX * 2;
+    const bg = this.add.graphics().setDepth(2);
+    const drawButton = (hovered: boolean) => {
+      bg.clear();
+      bg.fillStyle(hovered ? 0x1b2a48 : 0x11172a, 0.9);
+      bg.fillRoundedRect(x, y - buttonH / 2, buttonW, buttonH, this.p(4));
+      bg.lineStyle(this.p(1), hovered ? 0x7cc4ff : 0x2a3760, hovered ? 1 : 0.85);
+      bg.strokeRoundedRect(x, y - buttonH / 2, buttonW, buttonH, this.p(4));
+    };
+    drawButton(false);
+
+    const hit = this.add.rectangle(x, y - buttonH / 2, buttonW, buttonH, 0x000000, 0)
+      .setOrigin(0)
+      .setInteractive({ useHandCursor: true })
+      .setDepth(4);
+    hit.on('pointerover', () => drawButton(true));
+    hit.on('pointerout', () => drawButton(false));
+    hit.on('pointerdown', () => {
+      SFX.play('click');
+      if (this.scene.isActive('Tutorial')) this.scene.stop('Tutorial');
+      this.scene.start('DebugGallery');
+    });
+  }
+
   drawNodes() {
-    const isMobile = !!this.game.registry.get('isMobile');
+    const isMobile = !!getRegistry(this.game).get('isMobile');
     for (const level of LEVELS) {
-      const unlocked = isLevelUnlocked(this.medalStore, level.id);
+      const unlocked = this.unlockedFor(level.id);
       const medals = this.medalStore[String(level.id)];
 
       const R = this.p(26); // main circle radius
@@ -342,12 +517,13 @@ export class LevelSelectScene extends Phaser.Scene {
         }).setOrigin(0.5).setDepth(4);
 
       // Medal dots
+      const medalDifficulties = DIFFICULTY_ORDER.filter(diff => diff !== 'endless');
       const dotY = cy + R + this.p(8);
       const dotSpacing = this.p(11);
-      const startX = cx - (dotSpacing * 1.5);
+      const startX = cx - (dotSpacing * (medalDifficulties.length - 1)) / 2;
       const dotG = this.add.graphics().setDepth(4);
-      for (let i = 0; i < DIFFICULTY_ORDER.length; i++) {
-        const diff = DIFFICULTY_ORDER[i];
+      for (let i = 0; i < medalDifficulties.length; i++) {
+        const diff = medalDifficulties[i];
         const earned = medals?.[diff] ?? false;
         const mc = MEDAL_COLORS[diff];
         const dx = startX + i * dotSpacing;
@@ -360,9 +536,13 @@ export class LevelSelectScene extends Phaser.Scene {
           dotG.fillCircle(dx - this.p(1), dotY - this.p(1), this.p(1.5));
         } else {
           dotG.fillStyle(0x000000, 0.3);
-          dotG.fillCircle(dx, dotY, this.p(3));
-          dotG.lineStyle(this.p(1), unlocked ? 0x7a6a52 : 0x444444, 0.4);
-          dotG.strokeCircle(dx, dotY, this.p(2.5));
+          dotG.fillCircle(dx + this.p(0.5), dotY + this.p(0.75), this.p(5));
+          dotG.fillStyle(0x2a3140, 0.78);
+          dotG.fillCircle(dx, dotY, this.p(4));
+          dotG.lineStyle(this.p(1.25), unlocked ? 0xbfae84 : 0x787268, unlocked ? 0.82 : 0.62);
+          dotG.strokeCircle(dx, dotY, this.p(4));
+          dotG.fillStyle(0xe8dcc8, unlocked ? 0.14 : 0.08);
+          dotG.fillCircle(dx - this.p(1), dotY - this.p(1), this.p(1.25));
         }
       }
 
@@ -373,21 +553,21 @@ export class LevelSelectScene extends Phaser.Scene {
 
       hitZone.on('pointerdown', () => {
         // During tutorial, only the Meadow node is clickable
-        if (this.game.registry.get('tutorialStep') === 'ls_click_meadow' && level.id !== 1) return;
+        if (getRegistry(this.game).get('tutorialStep') === 'ls_click_meadow' && level.id !== 1) return;
         if (!unlocked) {
           const prevLevel = LEVELS.find(l => l.id === level.id - 1);
           const prevName = prevLevel ? prevLevel.name : `Level ${level.id - 1}`;
           this.showTooltip(cx, cy - R - this.p(14), `Complete ${prevName} first`);
           return;
         }
-        if (!level.implemented) {
+        if (!level.implemented && !this.testUnlockAll) {
           this.showTooltip(cx, cy - R - this.p(14), 'Coming Soon');
           return;
         }
         this.playDoorOpen(0.34, 2.0, 0.12);
         this.openDifficultyPanel(level);
-        if (this.game.registry.get('tutorialActive')) {
-          this.game.events.emit('tutorial-level-clicked', level.id);
+        if (getRegistry(this.game).get('tutorialActive')) {
+          getEvents(this.game.events).emit('tutorial-level-clicked', level.id);
         }
       });
 
@@ -458,20 +638,42 @@ export class LevelSelectScene extends Phaser.Scene {
 
     const W = this.scale.width;
     const H = this.scale.height;
-    const isMobile = !!this.game.registry.get('isMobile');
+    const isMobile = !!getRegistry(this.game).get('isMobile');
     // On mobile the panel fills almost the entire canvas vertically so the
     // buttons are tap-friendly. Desktop keeps the original compact size.
     const pw = isMobile ? Math.min(this.p(560), W * 0.92) : this.p(300);
-    const ph = isMobile ? H * 0.92 : this.p(360);
+    // Panel height is content-driven: header + button block + start
+    // button + small bottom margin. Sized to wrap the contents so we
+    // don't leave a big void below the START button when the difficulty
+    // count grows. Mobile is capped to 92% of the canvas in case a tiny
+    // viewport can't fit the full content height.
+    const _btnCount = DIFFICULTY_ORDER.length;
+    const _headerH = this.p(isMobile ? 92 : 68);
+    const _blockTopGap = isMobile ? this.p(20) : this.p(14);
+    const _btnH = isMobile ? this.p(54) : this.p(36);
+    const _btnGap = isMobile ? this.p(10) : this.p(6);
+    const _btnBlockH = _btnCount * _btnH + (_btnCount - 1) * _btnGap;
+    const _gapToStart = isMobile ? this.p(20) : this.p(14);
+    const _startBtnH = isMobile ? this.p(56) : this.p(36);
+    const _bottomMargin = isMobile ? this.p(24) : this.p(20);
+    const phContent = _headerH + _blockTopGap + _btnBlockH + _gapToStart + _startBtnH + _bottomMargin;
+    const ph = isMobile ? Math.min(phContent, H * 0.92) : phContent;
     const px = W / 2, py = H / 2;
 
     // Backdrop
     const backdrop = this.add.rectangle(0, 0, W, H, 0x000000, 0.65)
       .setInteractive();
     backdrop.on('pointerdown', () => {
-      if (this.game.registry.get('tutorialActive')) return; // don't close during tutorial
+      if (getRegistry(this.game).get('tutorialActive')) return; // don't close during tutorial
       this.closeDifficultyPanel();
     });
+
+    // Transparent interactive rect sized to the modal box — sits above the
+    // backdrop so missed clicks inside the panel (between buttons) don't fall
+    // through and close the panel. Clicks outside the modal still hit the
+    // backdrop and close it.
+    const panelBlocker = this.add.rectangle(0, 0, pw + this.p(6), ph + this.p(6), 0x000000, 0)
+      .setInteractive();
 
     // Panel box
     const outerBox = this.add.graphics();
@@ -510,16 +712,21 @@ export class LevelSelectScene extends Phaser.Scene {
     // Difficulty buttons — larger and more spaced on mobile to fill the
     // taller panel and stay tap-friendly.
     const medals = this.medalStore[String(level.id)];
-    const btnH = isMobile ? this.p(60) : this.p(38);
-    const btnGap = isMobile ? this.p(12) : this.p(6);
+    const btnH = isMobile ? this.p(54) : this.p(36);
+    const btnGap = isMobile ? this.p(10) : this.p(6);
     const btnW = isMobile ? Math.min(this.p(460), pw - this.p(40)) : this.p(230);
-    // Center the 4-button block vertically within the panel (between the
-    // title area at top and the START button area at bottom).
-    const btnBlockH = 4 * btnH + 3 * btnGap;
-    const btnStartY = isMobile
-      ? -btnBlockH / 2 + btnH / 2
-      : this.p(-40);
-    const items: Phaser.GameObjects.GameObject[] = [backdrop, outerBox, innerBox, title, tag, divider];
+    // Anchor the button block just below the divider with a consistent
+    // gap. (Centering left a big void above the buttons when the count
+    // grew from 4 to 5, and the bottom of the block could overlap the
+    // START button.) First-button center is placed at a fixed offset
+    // below the divider regardless of how many buttons there are.
+    const btnCount = DIFFICULTY_ORDER.length;
+    const btnBlockH = btnCount * btnH + (btnCount - 1) * btnGap;
+    const blockTopGap = isMobile ? this.p(20) : this.p(14);
+    const btnStartY = dividerY + blockTopGap + btnH / 2;
+    this.diffBtnW = btnW;
+    this.diffBtnH = btnH;
+    const items: Phaser.GameObjects.GameObject[] = [backdrop, panelBlocker, outerBox, innerBox, title, tag, divider];
 
     for (let i = 0; i < DIFFICULTY_ORDER.length; i++) {
       const diff = DIFFICULTY_ORDER[i];
@@ -540,7 +747,7 @@ export class LevelSelectScene extends Phaser.Scene {
       }).setOrigin(0, 0.5);
 
       hitRect.on('pointerover', () => {
-        if (this.game.registry.get('tutorialActive') && diff !== 'easy') return;
+        if (getRegistry(this.game).get('tutorialActive') && diff !== 'easy') return;
         btnBg.clear();
         btnBg.fillStyle(0x2a3760, 1);
         btnBg.fillRoundedRect(-btnW / 2, by - btnH / 2, btnW, btnH, this.p(6));
@@ -548,7 +755,7 @@ export class LevelSelectScene extends Phaser.Scene {
         btnBg.strokeRoundedRect(-btnW / 2, by - btnH / 2, btnW, btnH, this.p(6));
       });
       hitRect.on('pointerout', () => {
-        if (this.game.registry.get('tutorialActive') && diff !== 'easy') return;
+        if (getRegistry(this.game).get('tutorialActive') && diff !== 'easy') return;
         const selected = this.selectedDiff === diff;
         btnBg.clear();
         btnBg.fillStyle(selected ? 0x2a3a60 : 0x1a2540, 1);
@@ -558,7 +765,7 @@ export class LevelSelectScene extends Phaser.Scene {
       });
       hitRect.on('pointerdown', () => {
         // During tutorial, only Easy is selectable
-        if (this.game.registry.get('tutorialActive') && diff !== 'easy') return;
+        if (getRegistry(this.game).get('tutorialActive') && diff !== 'easy') return;
         this.playDoorOpen(0.34, 2.0, 0.12);
         this.selectedDiff = diff;
         for (const btn of this.diffButtons) {
@@ -572,8 +779,8 @@ export class LevelSelectScene extends Phaser.Scene {
           btn.text.setColor(sel ? '#fff' : '#ccd');
         }
         this.updateStartButton();
-        if (this.game.registry.get('tutorialActive')) {
-          this.game.events.emit('tutorial-diff-clicked', diff);
+        if (getRegistry(this.game).get('tutorialActive')) {
+          getEvents(this.game.events).emit('tutorial-diff-clicked', diff);
         }
       });
 
@@ -594,9 +801,14 @@ export class LevelSelectScene extends Phaser.Scene {
     }
 
     // START button — sized up on mobile to match the larger panel.
+    // Positioned just below the last difficulty button so the gap stays
+    // tight regardless of how many difficulties exist. (Bottom-anchoring
+    // left a big void below the difficulties when the count was 4.)
     const startBtnW = isMobile ? this.p(220) : this.p(120);
     const startBtnH = isMobile ? this.p(56) : this.p(36);
-    this.startBtnY = ph / 2 - startBtnH - this.p(isMobile ? 24 : 16);
+    const lastBtnBottom = btnStartY + (btnCount - 1) * (btnH + btnGap) + btnH / 2;
+    const gapToStart = isMobile ? this.p(20) : this.p(14);
+    this.startBtnY = lastBtnBottom + gapToStart;
     this.startBtnG = this.add.graphics();
     this.startBtnG.fillStyle(0x1a2540, 1);
     this.startBtnG.fillRoundedRect(-startBtnW / 2, this.startBtnY, startBtnW, startBtnH, this.p(8));
@@ -658,6 +870,10 @@ export class LevelSelectScene extends Phaser.Scene {
   startBtnY = 0;
   startBtnW = 0;
   startBtnH = 0;
+  /** Difficulty-button geometry — exposed so the tutorial can highlight
+   *  the Easy button without re-deriving the panel layout math. */
+  diffBtnW = 0;
+  diffBtnH = 0;
 
   updateStartButton() {
     if (!this.startBtnG || !this.startHit || !this.startText) return;
