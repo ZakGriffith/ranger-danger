@@ -6,6 +6,7 @@
 
 import Phaser from 'phaser';
 import { PFrame, PPose, drawPlayer, drawBow } from './art/player';
+import { makeHD } from './art/hd';
 import {
   EFrame, EFrame6, ToadFrame,
   drawEnemyBasic, drawEnemyHeavy, drawEnemySnake, drawEnemyRat, drawEnemyDeer,
@@ -72,7 +73,8 @@ let artGenerated = false;
 export function generateAllArt(scene: Phaser.Scene) {
   if (artGenerated) return;
   artGenerated = true;
-  // Player — 3 vertical aim poses × (4-frame idle + 6-frame run), plus shoot/hit
+  // Player — HD (64 px) sprites: 3 vertical aim poses × (4-frame idle +
+  // 6-frame run), plus shoot/hit
   const pPoses: { pose: PPose; tag: string }[] = [
     { pose: 'level', tag: '' },
     { pose: 'up',    tag: 'up_' },
@@ -80,18 +82,17 @@ export function generateAllArt(scene: Phaser.Scene) {
   ];
   for (const { pose, tag } of pPoses) {
     for (let i = 0; i < 4; i++)
-      add(scene, `p_idle_${tag}${i}`, makeCanvas(32, drawPlayer(`idle${i}` as PFrame, pose)));
+      add(scene, `p_idle_${tag}${i}`, makeHD(64, drawPlayer(`idle${i}` as PFrame, pose)));
     for (let i = 0; i < 6; i++)
-      add(scene, `p_move_${tag}${i}`, makeCanvas(32, drawPlayer(`move${i}` as PFrame, pose)));
+      add(scene, `p_move_${tag}${i}`, makeHD(64, drawPlayer(`move${i}` as PFrame, pose)));
   }
-  add(scene, 'p_shoot_0', makeCanvas(32, drawPlayer('shoot0')));
-  add(scene, 'p_shoot_1', makeCanvas(32, drawPlayer('shoot1')));
-  add(scene, 'p_hit_0', makeCanvas(32, drawPlayer('hit')));
+  add(scene, 'p_shoot_0', makeHD(64, drawPlayer('shoot0')));
+  add(scene, 'p_shoot_1', makeHD(64, drawPlayer('shoot1')));
+  add(scene, 'p_hit_0', makeHD(64, drawPlayer('hit'), { flash: true }));
 
-  // Bow (separate rotatable sprite, 32x32, origin will be at ~left-center)
-  // Drawn pointing right, pivot near the grip (left side)
-  add(scene, 'bow_0', makeCanvas(32, drawBow(false)));
-  add(scene, 'bow_1', makeCanvas(32, drawBow(true)));
+  // Bow (separate rotatable sprite, origin at the grip ~(16, 32))
+  add(scene, 'bow_0', makeHD(64, drawBow(false)));
+  add(scene, 'bow_1', makeHD(64, drawBow(true)));
 
   // Enemies
   const eFrames: EFrame[] = ['move0','move1','move2','move3','atk0','atk1','hit','die0','die1','die2','die3'];
