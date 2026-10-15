@@ -4,8 +4,10 @@ import { CFG } from './config';
 // portrait and landscape use the same magnification factor (shorterDim / 540)
 // so rotating the device doesn't change how big the player/enemies appear —
 // landscape just reveals more world horizontally because the canvas is wider.
-// Desktop is governed by the legacy sf formula so its look is unchanged.
 const MOBILE_WORLD_W_PER_SHORT_DIM = 540;
+
+// Integer camera zoom the world is rendered at (see computeViewport).
+export const RENDER_ZOOM = 2;
 
 // Mobile UI design space. The UI is laid out assuming the canvas is this many
 // base units. uiScale = renderDimension / designDimension, so a slot defined at
@@ -40,37 +42,51 @@ export function isMobileDevice(): boolean {
 export function computeViewport(): ViewportInfo {
   const w = window.innerWidth;
   const h = window.innerHeight;
-  const dpr = window.devicePixelRatio || 1;
   const isMobile = isMobileDevice();
   const isPortrait = h > w;
 
+  // Both branches render the world at an exact integer camera zoom and let
+  // the browser scale the whole canvas to the window. Sprites are drawn at
+  // 2 texture px per world px (HD art at scale 0.5), so RENDER_ZOOM = 2
+  // puts every texture pixel on exactly one canvas pixel; sprites then move
+  // in whole canvas pixels and never shimmer. The canvas-to-window scale is
+  // fractional but uniform, which reads as crisp. Resolutions are therefore
+  // independent of devicePixelRatio.
   if (!isMobile) {
     // Desktop — canvas fills the full browser window (no 3:2 letterbox in
-    // GameScene). LevelSelectScene re-fits its own gameSize to 3:2
-    // internally so the hand-painted level-select map stays in place.
-    // sf is still derived from CFG.* for camera zoom + UI sizing so HUD
-    // dimensions and the visible world height feel the same as before;
-    // the only difference is wider monitors get more horizontal world
-    // (and a correspondingly larger spawn radius — see recomputeSpawnDist).
-    const sf = Math.max(1, Math.min(w * dpr / CFG.width, h * dpr / CFG.height));
+    // GameScene). The visible world is pinned to CFG.height tall when the
+    // window is wider than 3:2 (wider monitors get more horizontal world,
+    // and a correspondingly larger spawn radius — see recomputeSpawnDist),
+    // or CFG.width wide when it is narrower.
+    const aspect = w / h;
+    let renderW: number, renderH: number;
+    if (aspect >= CFG.width / CFG.height) {
+      renderH = CFG.height * RENDER_ZOOM;
+      renderW = Math.round(renderH * aspect);
+    } else {
+      renderW = CFG.width * RENDER_ZOOM;
+      renderH = Math.round(renderW / aspect);
+    }
     return {
       isMobile: false,
       isPortrait,
-      renderW: Math.round(w * dpr),
-      renderH: Math.round(h * dpr),
-      cameraZoom: sf,
-      uiScale: sf,
+      renderW,
+      renderH,
+      cameraZoom: RENDER_ZOOM,
+      uiScale: RENDER_ZOOM,
     };
   }
 
-  // Mobile — canvas fills the device viewport (no letterbox). Camera zoom is
-  // pinned to the shorter device dimension so portrait and landscape have the
-  // same magnification; rotating the device just reveals more world along the
-  // long axis instead of zooming the world contents.
-  const renderW = Math.round(w * dpr);
-  const renderH = Math.round(h * dpr);
-  const shortDim = Math.min(renderW, renderH);
-  const cameraZoom = shortDim / MOBILE_WORLD_W_PER_SHORT_DIM;
+  // Mobile — canvas fills the device viewport (no letterbox). The visible
+  // world is pinned to MOBILE_WORLD_W_PER_SHORT_DIM across the shorter device
+  // dimension so portrait and landscape have the same magnification;
+  // rotating the device just reveals more world along the long axis instead
+  // of zooming the world contents.
+  const shortDim = MOBILE_WORLD_W_PER_SHORT_DIM * RENDER_ZOOM;
+  const longDim = Math.round(shortDim * Math.max(w, h) / Math.min(w, h));
+  const renderW = isPortrait ? shortDim : longDim;
+  const renderH = isPortrait ? longDim : shortDim;
+  const cameraZoom = RENDER_ZOOM;
   // UI scale: on mobile the UI is re-authored to a smaller design space so the
   // resulting uiScale is generous enough for tap-sized hit targets while still
   // guaranteeing `designW * uiScale ≤ canvas_width` (no overflow).

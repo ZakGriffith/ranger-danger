@@ -120,6 +120,15 @@ function start() {
     scene: [BootScene, LevelSelectScene, GameScene, UIScene, TutorialScene, DebugGalleryScene]
   });
 
+  // pixelArt:true makes Phaser pin the canvas to image-rendering:pixelated.
+  // The world is rendered at an integer zoom (viewport.ts) and the whole
+  // canvas is then scaled to the window by a fractional factor; a uniform
+  // bilinear upscale of that frame reads crisper than nearest-neighbour,
+  // which would double random columns of pixels.
+  game.events.once(Phaser.Core.Events.READY, () => {
+    Phaser.Display.Canvas.CanvasInterpolation.setBicubic(game.canvas);
+  });
+
   // Hide overlay once GameScene is ready (after "Generating world..." from level select)
   getEvents(game.events).on('game-ready', () => {
     overlay.classList.add('hidden');

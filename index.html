@@ -55,7 +55,10 @@
         overflow: hidden;
         touch-action: none;          /* canvas owns gestures; no browser panning */
       }
-      canvas { image-rendering: pixelated; image-rendering: crisp-edges; }
+      /* Landing feature icons are tiny pixel sprites — keep them crisp. The game
+       * canvas is excluded: it renders at an integer zoom and is upscaled to
+       * the window with bilinear filtering (see main.ts / viewport.ts). */
+      .feat-icon { image-rendering: pixelated; image-rendering: crisp-edges; }
 
       /* ---- Landing overlay ---- */
       #overlay {
