@@ -1,9 +1,9 @@
-// Meadow enemies — snake and rat — drawn with the HD pipeline (hd.ts)
+// Meadow snake — drawn with the HD pipeline (hd.ts)
 // at 64 px, i.e. 32 world px at the entities' 0.5 scale, replacing the
 // legacy 32-px Scale2x versions that used to live in enemies.ts.
 //
-// Snake and rat rotate to face their travel direction (Enemy.rotates), so
-// they are drawn top-down facing +x. The deer lives in deer.ts.
+// The snake rotates to face its travel direction (Enemy.rotates), so it is
+// drawn top-down facing +x. The deer and rat live in deer.ts and rat.ts.
 //
 // Frames: an 8-frame move cycle (move0..7) and a 5-frame attack (atk0..4)
 // built as anticipation → strike → recoil. Hit flash and death are handled
@@ -127,92 +127,6 @@ export function drawSnake(f: MeadowFrame, tongue = false): HdDraw {
       for (let i = 16; i <= 18; i++) rawAt(raw, T(i, 0), TONGUE);
       rawAt(raw, T(19, -1), TONGUE);
       rawAt(raw, T(19, 1), TONGUE);
-    }
-  };
-}
-
-// ==================================================================
-//  RAT — top-down, low scurry. Diagonal leg pairs alternate: the stance
-//  pair reaches out while the swing pair tucks in. The naked tail whips
-//  behind with a lag.
-// ==================================================================
-
-/** [reach, gape 0..2, earsBack 0..1, crouch 0..1, streaks] per attack frame. */
-const RAT_BITE: ReadonlyArray<readonly [number, number, number, number, number]> = [
-  [-3, 0, 0.5, 1, 0],  // crouch back
-  [-2, 1, 1, 1, 0],    // ears flat, mouth opens
-  [4, 2, 1, 0, 0],     // lunge
-  [5, 0, 0.5, 0, 1],   // snap
-  [1, 0, 0, 0, 0],     // recover
-];
-
-export function drawRat(f: MeadowFrame): HdDraw {
-  return (put, raw) => {
-    const { move, atk } = phases(f);
-    const [reach, gape, earsBack, crouch, streaks] = atk >= 0 ? RAT_BITE[atk] : ([0, 0, 0, 0, 0] as const);
-    const phi = move >= 0 ? move * (TAU / 8) : 0;
-    const bx = 29 + Math.round(reach / 2);
-    const by = 32 + (move >= 0 ? Math.round(Math.sin(phi)) : 0);   // slight lateral sway
-
-    // tail — drawn first so the rump overlaps its root
-    for (let s = 0; s < 15; s++) {
-      const wave = move >= 0 ? Math.sin(phi - s * 0.33) : 0.4 * Math.sin(s * 0.3);
-      const ty = Math.round(by + wave * 4 * (s / 14));
-      const th = s < 5 ? 3 : s < 11 ? 2 : 1;
-      rect(put, bx - 13 - s, ty - (th >> 1), 1, th, 'pink.d');
-    }
-
-    // legs — short, out to the sides; diagonal pairs share a phase
-    const legs = [
-      { x: bx + 7, side: -1, k: 0, hw: 5.5 },
-      { x: bx + 7, side: 1, k: Math.PI, hw: 5.5 },
-      { x: bx - 6, side: -1, k: Math.PI, hw: 7.5 },
-      { x: bx - 6, side: 1, k: 0, hw: 7.5 },
-    ];
-    for (const L of legs) {
-      const ang = phi + L.k;
-      const front = L.x > bx;
-      const stride = move >= 0 ? Math.sin(ang) * 4
-        : atk >= 0 ? (front ? [-2, -3, 3, 4, 1] : [2, 3, -3, -4, -1])[atk] : 0;
-      const tucked = move >= 0 && Math.cos(ang) > 0;      // swing phase: lifted and drawn in
-      const out = tucked ? 2 : 4 - crouch;
-      const x1 = Math.round(L.x + stride), y1 = Math.round(by + L.side * (L.hw + out));
-      line(put, L.x, Math.round(by + L.side * (L.hw - 2)), x1, y1, tucked ? 'fur.d' : 'fur', 2);
-      rect(put, x1 - 1, y1 - (L.side < 0 ? 1 : 0), 3, 2, 'pink.d');
-    }
-
-    // body — plump pear: broad haunches, narrower shoulders
-    ellipse(put, bx - 4, by, 10, 8 - crouch / 2, 'fur');
-    ellipse(put, bx + 6, by, 7, 6, 'fur');
-    poly(put, [[bx - 4, by - 8], [bx + 6, by - 6], [bx + 6, by + 6], [bx - 4, by + 8]], 'fur');
-    for (const [sx, sy] of [[-9, -4], [-3, 2], [2, -4], [-6, 5], [5, 3]]) rect(put, bx + sx, by + sy, 2, 2, 'fur.dd');
-    for (const [sx, sy] of [[-7, 0], [0, -1], [-2, 6], [4, -5]]) put(bx + sx, by + sy, 'fur.l');
-
-    // head — pointed wedge; the neck stretches on a lunge
-    const hx = bx + 12;
-    const snout = hx + 11 + Math.max(0, reach) / 2;
-    poly(put, [[hx - 1, by - 6], [snout - 4, by - 3], [snout, by - 1.5], [snout, by + 1.5], [snout - 4, by + 3], [hx - 1, by + 6]], 'fur');
-    const ex = hx + 1 - earsBack * 3;
-    for (const s of [-1, 1]) {
-      disc(put, ex, by + s * 7, 3.5, 'fur');
-      disc(put, ex + 0.5, by + s * 7, 1.5, 'pink');
-      rect(put, hx + 6, by + (s < 0 ? -3 : 2), 1, 2, EYE_RED);
-    }
-    const sn = Math.round(snout);
-    rect(put, sn - 2, by - 1, 2, 2, 'pink');                              // nose
-    if (gape > 0) {
-      rect(put, sn - 5, by - gape, 3, 2 * gape + 1, 'red.dd');
-      put(sn - 4, by, 'string.l');                                        // incisors
-    }
-    for (let i = 0; i < 5; i++) {                                          // whiskers: raw, 1 px, no outline
-      raw(sn - 5 + i, by - 3 - i, WHISKER);
-      raw(sn - 5 + i, by + 3 + i, WHISKER);
-    }
-    if (streaks) {
-      for (let i = 0; i < 6; i++) {
-        raw(bx - 26 + i, by - 5, '#ffffff', 0.45);
-        raw(bx - 28 + i, by + 5, '#ffffff', 0.45);
-      }
     }
   };
 }

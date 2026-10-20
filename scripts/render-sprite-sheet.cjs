@@ -3,7 +3,7 @@
 // with node-canvas.
 //
 //   node scripts/render-sprite-sheet.cjs                       -> scripts/out/meadow-sheet.png
-//        the HD meadow enemies (snake, rat, deer) next to the ranger, every frame
+//        the HD meadow enemies (snake, rat, deer) next to the ranger, every frame, plus the rat palettes
 //   node scripts/render-sprite-sheet.cjs --tries <module.ts>   -> scripts/out/<module name>.png
 //        one row per design try exported by the module (export const TRIES: Try[])
 //
@@ -43,13 +43,15 @@ async function makeLoader() {
 async function meadowRows(load, hd) {
   const md = await load('/src/assets/art/meadow.ts');
   const dr = await load('/src/assets/art/deer.ts');
+  const rt = await load('/src/assets/art/rat.ts');
   const pl = await load('/src/assets/art/player.ts');
   const moves = [...md.MEADOW_MOVE_FRAMES];
   const atks = [...md.MEADOW_ATK_FRAMES];
   const enemy = (draw, extra) => [...moves, ...atks].map((f) => hd.makeHD(FRAME, draw(f))).concat(extra ? [hd.makeHD(FRAME, extra)] : []);
   return [
     { label: 'snake   move0-7 | atk0-4 | tongue', frames: enemy(md.drawSnake, md.drawSnake('move0', true)) },
-    { label: 'rat     move0-7 | atk0-4', frames: enemy(md.drawRat) },
+    { label: 'rat     move0-7 | atk0-4 (variant 0)', frames: enemy((f) => rt.drawRat(f, 0)) },
+    { label: 'rat palette variants (move0)', frames: Array.from({ length: rt.RAT_VARIANTS }, (_, v) => hd.makeHD(FRAME, rt.drawRat('move0', v))) },
     { label: 'deer    move0-7 | atk0-4', frames: enemy(dr.drawDeer) },
     { label: 'ranger (reference)   idle0-3 | move0-5',
       frames: ['idle0', 'idle1', 'idle2', 'idle3', 'move0', 'move1', 'move2', 'move3', 'move4', 'move5'].map((f) => hd.makeHD(FRAME, pl.drawPlayer(f))) },

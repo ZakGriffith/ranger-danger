@@ -18,8 +18,9 @@ import {
   drawWarlockBolt,
   drawEnemyDesert, drawSunBolt,
 } from './art/enemies';
-import { MEADOW_FRAMES, MEADOW_MOVE_FRAMES, MEADOW_ATK_FRAMES, drawSnake, drawRat } from './art/meadow';
+import { MEADOW_FRAMES, MEADOW_MOVE_FRAMES, MEADOW_ATK_FRAMES, drawSnake } from './art/meadow';
 import { drawDeer } from './art/deer';
+import { drawRat, RAT_VARIANTS } from './art/rat';
 import {
   Put, PutRGB, P, S,
   pxIdx, pxEq, pxCopy, scale2x, makeCanvas, mirrorX,
@@ -102,11 +103,11 @@ export function generateAllArt(scene: Phaser.Scene) {
   for (const f of eFrames) add(scene, `eh_${f}`, makeCanvas(32, drawEnemyHeavy(f)));
   // Extended frame set (6-frame move, 4-frame atk) shared by the biome enemies below
   const e6Frames: EFrame6[] = ['move0','move1','move2','move3','move4','move5','atk0','atk1','atk2','atk3','hit','die0','die1','die2','die3'];
-  // Meadow enemies are HD (art/meadow.ts, art/deer.ts): 8-frame move cycle, 5-frame attack
+  // Meadow enemies are HD (art/meadow.ts, art/deer.ts, art/rat.ts): 8-frame move cycle, 5-frame attack
   for (const f of MEADOW_FRAMES) add(scene, `esnk_${f}`, makeHD(64, drawSnake(f)));
   // Tongue-flick variant of move0 — scheduled sparsely by the esnk-move loop
   add(scene, 'esnk_move0t', makeHD(64, drawSnake('move0', true)));
-  for (const f of MEADOW_FRAMES) add(scene, `erat_${f}`, makeHD(64, drawRat(f)));
+  for (let v = 0; v < RAT_VARIANTS; v++) for (const f of MEADOW_FRAMES) add(scene, `erat${v}_${f}`, makeHD(64, drawRat(f, v)));
   for (const f of MEADOW_FRAMES) add(scene, `eder_${f}`, makeHD(64, drawDeer(f)));
   // Infected basic uses the extended frame set (6-frame lumber, 4-frame bite)
   for (const f of e6Frames) add(scene, `eib_${f}`, makeCanvas(32, drawEnemyInfectedBasic(f)));
@@ -481,8 +482,10 @@ export function registerAnimations(scene: Phaser.Scene) {
   mk('esnk-move', snkLoop, 18, -1);
   mk('esnk-atk',  ak('esnk'), 10, -1);
 
-  mk('erat-move', mv('erat'), 24, -1);
-  mk('erat-atk',  ak('erat'), 12, -1);
+  for (let v = 0; v < RAT_VARIANTS; v++) {
+    mk(`erat${v}-move`, mv(`erat${v}`), 20, -1);
+    mk(`erat${v}-atk`,  ak(`erat${v}`), 12, -1);
+  }
 
   mk('eder-move', mv('eder'), 12, -1);
   mk('eder-atk',  ak('eder'), 10, -1);

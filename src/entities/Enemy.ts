@@ -3,11 +3,14 @@ import { CFG } from '../config';
 import { applyEntityVisual } from '../assets/spriteOverrides';
 import { Shadow } from './Shadow';
 import { DEBUG } from '../debug.config';
+import { RAT_VARIANTS } from '../assets/art/rat';
 
 export type EnemyKind = 'basic' | 'heavy' | 'runner' | 'snake' | 'rat' | 'deer' | 'wolf' | 'bear' | 'spider' | 'infected_basic' | 'infected_heavy' | 'infected_runner' | 'toad' | 'crow' | 'bat' | 'dragonfly' | 'mosquito' | 'skeleton' | 'warlock' | 'golem' | 'shadow_imp' | 'castle_bat' | 'castle_rat' | 'scorpion' | 'boss_scorpion' | 'scarab' | 'sand_mite' | 'cactus_hopper' | 'dune_strider' | 'sand_wraith' | 'temple_guardian' | 'sun_mote';
 
 export class Enemy extends Phaser.Physics.Arcade.Sprite {
   kind: EnemyKind;
+  /** Palette variant for kinds that have several (rat); 0 otherwise. */
+  readonly variant: number;
   hp: number;
   maxHp: number;
   speed: number;
@@ -62,9 +65,11 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
       sun_mote: CFG.enemy.sun_mote,
     };
     const data = dataMap[kind];
-    const texPrefix = Enemy.texPrefix(kind);
+    const variant = Enemy.pickVariant(kind);
+    const texPrefix = Enemy.texPrefix(kind, variant);
     super(scene, x, y, `${texPrefix}_move0`);
     this.kind = kind;
+    this.variant = variant;
     this.hp = data.hp;
     this.maxHp = data.hp;
     this.speed = data.speed;
@@ -95,8 +100,8 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
         this.play('esnk-move');
         break;
       case 'rat':
-        applyEntityVisual(this, 'rat', 'move', 0.45, 26, 16, 19, 24);
-        this.play('erat-move');
+        applyEntityVisual(this, 'rat', 'move', 0.45, 38, 16, 18, 35);
+        this.play(`${texPrefix}-move`);
         break;
       case 'deer':
         applyEntityVisual(this, 'deer', 'move', 0.55, 36, 32, 8, 28);
@@ -200,8 +205,8 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
         break;
       case 'castle_rat':
         // castle_rat reuses the rat character wholesale (own stats, same art)
-        applyEntityVisual(this, 'rat', 'move', 0.45, 26, 16, 19, 24);
-        this.play('erat-move');
+        applyEntityVisual(this, 'rat', 'move', 0.45, 38, 16, 18, 35);
+        this.play(`${texPrefix}-move`);
         break;
       case 'scorpion':
         applyEntityVisual(this, 'scorpion', 'move', 0.5, 26, 22, 19, 23);
@@ -257,11 +262,16 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.prevY = this.y;
   }
 
-  static texPrefix(kind: EnemyKind): string {
+  /** Kinds with several palette variants pick one per enemy; the variant selects the texture set. */
+  static pickVariant(kind: EnemyKind): number {
+    return kind === 'rat' || kind === 'castle_rat' ? Phaser.Math.Between(0, RAT_VARIANTS - 1) : 0;
+  }
+
+  static texPrefix(kind: EnemyKind, variant = 0): string {
     switch (kind) {
       case 'heavy': return 'eh';
       case 'snake': return 'esnk';
-      case 'rat': return 'erat';
+      case 'rat': return `erat${variant}`;
       case 'deer': return 'eder';
       case 'infected_basic': return 'eib';
       case 'infected_heavy': return 'eih';
@@ -279,7 +289,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
       case 'golem': return 'ego';
       case 'shadow_imp': return 'esi';
       case 'castle_bat': return 'ebt'; // shares the bat's textures/anims
-      case 'castle_rat': return 'erat'; // shares the rat's textures/anims
+      case 'castle_rat': return `erat${variant}`; // shares the rat's textures/anims
       case 'scorpion': return 'escp';
       case 'boss_scorpion': return 'ebsc';
       case 'scarab': return 'esrb';
@@ -296,7 +306,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
   /** For bears: get the current directional prefix based on facing */
   dirPrefix(): string {
     if (this.kind === 'bear') return this.facing === 'l' ? 'eal' : 'ear';
-    return Enemy.texPrefix(this.kind);
+    return Enemy.texPrefix(this.kind, this.variant);
   }
 
   /** Update bear facing direction based on velocity. Returns true if direction changed. */
@@ -312,7 +322,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
 
   /** Returns true if this enemy kind should rotate to face movement direction. */
   get rotates(): boolean {
-    return this.kind === 'snake' || this.kind === 'rat' || this.kind === 'castle_rat' || this.kind === 'scorpion' || this.kind === 'boss_scorpion' || this.kind === 'scarab' || this.kind === 'sand_mite';
+    return this.kind === 'snake' || this.kind === 'scorpion' || this.kind === 'boss_scorpion' || this.kind === 'scarab' || this.kind === 'sand_mite';
   }
 
   private randomizeCurrentAnimationProgress(): void {
