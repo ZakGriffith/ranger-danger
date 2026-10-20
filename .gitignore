@@ -8,3 +8,6 @@ src/**/*.js
 .vercel
 
 .yarn/
+
+# Vite debug-log sink (see vite.config.ts)
+debug.log

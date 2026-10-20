@@ -22,12 +22,10 @@ export const DEBUG = {
    * they are so you can observe what's happening instead of vanishing back
    * to the spawn ring.
    */
-  disableStuckRecovery: true,
-  initialSpawns: [
-    { kind: 'wolf', distance: 300 },
-  ] as InitialSpawn[],
+  disableStuckRecovery: false,
+  initialSpawns: [] as InitialSpawn[],
   path: {
-    enabled: true,
+    enabled: false,
     kinds: [] as EnemyKind[],
     maxDistFromPlayer: 0,
     intervalMs: 150,
@@ -41,17 +39,18 @@ export const DEBUG = {
    *   ' '   = ignored (lets you align rows visually)
    * Set to empty string to disable.
    */
-  preBuiltMaze: `
-  ###############
-  #............@#
-  #.#############
-  #.............#
-  #############.#
-  #.............#
-  #.#############
-  #.............#
-  #############.#
-`,
+  preBuiltMaze: '',
+//   preBuiltMaze: `
+//   ###############
+//   #............@#
+//   #.#############
+//   #.............#
+//   #############.#
+//   #.............#
+//   #.#############
+//   #.............#
+//   #############.#
+// `,
 //   preBuiltMaze: `
 //   ..#####..
 //   .#.....#.
