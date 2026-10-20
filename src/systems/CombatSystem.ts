@@ -122,10 +122,16 @@ export class CombatSystem {
     const bob = playerFrameBob(stand.anims.currentFrame?.textureKey ?? '');
     const offset = 6 + Math.abs(Math.cos(angle)) * 5;
     const anchorY = pose === 'up' ? 0 : pose === 'down' ? 4 : 2;
-    bow.setRotation(angle).setFlipY(facingLeft).setDepth(behind ? 6.4 : 7);
+    // Depths ride on the body's y-sorted depth (DepthSortSystem.applyTowerDepth
+    // puts it a tenth above the tower base): the bow tucks just behind the body
+    // when aiming up-screen and sits in front otherwise, but either way stays
+    // above the base so it never disappears behind the tower. The nocked arrow
+    // matches projectile depth so it reads as the arrow about to fly.
+    const d = stand.depth;
+    bow.setRotation(angle).setFlipY(facingLeft).setDepth(d + (behind ? -0.05 : 0.1));
     bow.setPosition(stand.x + Math.cos(angle) * offset, stand.y + anchorY + bob + Math.sin(angle) * offset);
     if (nock) {
-      nock.setRotation(angle).setDepth(behind ? 6.45 : 7.5);
+      nock.setRotation(angle).setDepth(behind ? d - 0.04 : d + 4.9);
       nock.setPosition(bow.x + Math.cos(angle) * 15, bow.y + Math.sin(angle) * 15);
     }
   }
