@@ -87,7 +87,7 @@ const STATIC_GROUPS: StaticDebugGroup[] = [
     subtitle: 'tower art',
     textures: [
       { key: 't_base', label: 'arrow base' },
-      { key: 't_archer', label: 'archer' },
+      { key: 'ta0_idle_0', label: 'archer' },
       { key: 'c_base', label: 'cannon base' },
       { key: 'c_top_0', label: 'cannon' },
     ],
@@ -769,10 +769,9 @@ export class DebugGalleryScene extends Phaser.Scene {
 
   private addLineupTowerTop(x: number, baseY: number, baseH: number) {
     const centerY = baseY - baseH / 2;
-    for (const [key, offY] of [['t_archer', -24], ['t_top_0', -24]] as const) {
-      if (!this.textures.exists(key)) continue;
-      this.sandbox.add(this.add.sprite(x, centerY + offY, key).setScale(0.5));
-    }
+    if (!this.textures.exists('ta0_idle_0')) return;
+    this.sandbox.add(this.add.sprite(x, centerY - 24, 'ta0_idle_0').setScale(0.5));
+    this.sandbox.add(this.add.sprite(x + 10, centerY - 22, 't_top0_0').setOrigin(0.25, 0.5).setScale(0.5));
   }
 
   private addLineupCannonTop(x: number, baseY: number, baseH: number) {

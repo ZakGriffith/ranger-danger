@@ -7,6 +7,8 @@ import { Boss } from '../entities/Boss';
 import { Coin } from '../entities/Coin';
 import { Projectile } from '../entities/Projectile';
 import { SFX } from '../audio/sfx';
+import { playerFrameBob } from '../assets/art/player';
+import type { Tower } from '../entities/Tower';
 import type { GameScene } from '../scenes/GameScene';
 
 /**
@@ -61,21 +63,8 @@ export class CombatSystem {
         // Arrow: shoot at nearest enemy with lead targeting
         const tgt = this.findNearestEnemy(tower.x, tower.y, st.range);
         if (!tgt) {
-          // Reset shoot pose if the shot animation window has elapsed —
-          // otherwise a target that disappears right after firing leaves the
-          // bow stuck pulled back with the nocked arrow invisible forever.
-          if (time > tower.lastShot + 150) {
-            tower.top.setTexture('t_top_0');
-            if (tower.nockedArrow) tower.nockedArrow.setVisible(true);
-          }
-          // Keep the nocked arrow aligned with the bow's current rotation while idle
-          if (tower.nockedArrow) {
-            tower.nockedArrow.setPosition(
-              tower.top.x + Math.cos(tower.top.rotation) * 23,
-              tower.top.y + Math.sin(tower.top.rotation) * 23
-            );
-            tower.nockedArrow.setRotation(tower.top.rotation);
-          }
+          // Hold the last aim; the archer keeps breathing and the bow rides the bob
+          this.aimArcher(tower, tower.top.rotation);
           continue;
         }
         let aimX = tgt.x, aimY = tgt.y;
@@ -86,34 +75,58 @@ export class CombatSystem {
           aimX = tgt.x + tb.velocity.x * travelTime;
           aimY = tgt.y + tb.velocity.y * travelTime;
         }
-        const launchY = tower.top.y; // fire from the bow/archer position, not base center
-        const angle = Math.atan2(aimY - launchY, aimX - tower.x);
-        tower.top.setRotation(angle);
+        // Aim from the archer, not the base center
+        const archer = tower.stand ?? tower.top;
+        const angle = Math.atan2(aimY - archer.y, aimX - archer.x);
+        this.aimArcher(tower, angle);
         if (time > tower.lastShot + st.fireRate) {
           tower.lastShot = time;
           SFX.play('arrowShoot');
-          tower.top.setTexture('t_top_1');
-          if (tower.nockedArrow) tower.nockedArrow.setVisible(false);
+          const bow = tower.top, nock = tower.nockedArrow;
+          const shoot = `${tower.bowAnim}-shoot`;
+          bow.play(shoot, true);
+          nock?.setVisible(false);
+          bow.once(`animationcomplete-${shoot}`, () => {
+            bow.play(`${tower.bowAnim}-idle`);
+            nock?.setVisible(true);
+          });
           const aScale = 0.5 + tower.level * 0.12;
           const aTint = tower.level === 2 ? 0xffd67a : tower.level === 1 ? 0x9fd9ff : 0;
           // Spawn at the nocked-arrow position so the shot emanates from the bow
-          const spawnX = tower.top.x + Math.cos(angle) * 23;
-          const spawnY = tower.top.y + Math.sin(angle) * 23;
+          const spawnX = bow.x + Math.cos(angle) * 15;
+          const spawnY = bow.y + Math.sin(angle) * 15;
           this.spawnProjectile(spawnX, spawnY, aimX, aimY, st.projectileSpeed, st.damage, 0, aScale, aTint, tgt);
-        } else if (time > tower.lastShot + 150) {
-          tower.top.setTexture('t_top_0');
-          if (tower.nockedArrow) tower.nockedArrow.setVisible(true);
-        }
-
-        // Nocked arrow rides with the bow — fletching tip aligned with the bowstring
-        if (tower.nockedArrow) {
-          tower.nockedArrow.setPosition(
-            tower.top.x + Math.cos(angle) * 23,
-            tower.top.y + Math.sin(angle) * 23
-          );
-          tower.nockedArrow.setRotation(angle);
         }
       }
+    }
+  }
+
+  /**
+   * Pose the arrow tower's archer the way GameScene poses the ranger: the body
+   * faces and tilts toward the aim, the bow (which carries the arms) swings
+   * around the shoulders and rides the breathing bob, and aiming up-screen
+   * puts the bow behind the body. Mirrors GameScene's player bow offsets.
+   */
+  private aimArcher(tower: Tower, angle: number) {
+    const stand = tower.stand, bow = tower.top, nock = tower.nockedArrow;
+    if (!stand) return;
+    const facingLeft = Math.abs(angle) > Math.PI / 2;
+    const vert = Math.sin(angle); // negative = aiming up-screen
+    const pose = vert < -0.45 ? 'up' : vert > 0.45 ? 'down' : 'level';
+    const behind = vert < -0.3;
+
+    stand.setFlipX(facingLeft);
+    const anim = `${tower.archerAnim}-idle` + (pose === 'level' ? '' : `-${pose}`);
+    if (stand.anims.currentAnim?.key !== anim) stand.play(anim);
+
+    const bob = playerFrameBob(stand.anims.currentFrame?.textureKey ?? '');
+    const offset = 6 + Math.abs(Math.cos(angle)) * 5;
+    const anchorY = pose === 'up' ? 0 : pose === 'down' ? 4 : 2;
+    bow.setRotation(angle).setFlipY(facingLeft).setDepth(behind ? 6.4 : 7);
+    bow.setPosition(stand.x + Math.cos(angle) * offset, stand.y + anchorY + bob + Math.sin(angle) * offset);
+    if (nock) {
+      nock.setRotation(angle).setDepth(behind ? 6.45 : 7.5);
+      nock.setPosition(bow.x + Math.cos(angle) * 15, bow.y + Math.sin(angle) * 15);
     }
   }
 

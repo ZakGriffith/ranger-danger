@@ -1,6 +1,7 @@
-// All tower art: base/ballista/archer/bow/top + cannon mount and top.
+// Tower art: arrow base + ballista stand, cannon mount and top. The arrow
+// tower's archer and bow are the ranger figure from player.ts (TOWER_ARCHER).
 
-import { Put, P, mirrorX, rect, disc, ring, line, ellipse } from './canvas';
+import { Put, P, rect, disc, ring, line, ellipse } from './canvas';
 
 // ==================================================================
 //  TOWER (64x64) — 2x2 tile crossbow turret
@@ -124,118 +125,6 @@ export function drawBallistaStand(put: Put) {
 
 // ------------------------------------------------------------------
 // Tower archer — green-robed archer standing on tower, same style as player
-// Static body sprite (32x32), bow is separate and rotatable
-// ------------------------------------------------------------------
-export function drawTowerArcher(put: Put) {
-  const cx = 16;
-
-  // Shadow
-  for (let dy = -1; dy <= 1; dy++)
-    for (let dx = -5; dx <= 5; dx++)
-      if ((dx * dx) / 25 + (dy * dy) / 1.5 <= 1) put(cx + dx, 27 + dy, P.shadow);
-
-  // Legs
-  rect(put, cx - 3, 22, 3, 4, P.tunicD);
-  rect(put, cx - 3, 26, 3, 1, P.outline);
-  rect(put, cx + 1, 22, 3, 4, P.tunicD);
-  rect(put, cx + 1, 26, 3, 1, P.outline);
-
-  // Torso (green tunic)
-  const ty = 13;
-  rect(put, cx - 5, ty, 11, 9, P.tunic);
-  rect(put, cx - 5, ty, 11, 1, P.tunicL);
-  rect(put, cx - 5, ty + 1, 1, 8, P.tunicL);
-  rect(put, cx + 5, ty + 1, 1, 8, P.tunicD);
-  rect(put, cx - 4, ty + 8, 9, 1, P.tunicD);
-  // Belt
-  rect(put, cx - 5, ty + 6, 11, 1, P.woodD);
-  put(cx, ty + 6, P.goldL);
-
-  // Shoulder stubs
-  rect(put, cx - 6, ty + 2, 2, 3, P.tunic);
-  put(cx - 6, ty + 2, P.tunicL);
-  rect(put, cx + 5, ty + 2, 2, 3, P.tunic);
-
-  // Head with hood
-  const hx = cx, hy = 9;
-  disc(put, hx, hy, 4, P.skin);
-  // Hood
-  for (let y = -4; y <= -1; y++)
-    for (let x = -4; x <= 4; x++)
-      if (x * x + y * y <= 16) put(hx + x, hy + y, P.hood);
-  // Hood point
-  put(hx, hy - 5, P.hoodD); put(hx - 1, hy - 5, P.hoodD);
-  put(hx, hy - 6, P.outline);
-  // Hood highlight
-  put(hx - 2, hy - 3, P.tunic); put(hx - 1, hy - 4, P.tunic);
-  // Face
-  rect(put, hx - 2, hy, 5, 2, P.skin);
-  put(hx - 2, hy, P.skinL); put(hx - 1, hy, P.skinL);
-  put(hx + 1, hy, P.skinD); put(hx + 2, hy, P.skinD);
-  // Eyes
-  put(hx - 1, hy + 1, P.outline); put(hx + 1, hy + 1, P.outline);
-  // Neck
-  rect(put, cx - 1, hy + 4, 3, 1, P.skinD);
-
-  // Quiver on back
-  rect(put, cx - 4, ty + 1, 2, 6, P.woodD);
-  put(cx - 4, ty + 1, P.woodM); put(cx - 3, ty + 1, P.woodM);
-}
-
-// Tower archer bow — same as player bow but green arms
-export function drawTowerBow(shooting: boolean) {
-  return (put: Put) => {
-    const gx = 8, gy = 16;
-
-    // Back arm (string hand)
-    const stringPullX = shooting ? gx - 4 : gx;
-    rect(put, gx - 6, gy - 1, 2, 3, P.tunic);
-    put(gx - 6, gy - 1, P.tunicL);
-    for (let x = gx - 4; x >= stringPullX; x--) {
-      rect(put, x, gy - 1, 1, 3, P.tunicD);
-    }
-    rect(put, stringPullX - 1, gy - 1, 2, 3, P.skin);
-    put(stringPullX - 1, gy + 1, P.skinD);
-
-    // Front arm (bow hand)
-    rect(put, gx - 6, gy - 2, 2, 3, P.tunic);
-    put(gx - 6, gy - 2, P.tunicL);
-    rect(put, gx - 4, gy - 2, 4, 3, P.tunicD);
-    rect(put, gx - 4, gy - 2, 4, 1, P.tunicL);
-    rect(put, gx, gy - 2, 3, 4, P.skin);
-    put(gx, gy - 2, P.skinL);
-    put(gx + 2, gy + 1, P.skinD);
-
-    // Bow (wooden arc)
-    for (let y = -10; y <= 10; y++) {
-      const curve = Math.round(y * y * 0.04);
-      const bx = gx + 4 - curve;
-      put(bx + 1, gy + y, P.woodD);
-      put(bx, gy + y, P.wood);
-      put(bx - 1, gy + y, P.woodL);
-    }
-    rect(put, gx + 3, gy - 10, 2, 2, P.steel);
-    rect(put, gx + 3, gy + 9, 2, 2, P.steel);
-
-    // Bowstring
-    for (let y = -9; y <= 9; y++) {
-      const pull = shooting ? Math.round((1 - (y * y) / 81) * 4) : 0;
-      put(gx + 1 - pull, gy + y, P.stoneL);
-    }
-
-    if (shooting) {
-      put(gx + 17, gy, P.sparkL);
-      put(gx + 18, gy - 1, P.spark);
-      put(gx + 18, gy + 1, P.spark);
-    }
-  };
-}
-
-// Legacy wrapper
-export function drawTowerTop(shoot = false) {
-  return drawTowerBow(shoot);
-}
-
 // ==================================================================
 //  CANNON TURRET TOP (64x64) — fat dark cannon, pivot (32,32), aims right
 // ==================================================================

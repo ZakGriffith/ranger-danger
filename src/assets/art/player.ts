@@ -1,8 +1,10 @@
 // Player + bow sprites, drawn with the HD pipeline (hd.ts) at 64 px.
 // The "Ranger" hero — hooded, blue tunic, quiver over the left shoulder —
-// plus a separate rotatable bow sprite that carries both arms.
+// plus a separate rotatable bow sprite that carries both arms. The arrow
+// tower's archer is the same figure in a different outfit per tower level
+// (TOWER_ARCHER).
 //
-// drawPlayer(frame, pose):
+// drawPlayer(frame, pose, outfit):
 //  - frame: 4-frame idle (breathing bob + blink), 6-frame run cycle
 //    (legs scissor along x with a swing-leg lift, body dips on contact).
 //  - pose: vertical aim stance picked by GameScene from the bow angle.
@@ -12,13 +14,33 @@
 // Sprite is 64 HD px = 32 world px (entities render at scale 0.5), so
 // 2 HD px = 1 world px. Facing right; GameScene flips X to face left.
 
-import { HdDraw, rect, rrect, disc, ellipse, line, poly, groundShadow } from './hd';
+import { HdDraw, Mat, Paint, rect, rrect, disc, ellipse, line, poly, groundShadow } from './hd';
 
 export type PPose = 'level' | 'up' | 'down';
 export type PFrame =
   'idle0' | 'idle1' | 'idle2' | 'idle3' |
   'move0' | 'move1' | 'move2' | 'move3' | 'move4' | 'move5' |
   'shoot0' | 'shoot1' | 'hit';
+
+export type Outfit = {
+  tunic: Mat;
+  hood: Mat;
+  /** 'tail': hood with a trailing tail; 'point': peaked hood; 'cap': close-fitting cap. */
+  hat: 'tail' | 'point' | 'cap';
+  feather: Mat | null;
+  pouch: boolean;
+  /** Quiver slung over the left shoulder, or hung off the left hip. */
+  quiver: 'back' | 'hip';
+  /** Belt and hood-edge material; a leather belt and a lighter hood edge when null. */
+  trim: Mat | null;
+};
+export const RANGER: Outfit = { tunic: 'blue', hood: 'hood', hat: 'tail', feather: 'gold', pouch: true, quiver: 'back', trim: null };
+/** Indexed by tower level: field green, then a darker veteran, then crimson hood with gold trim. */
+export const TOWER_ARCHER: readonly Outfit[] = [
+  { tunic: 'green',  hood: 'olive',   hat: 'tail', feather: null, pouch: false, quiver: 'hip', trim: null },
+  { tunic: 'forest', hood: 'slate',   hat: 'tail', feather: null, pouch: false, quiver: 'hip', trim: null },
+  { tunic: 'forest', hood: 'crimson', hat: 'tail', feather: null, pouch: false, quiver: 'hip', trim: 'gold' },
+];
 
 // Body-bob tables in world px (positive = torso/head sink, feet planted).
 // Shared by drawPlayer and playerFrameBob so the bow can ride the bob.
@@ -29,14 +51,16 @@ const MOVE_BOB = [1, 0, 0, 1, 0, 0] as const;
  *  GameScene adds this to the bow/nock offsets so the arms ride the torso
  *  instead of floating. */
 export function playerFrameBob(textureKey: string): number {
-  const m = textureKey.match(/^p_(idle|move)_(?:up_|down_)?(\d)$/);
+  const m = textureKey.match(/^(?:p|ta\d)_(idle|move)_(?:up_|down_)?(\d)$/);
   if (!m) return 0;
   return (m[1] === 'idle' ? IDLE_BOB[+m[2]] : MOVE_BOB[+m[2]]) ?? 0;
 }
 
 const EYE = '#0b0f1a';
 
-export function drawPlayer(frame: PFrame, pose: PPose = 'level'): HdDraw {
+export function drawPlayer(frame: PFrame, pose: PPose = 'level', o: Outfit = RANGER): HdDraw {
+  const tunic = o.tunic, tunicD = `${o.tunic}.d` as Paint;
+  const hood = o.hood, hoodL = `${o.hood}.l` as Paint;
   return (put, raw) => {
     const cx = 32;
 
@@ -62,7 +86,7 @@ export function drawPlayer(frame: PFrame, pose: PPose = 'level'): HdDraw {
     // ----- legs (far leg first so the near leg overlaps it)
     const leg = (x: number, lift: number, far: boolean) => {
       const top = 43 + crouch + lift;
-      rrect(put, x, top, 6, 53 - top, 2, far ? 'blue.d' : 'blue');
+      rrect(put, x, top, 6, 53 - top, 2, far ? tunicD : tunic);
       rrect(put, x - 1, 51 + lift, 8, 5, 2, far ? 'boot.d' : 'boot');
     };
     leg(cx - 8 + strideL, liftL, true);
@@ -70,42 +94,59 @@ export function drawPlayer(frame: PFrame, pose: PPose = 'level'): HdDraw {
 
     // ----- torso (tunic) -----
     const torsoY = 26 + bob + crouch;
-    rrect(put, cx - 12, torsoY, 24, 18, 4, 'blue');
-    rect(put, cx, torsoY + 14, 1, 4, 'blue.d');                       // tunic front split
-    line(put, cx - 10, torsoY + 2, cx + 9, torsoY + 12, 'leather', 2); // quiver strap
-    rect(put, cx - 12, torsoY + 12, 24, 3, 'leather');                 // belt
+    rrect(put, cx - 12, torsoY, 24, 18, 4, tunic);
+    rect(put, cx, torsoY + 14, 1, 4, tunicD);                          // tunic front split
+    if (o.quiver === 'back') line(put, cx - 10, torsoY + 2, cx + 9, torsoY + 12, 'leather', 2); // quiver strap
+    rect(put, cx - 12, torsoY + 12, 24, 3, o.trim ?? 'leather');       // belt
     rrect(put, cx - 1, torsoY + 11, 4, 5, 1, 'gold');                  // buckle
-    rrect(put, cx + 6, torsoY + 14, 6, 5, 1, 'wood');                  // hip pouch
+    if (o.pouch) rrect(put, cx + 6, torsoY + 14, 6, 5, 1, 'wood');     // hip pouch
 
-    // ----- quiver over the left shoulder -----
-    const qy = torsoY - 6;
-    poly(put, [[cx - 17, qy + 2], [cx - 12, qy], [cx - 10, qy + 12], [cx - 15, qy + 14]], 'wood');
-    line(put, cx - 15, qy + 2, cx - 16, qy - 4, 'wood.l', 2);
-    disc(put, cx - 16, qy - 5, 2, 'red');
-    line(put, cx - 12, qy + 1, cx - 12, qy - 5, 'wood.l', 2);
-    disc(put, cx - 12, qy - 6, 2, 'red.l');
+    // ----- quiver: over the left shoulder, or hung off the left hip -----
+    if (o.quiver === 'back') {
+      const qy = torsoY - 6;
+      poly(put, [[cx - 17, qy + 2], [cx - 12, qy], [cx - 10, qy + 12], [cx - 15, qy + 14]], 'wood');
+      line(put, cx - 15, qy + 2, cx - 16, qy - 4, 'wood.l', 2);
+      disc(put, cx - 16, qy - 5, 2, 'red');
+      line(put, cx - 12, qy + 1, cx - 12, qy - 5, 'wood.l', 2);
+      disc(put, cx - 12, qy - 6, 2, 'red.l');
+    } else {
+      const qy = torsoY + 12;
+      poly(put, [[cx - 16, qy + 1], [cx - 10, qy], [cx - 9, qy + 10], [cx - 15, qy + 11]], 'wood');
+      line(put, cx - 13, qy, cx - 15, qy - 7, 'wood.l', 2);
+      disc(put, cx - 16, qy - 8, 2, 'red');
+      line(put, cx - 11, qy, cx - 11, qy - 7, 'wood.l', 2);
+      disc(put, cx - 11, qy - 8, 2, 'red.l');
+    }
 
     // ----- shoulders (arms are on the bow sprite) -----
-    ellipse(put, cx - 13, torsoY + 5, 3, 4, 'blue');
-    ellipse(put, cx + 12, torsoY + 5, 3, 4, 'blue');
+    ellipse(put, cx - 13, torsoY + 5, 3, 4, tunic);
+    ellipse(put, cx + 12, torsoY + 5, 3, 4, tunic);
 
     // ----- head -----
     const headCx = cx + (moveIdx >= 0 ? 2 : 0); // slight forward lean at a run
     const headCy = 17 + bob + headDy + crouch;
     rect(put, cx - 2, headCy + 8, 5, 2, 'skin.d');                     // neck
     disc(put, headCx + 1, headCy, 8, 'skin');
-    // hood: cap over the skull down to the brow, brim fold under it
+    // hood: cap over the skull down to the brow, brim fold under it (a cap sits higher)
     const capCx = headCx + hoodDx;
-    for (let y = -11; y <= -3 + brimDrop; y++)
+    const capBottom = (o.hat === 'cap' ? -5 : -3) + brimDrop;
+    for (let y = -11; y <= capBottom; y++)
       for (let x = -11; x <= 11; x++)
-        if (x * x + y * y <= 118) put(capCx + x, headCy + y, 'hood');
+        if (x * x + y * y <= 118) put(capCx + x, headCy + y, hood);
     for (let x = -10; x <= 10; x++)
-      if (x * x + 4 <= 118) rect(put, capCx + x, headCy - 2 + brimDrop, 1, 2, 'hood.l');
-    // hood tail trailing off the back
-    poly(put, [[capCx - 11, headCy - 4], [capCx - 8, headCy + 1], [capCx - 12, headCy + 3], [capCx - 14, headCy - 1]], 'hood');
-    // gold feather swept back along the hood
-    line(put, capCx - 4, headCy - 9, capCx - 13, headCy - 5, 'gold', 3);
-    put(capCx - 14, headCy - 4, 'gold.l');
+      if (x * x + 4 <= 118) rect(put, capCx + x, headCy + capBottom + 1, 1, 2, o.trim ?? hoodL);
+    if (o.hat === 'tail') {
+      // hood tail trailing off the back
+      poly(put, [[capCx - 11, headCy - 4], [capCx - 8, headCy + 1], [capCx - 12, headCy + 3], [capCx - 14, headCy - 1]], hood);
+    } else if (o.hat === 'point') {
+      // peaked hood, the point swept back
+      poly(put, [[capCx - 5, headCy - 9], [capCx + 3, headCy - 10], [capCx - 1, headCy - 14], [capCx - 6, headCy - 12]], hood);
+    }
+    if (o.feather) {
+      // feather swept back along the hood
+      line(put, capCx - 4, headCy - 9, capCx - 13, headCy - 5, o.feather, 3);
+      put(capCx - 14, headCy - 4, `${o.feather}.l` as Paint);
+    }
     // face (quarter view — features sit toward the facing side)
     if (blink) {
       rect(put, headCx - 1, headCy, 2, 1, 'skin.d');
@@ -122,19 +163,20 @@ export function drawPlayer(frame: PFrame, pose: PPose = 'level'): HdDraw {
 //  BOW (64x64) — separate rotatable weapon sprite carrying both arms.
 //  Drawn pointing right. Origin (0.25, 0.5) = grip at (16, 32).
 // ==================================================================
-export function drawBow(shooting: boolean): HdDraw {
+export function drawBow(shooting: boolean, sleeve: Mat = 'blue'): HdDraw {
+  const sleeveD = `${sleeve}.d` as Paint;
   return (put, raw) => {
     const gx = 16, gy = 32;
 
     // ===== BACK ARM (string hand) — far side, darker =====
     const stringPullX = shooting ? gx - 8 : gx;
-    rrect(put, gx - 12, gy - 2, 5, 6, 2, 'blue.d');                      // upper arm
-    rect(put, stringPullX, gy - 1, gx - 8 - stringPullX + 2, 5, 'blue.d'); // forearm
+    rrect(put, gx - 12, gy - 2, 5, 6, 2, sleeveD);                        // upper arm
+    rect(put, stringPullX, gy - 1, gx - 8 - stringPullX + 2, 5, sleeveD);  // forearm
     rrect(put, stringPullX - 2, gy - 3, 5, 6, 2, 'skin.d');                // string hand
 
     // ===== FRONT ARM (bow hand) =====
-    rrect(put, gx - 12, gy - 6, 5, 6, 2, 'blue');                         // upper arm
-    rrect(put, gx - 8, gy - 6, 9, 6, 2, 'blue');                          // forearm
+    rrect(put, gx - 12, gy - 6, 5, 6, 2, sleeve);                         // upper arm
+    rrect(put, gx - 8, gy - 6, 9, 6, 2, sleeve);                          // forearm
     rrect(put, gx - 1, gy - 6, 6, 8, 2, 'skin');                          // grip hand
 
     // ===== BOW (wooden arc, convex toward the target) =====

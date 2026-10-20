@@ -11,8 +11,8 @@ const STATIC_TEXTURE_KEYS: string[] = [
   ...Array.from({ length: 16 }, (_, i) => `wall_${i}`),
   ...Array.from({ length: 16 }, (_, i) => `wall_${i}_dmg`),
   // Tower components
-  't_archer',
-  't_top_0', 't_top_1',
+  'ta0_idle_0', 'ta1_idle_0', 'ta2_idle_0',
+  't_top0_0', 't_top0_1',
   'c_mount',
   'c_top_0', 'c_top_1',
   'foundation',

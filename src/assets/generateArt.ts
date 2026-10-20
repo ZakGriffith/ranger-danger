@@ -5,7 +5,7 @@
 // in order via registerAnimations().
 
 import Phaser from 'phaser';
-import { PFrame, PPose, drawPlayer, drawBow } from './art/player';
+import { PFrame, PPose, drawPlayer, drawBow, TOWER_ARCHER } from './art/player';
 import { makeHD } from './art/hd';
 import {
   EFrame, EFrame6, ToadFrame,
@@ -36,8 +36,7 @@ import {
   drawQueenOrb, drawDragonFireball, drawDragonFireExplosion,
 } from './art/bosses';
 import {
-  drawTowerBase, drawBallistaStand, drawTowerArcher, drawTowerBow,
-  drawTowerTop, drawCannonMount, drawCannonTop,
+  drawTowerBase, drawBallistaStand, drawCannonMount, drawCannonTop,
 } from './art/towers';
 import {
   CoinTier,
@@ -233,10 +232,15 @@ export function generateAllArt(scene: Phaser.Scene) {
   if (scene.textures.exists('c_base_2_png')) {
     copyTex('c_base_2_png', 'c_base_2');
   }
-  // Arrow tower: static archer body + rotatable bow (same system as player)
-  add(scene, 't_archer', makeCanvas(32, drawTowerArcher));
-  add(scene, 't_top_0', makeCanvas(32, drawTowerBow(false)));
-  add(scene, 't_top_1', makeCanvas(32, drawTowerBow(true)));
+  // Arrow tower: the ranger figure in the tower archer's outfit, one palette per
+  // tower level (art/player.ts), with the same idle breathing and aim stances,
+  // plus its rotatable bow with matching sleeves
+  TOWER_ARCHER.forEach((outfit, t) => {
+    for (const [tag, pose] of [['', 'level'], ['up_', 'up'], ['down_', 'down']] as const)
+      for (let i = 0; i < 4; i++) add(scene, `ta${t}_idle_${tag}${i}`, makeHD(64, drawPlayer(`idle${i}` as PFrame, pose, outfit)));
+    add(scene, `t_top${t}_0`, makeHD(64, drawBow(false, outfit.tunic)));
+    add(scene, `t_top${t}_1`, makeHD(64, drawBow(true, outfit.tunic)));
+  });
   add(scene, 'c_mount', makeCanvas(64, drawCannonMount()));
   add(scene, 'c_top_0', makeCanvas(64, drawCannonTop(false)));
   add(scene, 'c_top_1', makeCanvas(64, drawCannonTop(true)));
@@ -463,6 +467,12 @@ export function registerAnimations(scene: Phaser.Scene) {
   mk('player-move-down', pMove('down_'), 12, -1);
   mk('player-shoot', ['p_shoot_0','p_shoot_1'], 14, 0);
   mk('player-hit',   ['p_hit_0'], 8, 0);
+  TOWER_ARCHER.forEach((_, t) => {
+    const aIdle = (tag: string) => [0, 1, 2, 3].map(i => `ta${t}_idle_${tag}${i}`);
+    mk(`archer${t}-idle`,      aIdle(''),      4, -1);
+    mk(`archer${t}-idle-up`,   aIdle('up_'),   4, -1);
+    mk(`archer${t}-idle-down`, aIdle('down_'), 4, -1);
+  });
   mk('bow-idle',  ['bow_0'], 1, 0);
   mk('bow-shoot', ['bow_1', 'bow_0'], 10, 0);
 
@@ -611,8 +621,10 @@ export function registerAnimations(scene: Phaser.Scene) {
   }
   mk('sunbolt-spin', ['sunbolt_0','sunbolt_1'], 10, -1);
 
-  mk('tower-top-idle',  ['t_top_0'], 1, 0);
-  mk('tower-top-shoot', ['t_top_1','t_top_0'], 14, 0);
+  TOWER_ARCHER.forEach((_, t) => {
+    mk(`tower-top${t}-idle`,  [`t_top${t}_0`], 1, 0);
+    mk(`tower-top${t}-shoot`, [`t_top${t}_1`, `t_top${t}_0`], 14, 0);
+  });
   mk('cannon-top-idle',  ['c_top_0'], 1, 0);
   mk('cannon-top-shoot', ['c_top_1','c_top_0'], 10, 0);
 

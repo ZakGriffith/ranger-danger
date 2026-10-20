@@ -32,6 +32,12 @@ export const M = {
   steel:   ['#eef2f6', '#c0c8d4', '#7a8090', '#4a525a'],
   string:  ['#ffffff', '#d8dce4', '#a0a8b4', '#6a7280'],
   spark:   ['#fffbd0', '#ffe070', '#e0a020', '#a06010'],
+  // tower archer outfits per tower level (player.ts TOWER_ARCHER)
+  green:   ['#7cc45e', '#3f8a3e', '#28602a', '#183d1a'],
+  olive:   ['#6f8c48', '#3f5a2c', '#283c1c', '#172412'],
+  forest:  ['#5a9a3c', '#2f6a2a', '#1e4a1c', '#122e11'],
+  slate:   ['#6a7a8a', '#3e4a58', '#28313c', '#171d24'],
+  crimson: ['#d04040', '#962626', '#5e1616', '#3a0c0c'],
   // meadow enemies (meadow.ts)
   scale:   ['#9ad05e', '#5e9a3c', '#3b6a27', '#25461a'],
   fur:     ['#bcae9c', '#8c7a68', '#5e5044', '#3a3028'],

@@ -11,7 +11,7 @@ export class Tower extends Phaser.Physics.Arcade.Sprite {
   maxHp: number;
   totalSpent: number;
   lastShot = 0;
-  stand: Phaser.GameObjects.Sprite | null = null; // static ballista stand (arrow only)
+  stand: Phaser.GameObjects.Sprite | null = null; // archer body (arrow) or cannon mount
   top: Phaser.GameObjects.Sprite;
   nockedArrow: Phaser.GameObjects.Sprite | null = null; // real arrow resting on bow (arrow only)
   hpBar: Phaser.GameObjects.Graphics;
@@ -56,22 +56,23 @@ export class Tower extends Phaser.Physics.Arcade.Sprite {
     const topOffY = kind === 'arrow' ? -24 : -20;
 
     if (kind === 'arrow') {
-      // Static archer body standing on tower
-      this.stand = scene.add.sprite(wx, wy + topOffY, 't_archer').setDepth(6.5).setScale(0.5);
+      // Archer standing on the tower: breathes, faces and tilts toward the aim
+      // (CombatSystem.aimArcher); outfit palette follows the tower level
+      this.stand = scene.add.sprite(wx, wy + topOffY, 'ta0_idle_0').setDepth(6.5).setScale(0.5);
     } else if (kind === 'cannon') {
       // Static cannon mount / carriage (doesn't rotate)
       this.stand = scene.add.sprite(wx, wy + topOffY, 'c_mount').setDepth(6.5).setScale(0.5);
     }
 
     // Rotating top (bow for arrow tower, barrel for cannon)
-    const topTex = kind === 'cannon' ? 'c_top_0' : 't_top_0';
+    const topTex = kind === 'cannon' ? 'c_top_0' : 't_top0_0';
     this.top = scene.add.sprite(wx, wy + topOffY, topTex).setDepth(7).setScale(0.5);
     if (kind === 'arrow') {
-      // Bow origin: further left so the bow extends out from the archer's body
-      this.top.setOrigin(0.0, 0.5);
-      // Real arrow resting on the bow — initial position matches the rotation=0 offset
-      // used in updateTowers so it renders correctly before the first frame of aiming.
-      this.nockedArrow = scene.add.sprite(wx + 23, wy + topOffY, 'arrow_0').setDepth(7.5).setScale(0.5);
+      // The bow carries the arms (player.ts drawBow): origin at the grip, held out
+      // to the side at rest, the nocked arrow's fletching on the string. Matches
+      // CombatSystem.aimArcher at rotation 0 so nothing jumps on the first aim.
+      this.top.setOrigin(0.25, 0.5).setPosition(wx + 10, wy + topOffY + 2);
+      this.nockedArrow = scene.add.sprite(wx + 25, wy + topOffY + 2, 'arrow_0').setDepth(7.5).setScale(0.5);
     }
 
     this.hpBar = scene.add.graphics().setDepth(20);
@@ -81,6 +82,22 @@ export class Tower extends Phaser.Physics.Arcade.Sprite {
     this.maxHp = s.hp;
     this.totalSpent = CFG.tower.kinds[kind].cost;
     this.applyTierVisual();
+    this.applyArcherTier();
+  }
+
+  /** Animation prefix for the archer body at this level; CombatSystem adds the pose suffix. */
+  get archerAnim(): string { return `archer${this.level}`; }
+  /** Animation prefix for the archer's bow at this level. */
+  get bowAnim(): string { return `tower-top${this.level}`; }
+
+  /** Switch the archer and bow to this level's outfit. Only on construction
+   *  and upgrade: applyTierVisual also runs after every hit flash, and
+   *  restarting the animations there would cut shots short. */
+  private applyArcherTier() {
+    if (this.kind !== 'arrow' || !this.stand) return;
+    this.stand.play(`${this.archerAnim}-idle`);
+    this.top.play(`${this.bowAnim}-idle`);
+    this.nockedArrow?.setVisible(true);
   }
 
   stats() {
@@ -103,6 +120,7 @@ export class Tower extends Phaser.Physics.Arcade.Sprite {
     this.maxHp = s.hp;
     this.hp = Math.ceil(s.hp * ratio);
     this.applyTierVisual();
+    this.applyArcherTier();
     // pop fx
     const scale = 0.5;
     const targets = [this, this.top];
