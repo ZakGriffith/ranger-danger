@@ -197,14 +197,6 @@ export const P = {
   toadWL: '#c89858',   // wart highlight
   toadB:  '#c0a070',   // belly/chin tan
 
-  // tarantula browns (spider redesign)
-  spdr:   '#6a4a34',   // abdomen brown
-  spdrD:  '#3e2a1e',   // dark mottling / shadow
-  spdrM:  '#544038',   // cephalothorax + legs
-  spdrL:  '#8a6a4e',   // fuzz highlight
-  spdrO:  '#c87a4a',   // orange leg bands + tarsi
-  spdrF:  '#d89a5a',   // pale fangs
-
   // Forest boss (Wendigo) + shared bark/leaf for boulders etc.
   bark:    '#4a3420',
   barkD:   '#2a1808',
