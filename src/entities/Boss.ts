@@ -4,6 +4,7 @@ import { CFG } from '../config';
 import { applyEntityVisual } from '../assets/spriteOverrides';
 import { Shadow } from './Shadow';
 import { measureOpaqueBounds } from './spriteBounds';
+import { DEBUG } from '../debug.config';
 
 export type BossState =
   | 'chase'
@@ -165,6 +166,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
   }
 
   hurt(amount: number) {
+    if (DEBUG.noDamage) return;
     if (this.dying) return;
     this.hp -= amount;
     this.setTintFill(0xffffff);

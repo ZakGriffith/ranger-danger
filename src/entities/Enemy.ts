@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { CFG } from '../config';
 import { applyEntityVisual } from '../assets/spriteOverrides';
 import { Shadow } from './Shadow';
+import { DEBUG } from '../debug.config';
 
 export type EnemyKind = 'basic' | 'heavy' | 'runner' | 'snake' | 'rat' | 'deer' | 'wolf' | 'bear' | 'spider' | 'infected_basic' | 'infected_heavy' | 'infected_runner' | 'toad' | 'crow' | 'bat' | 'dragonfly' | 'mosquito' | 'skeleton' | 'warlock' | 'golem' | 'shadow_imp' | 'castle_bat' | 'castle_rat' | 'scorpion' | 'boss_scorpion' | 'scarab' | 'sand_mite' | 'cactus_hopper' | 'dune_strider' | 'sand_wraith' | 'temple_guardian' | 'sun_mote';
 
@@ -335,6 +336,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
   }
 
   hurt(amount: number) {
+    if (DEBUG.noDamage) return;
     if (this.dying) return;
     this.hp -= amount;
     this.setTintFill(0xffffff);

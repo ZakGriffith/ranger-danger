@@ -4,6 +4,7 @@ import { getEvents } from '../core/events';
 import { CFG } from '../config';
 import { Player } from '../entities/Player';
 import { Enemy, EnemyKind } from '../entities/Enemy';
+import { DEBUG } from '../debug.config';
 import { Tower, TowerKind } from '../entities/Tower';
 import { Wall } from '../entities/Wall';
 import { Projectile } from '../entities/Projectile';
@@ -161,7 +162,6 @@ export class GameScene extends Phaser.Scene {
    *  bossCountdownUntil). Read fields directly; mutate via the named
    *  transition methods. Constructed once and reset() per level. */
   waveState = new WaveState();
-  pathsThisFrame = 0;     // BFS pathfinding budget per frame
   countdownMsg = '';
   countdownColor = '#7cc4ff';
 
@@ -412,7 +412,10 @@ export class GameScene extends Phaser.Scene {
     // Biome-aware sprite loading: campaign runs only load PNG sheets for
     // characters that can spawn in the chosen biome. Endless mode rotates
     // through all biomes, so it falls back to loading everything.
-    const folderFilter = biomeFolderFilter(this.biome, this.difficulty);
+    // Debug: if initialSpawns is configured or path-debug is on, force-load
+    // every sprite sheet so debugSpawn(...) for any kind renders correctly.
+    const debugForceAll = DEBUG.initialSpawns.length > 0 || DEBUG.path.enabled;
+    const folderFilter = debugForceAll ? null : biomeFolderFilter(this.biome, this.difficulty);
     loadSpriteOverrides(this, folderFilter);
     // Trees and infected plants are biome-specific terrain props. Endless
     // can rotate into either, so load them when the filter is null
@@ -795,6 +798,98 @@ export class GameScene extends Phaser.Scene {
     this._warmupFrames = 0;
 
     this.events.on(Phaser.Scenes.Events.POST_UPDATE, this._syncBowToPlayer);
+
+    // Debug pre-built maze. Parses the ASCII grid in DEBUG.preBuiltMaze and
+    // places a wall at every '#'. '@' marks the player's tile (defaults to
+    // grid center if not specified). Empty string skips this entirely.
+    if (DEBUG.preBuiltMaze && DEBUG.preBuiltMaze.trim().length > 0) {
+      const raw = DEBUG.preBuiltMaze.split('\n')
+        .map(l => l.replace(/ /g, ''))
+        .filter(l => l.length > 0);
+      if (raw.length > 0) {
+        let cx = -1, cy = -1;
+        for (let r = 0; r < raw.length; r++) {
+          const c = raw[r].indexOf('@');
+          if (c >= 0) { cx = c; cy = r; break; }
+        }
+        if (cx < 0) {
+          const w = Math.max(...raw.map(l => l.length));
+          cx = Math.floor(w / 2);
+          cy = Math.floor(raw.length / 2);
+        }
+        const playerTileX = Math.floor(this.player.x / CFG.tile);
+        const playerTileY = Math.floor(this.player.y / CFG.tile);
+        for (let r = 0; r < raw.length; r++) {
+          const line = raw[r];
+          for (let c = 0; c < line.length; c++) {
+            if (line[c] !== '#') continue;
+            const tx = playerTileX + (c - cx);
+            const ty = playerTileY + (r - cy);
+            const w = new Wall(this, tx, ty);
+            this.walls.push(w);
+            this.wallGroup.add(w);
+            gridSet(this.grid, tx, ty, 1);
+            this.pathing.syncWallTile(tx, ty, true);
+            this.sell.updateWallNeighbors(tx, ty);
+          }
+        }
+        this.gridVersion++;
+        this._wallCheckCache.clear();
+        this.pathing.rebuildGapBlockers();
+      }
+    }
+
+    // Debug initial spawns (configured in src/debug.config.ts). Fired once,
+    // 100ms after create() so the wave/path systems are fully wired up.
+    const spawnOneDebug = (
+      kind: EnemyKind,
+      opts: { dx?: number; dy?: number; distance?: number; angleDeg?: number } = {}
+    ) => {
+      let ox: number, oy: number;
+      if (opts.dx !== undefined || opts.dy !== undefined) {
+        ox = opts.dx ?? 0;
+        oy = opts.dy ?? 0;
+      } else {
+        const dist = opts.distance ?? 300;
+        const ang = opts.angleDeg !== undefined
+          ? opts.angleDeg * Math.PI / 180
+          : Math.random() * Math.PI * 2;
+        ox = Math.cos(ang) * dist;
+        oy = Math.sin(ang) * dist;
+      }
+      const e = new Enemy(this, this.player.x + ox, this.player.y + oy, kind);
+      this.enemies.add(e);
+      // Tag for path logging — fires regardless of DEBUG.path.enabled so
+      // console-spawned enemies always produce debug.log entries.
+      (e as any)._dbgTagged = true;
+      return e;
+    };
+    if (DEBUG.initialSpawns.length > 0) {
+      this.time.delayedCall(100, () => {
+        for (const s of DEBUG.initialSpawns) {
+          spawnOneDebug(s.kind, s);
+        }
+      });
+    }
+
+    // Console commands for ad-hoc debugging. From browser DevTools:
+    //   debugSpawn('snake')                         random direction, 300px out
+    //   debugSpawn('deer', { distance: 400 })       random direction, 400px out
+    //   debugSpawn('bear', { angleDeg: 90 })        due south of player, 300px
+    //   debugSpawn('rat', { dx: 200, dy: -150 })    explicit offset from player
+    //   debugClearEnemies()                         kill all active enemies
+    //   debugNoDamage(true|false)                   toggle damage immunity
+    //   debugPauseSpawns(true|false)                toggle wave auto-spawning
+    (window as any).debugSpawn = spawnOneDebug;
+    (window as any).debugClearEnemies = () => {
+      this.enemies.children.iterate((c: any) => {
+        const en = c as Enemy;
+        if (en && en.active && !en.dying) en.destroy();
+        return true;
+      });
+    };
+    (window as any).debugNoDamage = (on: boolean = true) => { DEBUG.noDamage = !!on; };
+    (window as any).debugPauseSpawns = (on: boolean = true) => { DEBUG.pauseWaveSpawns = !!on; };
   }
 
   hudState() {
@@ -916,7 +1011,6 @@ export class GameScene extends Phaser.Scene {
     // While dying, keep the world alive for the death animation but skip player input
     if (this.endState.dying) return;
 
-    this.pathsThisFrame = 0;
     this.updatePlayer(time, vd);
     this.combat.updateTowers(time);
     this.enemyBoss.updateEnemies(time, vd);
