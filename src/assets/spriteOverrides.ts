@@ -206,10 +206,11 @@ const BUILTIN: CharacterSpec[] = [
   { folder: 'sand_wraith',     texPrefix: 'eswr',  anims: stdEnemyAnims('eswr') },
   { folder: 'temple_guardian', texPrefix: 'etgd',  anims: stdEnemyAnims('etgd') },
   { folder: 'sun_mote',        texPrefix: 'esun',  anims: stdEnemyAnims('esun') },
-  // Bear — drop a right-facing sheet; the engine generates a mirrored copy
-  // for the left-facing texture set the bear logic uses (eal_*). Procedural
-  // bear frames are 32×32, extracted from bearsprites.png.
-  { folder: 'bear',           texPrefix: 'ear',   anims: stdEnemyAnims('ear'), proceduralCanvasSize: 32, mirrorTexPrefix: 'eal' },
+  // Bear sheets face right; the mirrored texture set serves left-facing AI.
+  { folder: 'bear', texPrefix: 'ear', mirrorTexPrefix: 'eal', anims: [
+    ...stdEnemyAnims('ear'),
+    { suffix: 'bite', indexed: true, indexSep: '', animKey: 'ear-bite' },
+  ] },
   // Toad — drops in as move.png (in-game animation is etd-hop). Idle derives
   // from move frame_0.
   { folder: 'toad', texPrefix: 'etd', anims: [

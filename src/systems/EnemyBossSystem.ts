@@ -535,16 +535,13 @@ export class EnemyBossSystem {
         e.setVelocity(0, 0);
         if (e.rotates) {
           e.rotateToward(tx - e.x, ty - e.y);
-        } else if (e.kind === 'bear') {
-          const dirChanged = e.updateFacing(tx - e.x);
-          const atkAnim = `${e.dirPrefix()}-atk`;
-          if (dirChanged || e.anims.currentAnim?.key !== atkAnim) e.play(atkAnim);
-        } else {
+        } else if (e.kind !== 'bear') {
           e.setFlipX(tx - e.x < 0);
         }
-        if (e.anims.currentAnim?.key !== `${prefix}-atk`) e.play(`${prefix}-atk`);
+        if (e.kind !== 'bear' && e.anims.currentAnim?.key !== `${prefix}-atk`) e.play(`${prefix}-atk`);
         if (time > e.attackCd) {
           e.attackCd = time + 800;
+          if (e.kind === 'bear') this.playBearAttack(e);
           scene.player.hurt(e.dmg, scene);
           scene.hud.pushHud();
           if (scene.player.hp <= 0) scene.end.lose();
@@ -608,13 +605,12 @@ export class EnemyBossSystem {
         if (e.rotates) {
           e.rotateToward(dx, dy);
         } else if (e.kind === 'bear') {
-          const dirChanged = e.updateFacing(dx);
-          const moveAnim = `${e.dirPrefix()}-move`;
-          if (dirChanged || e.anims.currentAnim?.key !== moveAnim) e.play(moveAnim);
+          e.updateFacing(dx);
         } else {
           e.setFlipX(dx < 0);
         }
-        if (e.anims.currentAnim?.key !== `${prefix}-move`) e.play(`${prefix}-move`);
+        const moveAnim = `${e.dirPrefix()}-move`;
+        if (e.anims.currentAnim?.key !== moveAnim) e.play(moveAnim);
         // NOTE: do NOT clear e.path here. Keeping the cached path lets the
         // enemy fall straight into path-following the moment LOS blocks
         // (e.g. player walks behind a tree). Clearing it meant the enemy
@@ -747,15 +743,12 @@ export class EnemyBossSystem {
       if (e.rotates) {
         e.rotateToward(moveX, moveY);
       } else if (e.kind === 'bear') {
-        if (facingX !== 0) {
-          const dirChanged = e.updateFacing(facingX);
-          const moveAnim = `${e.dirPrefix()}-move`;
-          if (dirChanged || e.anims.currentAnim?.key !== moveAnim) e.play(moveAnim);
-        }
+        if (facingX !== 0) e.updateFacing(facingX);
       } else {
         e.setFlipX(facingX < 0);
       }
-      if (e.anims.currentAnim?.key !== `${prefix}-move`) e.play(`${prefix}-move`);
+      const moveAnim = `${e.dirPrefix()}-move`;
+      if (e.anims.currentAnim?.key !== moveAnim) e.play(moveAnim);
       return true;
     });
   }
@@ -1739,11 +1732,19 @@ export class EnemyBossSystem {
     scene.cameras.main.shake(180, 0.008);
   }
 
+  private playBearAttack(e: Enemy) {
+    // Both damage paths share a cooldown; choose once per strike and hold its facing through recovery.
+    e.updateFacing(this.scene.player.x - e.x);
+    const attack = Math.random() < 0.5 ? 'atk' : 'bite';
+    e.play(`${e.dirPrefix()}-${attack}`);
+  }
+
   enemyHitsPlayer(e: Enemy) {
     const scene = this.scene;
     if (!e.active || e.dying) return;
     if (scene.vTime > e.attackCd) {
       e.attackCd = scene.vTime + 700;
+      if (e.kind === 'bear') this.playBearAttack(e);
       scene.player.hurt(e.dmg, scene);
       scene.hud.pushHud();
       if (scene.player.hp <= 0) scene.end.lose();

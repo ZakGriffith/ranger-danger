@@ -27,7 +27,7 @@ import {
   pxIdx, pxEq, pxCopy, scale2x, makeCanvas, mirrorX,
   rect, disc, ring, line, ellipse, flashOverlay, hexToRgb, add,
 } from './art/canvas';
-import { BearFrame, drawBearDir, extractBearFrames } from './art/bear';
+import { BEAR_FRAMES, BEAR_MOVE_FRAMES, BEAR_ATK_FRAMES, BEAR_BITE_FRAMES, BEAR_MOVE_FPS, BEAR_ATK_FPS, drawBear, drawBearBite } from './art/bear';
 import {
   BossFrame, RamFrame, ForestBossFrame, forestBossFrames, riverBossFrames, infectedBossFrames,
   phantomQueenFrames, castleDragonFrames,
@@ -122,8 +122,14 @@ export function generateAllArt(scene: Phaser.Scene) {
   add(scene, 'tglob_1', makeCanvas(16, drawToadGlob('glob1')));
   // Wolf uses the extended frame set (6-frame trot, 4-frame bite)
   for (const f of e6Frames) add(scene, `ew_${f}`, makeCanvas(32, drawEnemyWolf(f)));
-  // Bear: extract frames from sprite sheet, strip grey bg, register as textures
-  extractBearFrames(scene);
+  for (const f of BEAR_FRAMES) {
+    add(scene, `ear_${f}`, makeHD(64, drawBear(f, 'r')));
+    add(scene, `eal_${f}`, makeHD(64, drawBear(f, 'l')));
+  }
+  for (const f of BEAR_BITE_FRAMES) {
+    add(scene, `ear_${f}`, makeHD(64, drawBearBite(f, 'r')));
+    add(scene, `eal_${f}`, makeHD(64, drawBearBite(f, 'l')));
+  }
   for (const f of SPIDER_FRAMES) add(scene, `es_${f}`, makeHD(64, drawSpider(f)));
   // River flying enemies
   // Crow uses the extended frame set (6-frame wingbeat, 4-frame dive)
@@ -516,15 +522,13 @@ export function registerAnimations(scene: Phaser.Scene) {
   mk('ew-hit',  ['ew_hit'], 10, 0);
   mk('ew-die',  ['ew_die0','ew_die1','ew_die2','ew_die3'], 10, 0);
 
-  // Bear: directional animations (right-facing and left-facing)
-  mk('ear-move', ['ear_move0','ear_move1','ear_move2','ear_move3','ear_move4','ear_move5','ear_move6','ear_move7'], 10, -1);
-  mk('ear-atk',  ['ear_atk0','ear_atk1','ear_atk2','ear_atk3','ear_atk4'], 6, 0);
-  mk('ear-hit',  ['ear_hit'], 8, 0);
-  mk('ear-die',  ['ear_die0','ear_die1','ear_die2','ear_die3'], 8, 0);
-  mk('eal-move', ['eal_move0','eal_move1','eal_move2','eal_move3','eal_move4','eal_move5','eal_move6','eal_move7'], 10, -1);
-  mk('eal-atk',  ['eal_atk0','eal_atk1','eal_atk2','eal_atk3','eal_atk4'], 6, 0);
-  mk('eal-hit',  ['eal_hit'], 8, 0);
-  mk('eal-die',  ['eal_die0','eal_die1','eal_die2','eal_die3'], 8, 0);
+  for (const prefix of ['ear', 'eal']) {
+    mk(`${prefix}-move`, BEAR_MOVE_FRAMES.map(f => `${prefix}_${f}`), BEAR_MOVE_FPS, -1);
+    mk(`${prefix}-atk`, BEAR_ATK_FRAMES.map(f => `${prefix}_${f}`), BEAR_ATK_FPS, 0);
+    mk(`${prefix}-bite`, BEAR_BITE_FRAMES.map(f => `${prefix}_${f}`), BEAR_ATK_FPS, 0);
+    mk(`${prefix}-hit`, [`${prefix}_hit`], 8, 0);
+    mk(`${prefix}-die`, ['die0','die1','die2','die3'].map(f => `${prefix}_${f}`), 8, 0);
+  }
 
   mk('es-move', SPIDER_MOVE_FRAMES.map(f => `es_${f}`), 18, -1);
   mk('es-atk', SPIDER_ATK_FRAMES.map(f => `es_${f}`), 16, -1);
