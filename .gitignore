@@ -11,3 +11,6 @@ src/**/*.js
 
 # Vite debug-log sink (see vite.config.ts)
 debug.log
+
+# Rendered sprite sheets (scripts/render-sprite-sheet.cjs)
+scripts/out/

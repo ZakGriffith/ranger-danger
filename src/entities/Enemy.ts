@@ -99,7 +99,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
         this.play('erat-move');
         break;
       case 'deer':
-        applyEntityVisual(this, 'deer', 'move', 0.55, 30, 28, 13, 30);
+        applyEntityVisual(this, 'deer', 'move', 0.55, 36, 32, 8, 28);
         this.play('eder-move');
         break;
       case 'wolf':

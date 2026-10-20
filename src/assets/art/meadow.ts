@@ -1,10 +1,9 @@
-// Meadow enemies — snake, rat and deer — drawn with the HD pipeline (hd.ts)
+// Meadow enemies — snake and rat — drawn with the HD pipeline (hd.ts)
 // at 64 px, i.e. 32 world px at the entities' 0.5 scale, replacing the
 // legacy 32-px Scale2x versions that used to live in enemies.ts.
 //
-// Views follow how each kind moves. Snake and rat rotate to face their
-// travel direction (Enemy.rotates), so they are drawn top-down facing +x.
-// Deer only flips X, so it is a side view facing right.
+// Snake and rat rotate to face their travel direction (Enemy.rotates), so
+// they are drawn top-down facing +x. The deer lives in deer.ts.
 //
 // Frames: an 8-frame move cycle (move0..7) and a 5-frame attack (atk0..4)
 // built as anticipation → strike → recoil. Hit flash and death are handled
@@ -21,7 +20,6 @@ const TAU = Math.PI * 2;
 const OUTLINE = '#0b0f1a';
 const EYE_YELLOW = '#f2c62e';
 const EYE_RED = '#e02828';
-const EYE_GLINT = '#ff9a9a';
 const VENOM = '#86e060';
 const TONGUE = '#e03848';
 const WHISKER = '#d8d8cc';
@@ -47,9 +45,6 @@ function putAt(put: HdPut, pt: readonly [number, number], p: Paint): void {
 }
 function rawAt(raw: RawPut, pt: readonly [number, number], hex: string, alpha = 1): void {
   raw(Math.round(pt[0]), Math.round(pt[1]), hex, alpha);
-}
-function seg(put: HdPut, a: readonly [number, number], b: readonly [number, number], p: Paint, thick: number): void {
-  line(put, Math.round(a[0]), Math.round(a[1]), Math.round(b[0]), Math.round(b[1]), p, thick);
 }
 
 // ==================================================================
@@ -217,106 +212,6 @@ export function drawRat(f: MeadowFrame): HdDraw {
       for (let i = 0; i < 6; i++) {
         raw(bx - 26 + i, by - 5, '#ffffff', 0.45);
         raw(bx - 28 + i, by + 5, '#ffffff', 0.45);
-      }
-    }
-  };
-}
-
-// ==================================================================
-//  DEER — side-view stag, the meadow heavy. Two-beat trot: diagonal leg
-//  pairs alternate and the body lifts in the suspension between beats.
-//  Attack is an antler rake: rear back, then drive the head down and
-//  forward so the tines lead.
-// ==================================================================
-
-/** [headDx, headDy, tilt rad (+ = antlers forward), bodyDx, splay 0..1, streaks] per attack frame. */
-const DEER_RAKE: ReadonlyArray<readonly [number, number, number, number, number, number]> = [
-  [-2, -3, -0.35, -1, 0, 0],  // rear back
-  [-1, -1, -0.15, -1, 0, 0],  // head starts down
-  [4, 5, 0.55, 1, 1, 0],      // drive forward
-  [6, 6, 0.7, 2, 1, 1],       // full extension
-  [2, 2, 0.25, 1, 0, 0],      // recover
-];
-
-export function drawDeer(f: MeadowFrame): HdDraw {
-  return (put, raw) => {
-    const { move, atk } = phases(f);
-    const [headDx, headDy, tilt, bodyDx, splay, streaks] = atk >= 0 ? DEER_RAKE[atk] : ([0, 0, 0, 0, 0, 0] as const);
-    const phi = move >= 0 ? move * (TAU / 8) : 0;
-    const GROUND = 60;
-    // the body lifts in the suspension between the two diagonal beats
-    const bob = move >= 0 ? -Math.round(1.5 * (0.5 + 0.5 * Math.cos(2 * phi))) : atk === 2 || atk === 3 ? 1 : 0;
-    const bx = 26 + bodyDx, by = 36 + bob;
-    const hipY = by + 4;
-
-    // legs — far pair first, in the dark tone, so the near pair overlaps it
-    const legs = [
-      { x: bx - 9, hind: true, far: true, k: 0 },
-      { x: bx + 11, hind: false, far: true, k: Math.PI },
-      { x: bx - 11, hind: true, far: false, k: Math.PI },
-      { x: bx + 9, hind: false, far: false, k: 0 },
-    ];
-    for (const L of legs) {
-      const ang = phi + L.k;
-      const lift = move >= 0 ? Math.max(0, Math.sin(ang)) : 0;
-      const hoofX = move >= 0 ? Math.round(L.x - 5 * Math.cos(ang)) : L.x + (L.hind ? -2 : 3) * splay;
-      const hoofY = GROUND - Math.round(5 * lift);
-      const midX = (L.x + hoofX) / 2, midY = (hipY + hoofY) / 2;
-      // front knees fold forward and hind hocks fold back, more so when the leg is lifted
-      const jointX = Math.round(L.hind ? midX - 2 - 2 * lift : midX + 1 + 2 * lift);
-      const m: Paint = L.far ? 'hide.d' : 'hide';
-      line(put, L.x, hipY, jointX, Math.round(midY), m, 4);
-      line(put, jointX, Math.round(midY), hoofX, hoofY, m, 3);
-      rect(put, hoofX - 1, hoofY - 1, 3, 2, 'leather.dd');
-    }
-
-    // body
-    ellipse(put, bx, by, 15, 8, 'hide');
-    ellipse(put, bx - 9, by - 2, 6, 6.5, 'hide');                      // rump
-    ellipse(put, bx + 9, by - 1.5, 6.5, 7, 'hide');                    // shoulder
-    ellipse(put, bx, by - 5.5, 11, 1.5, 'hide.d');                     // dorsal shading
-    ellipse(put, bx + 1, by + 5, 11, 3, 'cream');                      // belly
-    ellipse(put, bx - 13, by - 1, 3, 4, 'cream');                      // rump patch
-    for (const [sx, sy] of [[-6, -3], [-1, -4], [4, -2], [-3, 1], [2, 2], [7, 0]]) rect(put, bx + sx, by + sy, 2, 2, 'cream.d');
-    const tailDy = move >= 0 ? Math.round(Math.sin(phi + 1)) : 0;
-    poly(put, [[bx - 15, by - 6 + tailDy], [bx - 18, by - 3 + tailDy], [bx - 17, by + 1 + tailDy], [bx - 14, by - 2 + tailDy]], 'cream.d');
-
-    // neck + head; everything on the head goes through H so the rake can tilt it
-    const nod = move >= 0 ? Math.round(Math.sin(2 * phi + 1)) : 0;
-    const hx = bx + 20 + headDx, hy = 17 + bob + nod + headDy;
-    const H = xform(hx, hy, tilt);
-    line(put, bx + 11, by - 4, Math.round(hx - 3), Math.round(hy + 4), 'hide', 7);
-    line(put, bx + 13, by - 1, Math.round(hx - 2), Math.round(hy + 6), 'cream.d', 2);  // throat
-    disc(put, hx, hy, 5, 'hide');
-    poly(put, [H(1, -3.5), H(7, -2), H(10, 1), H(9, 3.5), H(1, 4)], 'hide');          // snout
-    poly(put, [H(2, 2.5), H(8, 3), H(8, 4), H(2, 4)], 'cream.d');                      // chin
-    putAt(put, H(9, 1), OUTLINE);                                                      // nose
-    putAt(put, H(9.5, 2), OUTLINE);
-    putAt(put, H(7, 3.5), 'hide.dd');                                                  // mouth
-    for (const [ex, ey] of [[1.5, -1.5], [2.5, -1.5], [1.5, -0.5], [2.5, -0.5]]) putAt(put, H(ex, ey), EYE_RED);
-    putAt(put, H(1.5, -1.5), EYE_GLINT);
-    poly(put, [H(-4, -3), H(-8, -9), H(-2, -5)], 'hide');                              // ear
-    putAt(put, H(-5, -6), 'pink');
-
-    const antler = (ox: number, m: Paint, tip: Paint) => {
-      const A = (lx: number, ly: number) => H(lx + ox, ly);
-      seg(put, A(0, -5), A(-3, -9), m, 2);     // beam: up and back...
-      seg(put, A(-3, -9), A(-2, -13), m, 2);   // ...then forward at the top
-      putAt(put, A(-2, -14), tip);
-      seg(put, A(-1, -7), A(3, -10), m, 2);    // brow tine
-      putAt(put, A(4, -11), tip);
-      seg(put, A(-3, -10), A(1, -12), m, 1);   // mid tine
-      putAt(put, A(2, -13), tip);
-      seg(put, A(-3, -11), A(-6, -12), m, 1);  // back tine
-      putAt(put, A(-7, -13), tip);
-    };
-    antler(-3, 'bone.d', 'bone');
-    antler(0, 'bone', 'bone.l');
-
-    if (streaks) {
-      for (let i = 0; i < 3; i++) {
-        rawAt(raw, H(13 + 2 * i, -9 + i), '#ffffff', 0.5);
-        rawAt(raw, H(13 + 2 * i, -3 + i), '#ffffff', 0.4);
       }
     }
   };

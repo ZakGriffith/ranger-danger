@@ -18,7 +18,8 @@ import {
   drawWarlockBolt,
   drawEnemyDesert, drawSunBolt,
 } from './art/enemies';
-import { MEADOW_FRAMES, MEADOW_MOVE_FRAMES, MEADOW_ATK_FRAMES, drawSnake, drawRat, drawDeer } from './art/meadow';
+import { MEADOW_FRAMES, MEADOW_MOVE_FRAMES, MEADOW_ATK_FRAMES, drawSnake, drawRat } from './art/meadow';
+import { drawDeer } from './art/deer';
 import {
   Put, PutRGB, P, S,
   pxIdx, pxEq, pxCopy, scale2x, makeCanvas, mirrorX,
@@ -101,7 +102,7 @@ export function generateAllArt(scene: Phaser.Scene) {
   for (const f of eFrames) add(scene, `eh_${f}`, makeCanvas(32, drawEnemyHeavy(f)));
   // Extended frame set (6-frame move, 4-frame atk) shared by the biome enemies below
   const e6Frames: EFrame6[] = ['move0','move1','move2','move3','move4','move5','atk0','atk1','atk2','atk3','hit','die0','die1','die2','die3'];
-  // Meadow enemies are HD (art/meadow.ts): 8-frame move cycle, 5-frame attack
+  // Meadow enemies are HD (art/meadow.ts, art/deer.ts): 8-frame move cycle, 5-frame attack
   for (const f of MEADOW_FRAMES) add(scene, `esnk_${f}`, makeHD(64, drawSnake(f)));
   // Tongue-flick variant of move0 — scheduled sparsely by the esnk-move loop
   add(scene, 'esnk_move0t', makeHD(64, drawSnake('move0', true)));
