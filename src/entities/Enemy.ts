@@ -91,15 +91,15 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
         this.setTint(this.baseTint);
         break;
       case 'snake':
-        applyEntityVisual(this, 'snake', 'move', 0.5, 24, 16, 16, 18);
+        applyEntityVisual(this, 'snake', 'move', 0.5, 28, 14, 18, 25);
         this.play('esnk-move');
         break;
       case 'rat':
-        applyEntityVisual(this, 'rat', 'move', 0.45, 22, 20, 20, 24);
+        applyEntityVisual(this, 'rat', 'move', 0.45, 26, 16, 19, 24);
         this.play('erat-move');
         break;
       case 'deer':
-        applyEntityVisual(this, 'deer', 'move', 0.55, 30, 28, 14, 16);
+        applyEntityVisual(this, 'deer', 'move', 0.55, 30, 28, 13, 30);
         this.play('eder-move');
         break;
       case 'wolf':
@@ -200,7 +200,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
         break;
       case 'castle_rat':
         // castle_rat reuses the rat character wholesale (own stats, same art)
-        applyEntityVisual(this, 'rat', 'move', 0.45, 22, 20, 20, 24);
+        applyEntityVisual(this, 'rat', 'move', 0.45, 26, 16, 19, 24);
         this.play('erat-move');
         break;
       case 'scorpion':

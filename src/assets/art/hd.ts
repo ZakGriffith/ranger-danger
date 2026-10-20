@@ -32,6 +32,13 @@ export const M = {
   steel:   ['#eef2f6', '#c0c8d4', '#7a8090', '#4a525a'],
   string:  ['#ffffff', '#d8dce4', '#a0a8b4', '#6a7280'],
   spark:   ['#fffbd0', '#ffe070', '#e0a020', '#a06010'],
+  // meadow enemies (meadow.ts)
+  scale:   ['#9ad05e', '#5e9a3c', '#3b6a27', '#25461a'],
+  fur:     ['#bcae9c', '#8c7a68', '#5e5044', '#3a3028'],
+  pink:    ['#ffc9c3', '#e89c96', '#b96b66', '#7a4340'],
+  hide:    ['#cfa472', '#9c7148', '#6a4a2e', '#43301c'],
+  cream:   ['#fff7e4', '#eadcbc', '#bba98a', '#7c705d'],
+  bone:    ['#f6f0de', '#dccfac', '#aa9a7a', '#6d6149'],
 } as const satisfies Record<string, Ramp>;
 
 export type Mat = keyof typeof M;

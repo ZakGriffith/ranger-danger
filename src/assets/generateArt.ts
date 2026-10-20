@@ -9,7 +9,7 @@ import { PFrame, PPose, drawPlayer, drawBow } from './art/player';
 import { makeHD } from './art/hd';
 import {
   EFrame, EFrame6, ToadFrame,
-  drawEnemyBasic, drawEnemyHeavy, drawEnemySnake, drawEnemyRat, drawEnemyDeer,
+  drawEnemyBasic, drawEnemyHeavy,
   drawEnemyInfectedBasic, drawEnemyInfectedHeavy,
   drawEnemyToad, drawToadGlob, drawEnemyWolf,
   drawEnemySpider, drawEnemyCrow, drawEnemyBat, drawEnemyDragonfly,
@@ -18,6 +18,7 @@ import {
   drawWarlockBolt,
   drawEnemyDesert, drawSunBolt,
 } from './art/enemies';
+import { MEADOW_FRAMES, MEADOW_MOVE_FRAMES, MEADOW_ATK_FRAMES, drawSnake, drawRat, drawDeer } from './art/meadow';
 import {
   Put, PutRGB, P, S,
   pxIdx, pxEq, pxCopy, scale2x, makeCanvas, mirrorX,
@@ -98,13 +99,14 @@ export function generateAllArt(scene: Phaser.Scene) {
   const eFrames: EFrame[] = ['move0','move1','move2','move3','atk0','atk1','hit','die0','die1','die2','die3'];
   for (const f of eFrames) add(scene, `eb_${f}`, makeCanvas(32, drawEnemyBasic(f)));
   for (const f of eFrames) add(scene, `eh_${f}`, makeCanvas(32, drawEnemyHeavy(f)));
-  // Meadow enemies use the extended frame set (6-frame move, 4-frame atk)
+  // Extended frame set (6-frame move, 4-frame atk) shared by the biome enemies below
   const e6Frames: EFrame6[] = ['move0','move1','move2','move3','move4','move5','atk0','atk1','atk2','atk3','hit','die0','die1','die2','die3'];
-  for (const f of e6Frames) add(scene, `esnk_${f}`, makeCanvas(32, drawEnemySnake(f)));
+  // Meadow enemies are HD (art/meadow.ts): 8-frame move cycle, 5-frame attack
+  for (const f of MEADOW_FRAMES) add(scene, `esnk_${f}`, makeHD(64, drawSnake(f)));
   // Tongue-flick variant of move0 — scheduled sparsely by the esnk-move loop
-  add(scene, 'esnk_move0t', makeCanvas(32, drawEnemySnake('move0', true)));
-  for (const f of e6Frames) add(scene, `erat_${f}`, makeCanvas(32, drawEnemyRat(f)));
-  for (const f of e6Frames) add(scene, `eder_${f}`, makeCanvas(32, drawEnemyDeer(f)));
+  add(scene, 'esnk_move0t', makeHD(64, drawSnake('move0', true)));
+  for (const f of MEADOW_FRAMES) add(scene, `erat_${f}`, makeHD(64, drawRat(f)));
+  for (const f of MEADOW_FRAMES) add(scene, `eder_${f}`, makeHD(64, drawDeer(f)));
   // Infected basic uses the extended frame set (6-frame lumber, 4-frame bite)
   for (const f of e6Frames) add(scene, `eib_${f}`, makeCanvas(32, drawEnemyInfectedBasic(f)));
   // Infected heavy uses the extended frame set (6-frame lumber, 4-frame swipe)
@@ -466,27 +468,23 @@ export function registerAnimations(scene: Phaser.Scene) {
   mk('eh-hit',  ['eh_hit'], 8, 0);
   mk('eh-die',  ['eh_die0','eh_die1','eh_die2','eh_die3'], 8, 0);
 
-  // Meadow enemies: 6-frame move cycles + 4-frame attacks. Frame rates are
-  // scaled up so cycle durations stay close to the old 4/2-frame timings.
+  // Meadow enemies (HD): 8-frame move loops, 5-frame attacks. Hit flash and
+  // death are programmatic (Enemy.hurt), so there are no hit/die anims.
+  const mv = (p: string) => MEADOW_MOVE_FRAMES.map(f => `${p}_${f}`);
+  const ak = (p: string) => MEADOW_ATK_FRAMES.map(f => `${p}_${f}`);
   // Snake move loop spans 4 slither cycles with the tongue-flick variant
-  // frame appearing only once — one ~80ms flick every ~2s.
-  const snkTail = ['esnk_move1','esnk_move2','esnk_move3','esnk_move4','esnk_move5'];
+  // frame appearing only once — one brief flick every ~1.8s.
+  const snkTail = mv('esnk').slice(1);
   const snkLoop = ['esnk_move0t', ...snkTail];
   for (let i = 0; i < 3; i++) snkLoop.push('esnk_move0', ...snkTail);
-  mk('esnk-move', snkLoop, 12, -1);
-  mk('esnk-atk',  ['esnk_atk0','esnk_atk1','esnk_atk2','esnk_atk3'], 10, -1);
-  mk('esnk-hit',  ['esnk_hit'], 10, 0);
-  mk('esnk-die',  ['esnk_die0','esnk_die1','esnk_die2','esnk_die3'], 10, 0);
+  mk('esnk-move', snkLoop, 18, -1);
+  mk('esnk-atk',  ak('esnk'), 10, -1);
 
-  mk('erat-move', ['erat_move0','erat_move1','erat_move2','erat_move3','erat_move4','erat_move5'], 14, -1);
-  mk('erat-atk',  ['erat_atk0','erat_atk1','erat_atk2','erat_atk3'], 12, -1);
-  mk('erat-hit',  ['erat_hit'], 10, 0);
-  mk('erat-die',  ['erat_die0','erat_die1','erat_die2','erat_die3'], 10, 0);
+  mk('erat-move', mv('erat'), 24, -1);
+  mk('erat-atk',  ak('erat'), 12, -1);
 
-  mk('eder-move', ['eder_move0','eder_move1','eder_move2','eder_move3','eder_move4','eder_move5'], 9, -1);
-  mk('eder-atk',  ['eder_atk0','eder_atk1','eder_atk2','eder_atk3'], 8, -1);
-  mk('eder-hit',  ['eder_hit'], 8, 0);
-  mk('eder-die',  ['eder_die0','eder_die1','eder_die2','eder_die3'], 8, 0);
+  mk('eder-move', mv('eder'), 12, -1);
+  mk('eder-atk',  ak('eder'), 10, -1);
 
   // 6-frame three-legged lumber + 4-frame gape-lunge-bite
   mk('eib-move', ['eib_move0','eib_move1','eib_move2','eib_move3','eib_move4','eib_move5'], 10, -1);

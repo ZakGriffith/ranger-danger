@@ -100,29 +100,6 @@ export const P = {
   bellyD:  '#7a3a2a',
   bellyM:  '#a8604a',
 
-  // snake colors
-  snake:   '#4a7a30',
-  snakeD:  '#3a5a20',
-  snakeM:  '#5a8a40',
-  snakeL:  '#6a9a48',
-  snakeBelly: '#c8cc88',
-  snakePat: '#2a4a18',
-
-  // rat colors
-  rat:     '#7a6a5a',
-  ratD:    '#5a4a3a',
-  ratL:    '#8a7a6a',
-  ratTail: '#a08070',
-
-  // deer colors
-  deer:    '#8a6a48',
-  deerD:   '#6a4a30',
-  deerM:   '#7a5a38',
-  deerL:   '#a88a60',
-  deerBelly: '#c8b898',
-  antler:  '#d4c8a0',
-  antlerD: '#a89870',
-
   // archer tower extras
   tunic:   '#2a7a3a',
   tunicD:  '#1a4a24',
