@@ -43,7 +43,7 @@ export function biomeFolderFilter(biome: Biome, difficulty: Difficulty): Set<str
 // Frames are auto-sliced from the sheet by assuming square frames.
 //
 // Idle is auto-derived from frame_0 of the primary motion animation.
-// Enemies handle hit (white tint flash) and death (fx-death pop) programmatically,
+// Enemies handle hit (white tint flash) and death (dust fade) programmatically,
 // so most enemies just need move.png + atk.png.
 //
 // To tweak how a character renders, add an entry to OVERRIDES below.

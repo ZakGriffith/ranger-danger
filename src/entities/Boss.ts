@@ -5,6 +5,7 @@ import { applyEntityVisual } from '../assets/spriteOverrides';
 import { Shadow } from './Shadow';
 import { measureOpaqueBounds } from './spriteBounds';
 import { DEBUG } from '../debug.config';
+import type { GameScene } from '../scenes/GameScene';
 
 export type BossState =
   | 'chase'
@@ -169,20 +170,17 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     if (DEBUG.noDamage) return;
     if (this.dying) return;
     this.hp -= amount;
-    this.setTintFill(0xffffff);
-    this.scene.time.delayedCall(60, () => { if (!this.dying) this.clearTint(); });
     if (this.hp <= 0) {
       this.dying = true;
       this.setVelocity(0, 0);
       (this.body as Phaser.Physics.Arcade.Body).enable = false;
       this.hpBar.destroy();
-      // Boss death uses the same fx-death pop as enemies, scaled up to roughly
-      // match the boss footprint (2× the 64-px enemy pop ≈ 128 world px).
-      const pop = this.scene.add.sprite(this.x, this.y, 'fx_death_0').setDepth(this.depth + 0.5).setScale(2);
-      pop.play('fx-death');
-      pop.once('animationcomplete', () => pop.destroy());
+      (this.scene as GameScene).enemyDeaths.play(this);
       this.destroy();
+      return;
     }
+    this.setTintFill(0xffffff);
+    this.scene.time.delayedCall(60, () => { if (this.scene && !this.dying) this.clearTint(); });
   }
 
   destroy(fromScene?: boolean) {

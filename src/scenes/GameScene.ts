@@ -20,6 +20,7 @@ import { TowerPanelSystem } from '../systems/TowerPanelSystem';
 import { BuildSystem } from '../systems/BuildSystem';
 import { SellSystem } from '../systems/SellSystem';
 import { CombatSystem } from '../systems/CombatSystem';
+import { EnemyDeathSystem } from '../systems/EnemyDeathSystem';
 import { EnemyBossSystem } from '../systems/EnemyBossSystem';
 import { SpawnSystem } from '../systems/SpawnSystem';
 import { EndSystem } from '../systems/EndSystem';
@@ -457,6 +458,7 @@ export class GameScene extends Phaser.Scene {
     this.build = new BuildSystem(this);
     this.sell = new SellSystem(this);
     this.combat = new CombatSystem(this);
+    this.enemyDeaths = new EnemyDeathSystem(this);
     this.enemyBoss = new EnemyBossSystem(this);
     this.spawn = new SpawnSystem(this);
     this.end = new EndSystem(this);
@@ -928,6 +930,7 @@ export class GameScene extends Phaser.Scene {
   build!: BuildSystem;
   sell!: SellSystem;
   combat!: CombatSystem;
+  enemyDeaths!: EnemyDeathSystem;
   enemyBoss!: EnemyBossSystem;
   spawn!: SpawnSystem;
   end!: EndSystem;
@@ -1007,6 +1010,7 @@ export class GameScene extends Phaser.Scene {
     const vd = delta * this.timeMult;
     this.vTime += vd;
     const time = this.vTime;
+    this.enemyDeaths.update(vd);
 
     // While dying, keep the world alive for the death animation but skip player input
     if (this.endState.dying) return;
@@ -1321,6 +1325,7 @@ export class GameScene extends Phaser.Scene {
 
 
   shutdown() {
+    this.enemyDeaths.destroy();
     SFX.stopBgm();
     if (this._onUiBuild) getEvents(this.game.events).off('ui-build', this._onUiBuild);
     if (this._onUiSell) getEvents(this.game.events).off('ui-sell', this._onUiSell);

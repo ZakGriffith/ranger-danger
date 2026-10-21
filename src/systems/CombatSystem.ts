@@ -417,10 +417,6 @@ export class CombatSystem {
         const coin = new Coin(scene, e.x + Phaser.Math.Between(-4, 4), e.y + Phaser.Math.Between(-4, 4), tier);
         scene.coins.add(coin);
       }
-      const burst = scene.add.sprite(e.x, e.y, 'fx_death_0').setDepth(15).setScale(0.5);
-      burst.play('fx-death');
-      burst.once('animationcomplete', () => burst.destroy());
-
       scene.player.kills++;
       scene.runStats.enemiesKilled++;
       scene.waveState.recordKill();

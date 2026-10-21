@@ -4,6 +4,7 @@ import { applyEntityVisual } from '../assets/spriteOverrides';
 import { Shadow } from './Shadow';
 import { DEBUG } from '../debug.config';
 import { RAT_VARIANTS } from '../assets/art/rat';
+import type { GameScene } from '../scenes/GameScene';
 
 export type EnemyKind = 'basic' | 'heavy' | 'runner' | 'snake' | 'rat' | 'deer' | 'wolf' | 'bear' | 'spider' | 'infected_basic' | 'infected_heavy' | 'infected_runner' | 'toad' | 'crow' | 'bat' | 'dragonfly' | 'mosquito' | 'skeleton' | 'warlock' | 'golem' | 'shadow_imp' | 'castle_bat' | 'castle_rat' | 'scorpion' | 'boss_scorpion' | 'scarab' | 'sand_mite' | 'cactus_hopper' | 'dune_strider' | 'sand_wraith' | 'temple_guardian' | 'sun_mote';
 
@@ -337,22 +338,20 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     if (DEBUG.noDamage) return;
     if (this.dying) return;
     this.hp -= amount;
-    this.setTintFill(0xffffff);
-    this.scene.time.delayedCall(60, () => {
-      if (this.dying) return;
-      if (this.baseTint !== 0xffffff) this.setTint(this.baseTint);
-      else this.clearTint();
-    });
     if (this.hp <= 0) {
       this.dying = true;
       this.setVelocity(0, 0);
-      if (this.rotates) this.setRotation(0);
       (this.body as Phaser.Physics.Arcade.Body).enable = false;
-      const pop = this.scene.add.sprite(this.x, this.y, 'fx_death_0').setDepth(this.depth + 0.5);
-      pop.play('fx-death');
-      pop.once('animationcomplete', () => pop.destroy());
+      (this.scene as GameScene).enemyDeaths.play(this, this.baseTint);
       this.destroy();
+      return;
     }
+    this.setTintFill(0xffffff);
+    this.scene.time.delayedCall(60, () => {
+      if (!this.scene || this.dying) return;
+      if (this.baseTint !== 0xffffff) this.setTint(this.baseTint);
+      else this.clearTint();
+    });
   }
 
   /** Keep the cast shadow tracking the sprite's current world position.
