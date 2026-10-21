@@ -116,7 +116,7 @@ export class UIScene extends Phaser.Scene {
       this.p(150),
       3500,
     );
-    SFX.play('upgrade');
+    SFX.play('levelUp');
   };
   private readonly onBuildError = (msg: string) => {
     if (msg) {

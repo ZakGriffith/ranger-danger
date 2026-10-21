@@ -8,7 +8,7 @@
  * File naming convention:  public/audio/<key>.wav  (e.g. public/audio/arrowShoot.wav)
  */
 import { sfxr } from 'jsfxr';
-import { SYNTH_RATE, hoverPat, selectDrum, gameOverHorn, bossThunder, victoryCoins, hammerBlows } from './synth';
+import { SYNTH_RATE, hoverPat, selectDrum, gameOverHorn, bossThunder, victoryCoins, hammerBlows, levelUpDing } from './synth';
 
 // ---- Sound keys the game uses ----
 const SFX_KEYS = [
@@ -22,6 +22,7 @@ const SFX_KEYS = [
   'bossSpawn',    // boss appears
   'playerHurt',   // player takes damage
   'upgrade',      // tower upgraded
+  'levelUp',      // the ranger gains a level
   'victory',      // game won
   'gameOver',     // game lost
   'click',        // UI button click
@@ -60,7 +61,7 @@ const FALLBACKS: Partial<Record<SfxKey, string>> = {
   wallPlace:   '12eZRSDGK2a8ncanb4HHKxEkayTgXz1bEGVRiT35nZXFBk38k5xYdmjADDLNFnMEJPG2gYFCMuHcepZzUbEKmhs6E6CM6oHRi7isDz48fB1m5WcUuAYrdGnHj5',
   boom:        '12eZRSDRnjsSkoovj21LDvGd5SbDnrfDbsaxdmMRaT3XK9Qa8jgXdTSa1MaBys6CgmNjtff7futsPfmfcRpWTZUnXr2TWv2gdboDKZmc6GTpUZxc97qpXJWtyD',
   // playerHurt uses a custom programmatic tone (see loadPlayerHurt below)
-  // hover, select, towerPlace, upgrade, bossSpawn, victory and gameOver are rendered by synth.ts (see loadAssets)
+  // hover, select, towerPlace, upgrade, levelUp, bossSpawn, victory and gameOver are rendered by synth.ts (see loadAssets)
   // click uses a custom programmatic tone (see loadClick below)
 };
 
@@ -209,6 +210,7 @@ class SfxManager {
     const blows = hammerBlows();
     this.loadSynth('towerPlace', blows);
     this.loadSynth('upgrade', blows);
+    this.loadSynth('levelUp', levelUpDing());
   }
 
   /** @deprecated kept for any old call sites — equivalent to loadAssets(). */

@@ -1,7 +1,7 @@
 /**
  * Sounds built from code rather than files: the level map's hover and select,
- * building and upgrading towers, boss entrances, the level win and the
- * game-over sting. Plain sample math at
+ * building and upgrading towers, boss entrances, the ranger's level up, the
+ * level win and the game-over sting. Plain sample math at
  * 44.1 kHz, rendered once per load by sfx.ts into AudioBuffers. Each generator
  * is deterministic, so the game plays the exact waveform that was auditioned.
  */
@@ -12,7 +12,7 @@ const TAU = Math.PI * 2;
 type Rng = () => number;
 type Filter = (x: number) => number;
 type Samples = Float32Array<ArrayBuffer>;
-type Overtone = [freq: number, amp: number, tau: number];
+type Overtone = [freq: number, amp: number, tau: number, beat?: number];
 type Mode = [freq: number, decay: number, gain: number];
 
 function rng(seed: number): Rng {
@@ -79,14 +79,22 @@ function burst(sec: number, rnd: Rng, type: 'lp' | 'bp' | 'hp', f0: number, Q: n
   return envelope(filter(noise(sec, rnd), biquad(type, f0, Q)), tau, attack);
 }
 
-/** A struck body: decaying sines at its overtone frequencies. */
-function strike(sec: number, overtones: Overtone[]): Samples {
+/**
+ * A struck body: decaying sines at its overtone frequencies. A beat splits an
+ * overtone into a pair a few hertz apart so it wavers like cast metal instead
+ * of ringing like an oscillator, and phaseRnd scatters the starting phases.
+ */
+function strike(sec: number, overtones: Overtone[], phaseRnd?: Rng): Samples {
   const out = make(sec);
-  for (const [f, a, tau] of overtones)
+  for (const [f, a, tau, beat = 0] of overtones) {
+    const ph = phaseRnd ? phaseRnd() * TAU : 0;
     for (let i = 0; i < out.length; i++) {
-      const t = i / SR;
-      out[i] += a * Math.exp(-t / tau) * Math.sin(TAU * f * t);
+      const t = i / SR, e = a * Math.exp(-t / tau);
+      out[i] += beat
+        ? e * 0.5 * (Math.sin(TAU * (f - beat / 2) * t + ph) + Math.sin(TAU * (f + beat / 2) * t + ph))
+        : e * Math.sin(TAU * f * t + ph);
     }
+  }
   return out;
 }
 
@@ -208,6 +216,7 @@ function room(seed: number, t60: number, early: [number, number][], bright: numb
 const SHED = () => room(102, 0.6, [[4, 0.7], [9, 0.5], [15, 0.4], [26, 0.3], [40, 0.2]], 0.4);
 const CATHEDRAL = () => room(105, 2.8, [[18, 0.4], [31, 0.35], [49, 0.3], [72, 0.25], [95, 0.2]], 0.35);
 const YARD = () => room(106, 0.3, [[6, 0.3], [13, 0.2], [23, 0.15], [37, 0.1]], 0.5);
+const HALL = () => room(103, 1.7, [[12, 0.5], [21, 0.4], [33, 0.35], [47, 0.25], [66, 0.2]], 0.4);
 
 /** Noise excitation ringing a bank of resonances; peak-normalized to 1. */
 function resonate(exc: Samples, modes: Mode[]): Samples {
@@ -382,4 +391,14 @@ export function hammerBlows(): Samples {
   mix(out, hammer(r, pitch, weight, ring, crack), 0.17 + r() * 0.02, 0.85);
   mix(out, hammer(r, pitch * 0.94, weight * 1.4, ring * 1.15, crack), 0.35 + r() * 0.02, 1);
   return finish(convolve(out, YARD(), 0.3), 0.8);
+}
+
+/** The ranger levels up: one struck bar on A6 with a glockenspiel bar's overtones, ringing in a hall. */
+export function levelUpDing(): Samples {
+  const r = rng(182);
+  const out = make(2.0);
+  mix(out, norm(burst(0.012, r, 'bp', 5000, 1.0, 0.0015, 0.0002)), 0, 0.45);
+  const f0 = 1760;
+  mix(out, norm(strike(1.8, [[f0, 1, 0.9, 0.25], [f0 * 2.76, 0.5, 0.5, 6], [f0 * 5.4, 0.22, 0.3, 10], [f0 * 0.5, 0.15, 0.6, 0.2]], r)), 0, 0.95);
+  return finish(convolve(out, HALL(), 0.2), 0.8);
 }
