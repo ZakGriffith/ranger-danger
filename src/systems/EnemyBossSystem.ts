@@ -180,6 +180,20 @@ export class EnemyBossSystem {
         }
       }
 
+      if (e.kind === 'infected_heavy' && e.anims.currentAnim?.key === 'eih-atk' && e.anims.isPlaying) {
+        e.setVelocity(0, 0);
+        (e as any)._attacking = true;
+        // A planted strike must not count toward terrain-stuck recovery.
+        e.lastMovingAt = time;
+        e.prevX = e.x;
+        e.prevY = e.y;
+        e.stuckMsec = 0;
+        e.windowStartedAt = time;
+        e.windowStartX = e.x;
+        e.windowStartY = e.y;
+        return true;
+      }
+
       const tx = scene.player.x, ty = scene.player.y;
       e.targetRef = scene.player;
       const prefix = e.dirPrefix();
@@ -552,11 +566,12 @@ export class EnemyBossSystem {
         } else if (e.kind !== 'bear' && e.kind !== 'wolf') {
           e.setFlipX(tx - e.x < 0);
         }
-        if (e.kind !== 'bear' && e.kind !== 'wolf' && e.anims.currentAnim?.key !== `${prefix}-atk`) e.play(`${prefix}-atk`);
+        if (e.kind !== 'bear' && e.kind !== 'wolf' && e.kind !== 'infected_heavy' && e.anims.currentAnim?.key !== `${prefix}-atk`) e.play(`${prefix}-atk`);
         if (time > e.attackCd) {
           e.attackCd = time + 800;
           if (e.kind === 'bear') this.playBearAttack(e);
           else if (e.kind === 'wolf') this.playWolfAttack(e);
+          else if (e.kind === 'infected_heavy') this.playIroncapAttack(e);
           scene.player.hurt(e.dmg, scene);
           scene.hud.pushHud();
           if (scene.player.hp <= 0) scene.end.lose();
@@ -1759,6 +1774,12 @@ export class EnemyBossSystem {
     e.play('ew-atk');
   }
 
+  private playIroncapAttack(e: Enemy) {
+    e.setVelocity(0, 0);
+    e.setFlipX(this.scene.player.x - e.x < 0);
+    e.play('eih-atk');
+  }
+
   enemyHitsPlayer(e: Enemy) {
     const scene = this.scene;
     if (!e.active || e.dying) return;
@@ -1766,10 +1787,12 @@ export class EnemyBossSystem {
       scene.infectedBlobs.tryAttack(e);
       return;
     }
+    if (e.kind === 'infected_heavy' && e.anims.currentAnim?.key === 'eih-atk' && e.anims.isPlaying) return;
     if (scene.vTime > e.attackCd) {
       e.attackCd = scene.vTime + 700;
       if (e.kind === 'bear') this.playBearAttack(e);
       else if (e.kind === 'wolf') this.playWolfAttack(e);
+      else if (e.kind === 'infected_heavy') this.playIroncapAttack(e);
       scene.player.hurt(e.dmg, scene);
       scene.hud.pushHud();
       if (scene.player.hp <= 0) scene.end.lose();

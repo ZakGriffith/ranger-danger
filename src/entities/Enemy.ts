@@ -5,6 +5,7 @@ import { Shadow } from './Shadow';
 import { DEBUG } from '../debug.config';
 import { RAT_VARIANTS } from '../assets/art/rat';
 import { BLOB_ORIGIN_Y, BLOB_VARIANTS } from '../assets/art/infectedBlob';
+import { IRONCAP_ORIGIN_Y } from '../assets/art/ironcap';
 import type { GameScene } from '../scenes/GameScene';
 
 export type EnemyKind = 'basic' | 'heavy' | 'runner' | 'snake' | 'rat' | 'deer' | 'wolf' | 'bear' | 'spider' | 'infected_basic' | 'infected_heavy' | 'infected_runner' | 'toad' | 'crow' | 'bat' | 'dragonfly' | 'mosquito' | 'skeleton' | 'warlock' | 'golem' | 'shadow_imp' | 'castle_bat' | 'castle_rat' | 'scorpion' | 'boss_scorpion' | 'scarab' | 'sand_mite' | 'cactus_hopper' | 'dune_strider' | 'sand_wraith' | 'temple_guardian' | 'sun_mote';
@@ -130,9 +131,8 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
         this.setSize(44, 24).setOffset(26, 76);
         break;
       case 'infected_heavy':
-        // 0.5 → 0.6: renders 20% larger than infected_basic so the heavy
-        // visibly outranks it (hitbox scales with it, still under a tile).
-        applyEntityVisual(this, 'infected_heavy', 'move', 0.6, 32, 32, 16, 20);
+        this.setScale(0.6).setOrigin(0.5, IRONCAP_ORIGIN_Y);
+        this.setSize(32, 32).setOffset(32, 44);
         this.play('eih-move');
         break;
       case 'infected_runner':
@@ -245,7 +245,9 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     if (kind !== 'snake') {
       this.shadow = kind === 'infected_basic'
         ? new Shadow(scene, 27, 8)
-        : Shadow.fromSprite(scene, this, this.texture.key, { flying: this.flying });
+        : kind === 'infected_heavy'
+          ? new Shadow(scene, 27, 9.6)
+          : Shadow.fromSprite(scene, this, this.texture.key, { flying: this.flying });
       this.shadow.update(this);
     }
 

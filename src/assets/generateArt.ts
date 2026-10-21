@@ -11,7 +11,7 @@ import { makeHD } from './art/hd';
 import {
   EFrame, EFrame6,
   drawEnemyBasic, drawEnemyHeavy,
-  drawEnemyInfectedBasic, drawEnemyInfectedHeavy,
+  drawEnemyInfectedBasic,
   drawEnemyCrow, drawEnemyBat, drawEnemyDragonfly,
   drawEnemyMosquito, drawMosquitoDart, drawBirdPoop,
   drawEnemySkeleton, drawEnemyWarlock, drawEnemyGolem, drawEnemyShadowImp,
@@ -25,6 +25,7 @@ import { drawRat, RAT_VARIANTS } from './art/rat';
 import { TOAD_FRAMES, TOAD_IDLE_FRAMES, TOAD_HOP_FRAMES, TOAD_ATTACK_FRAMES, TOAD_IDLE_FPS, TOAD_ATTACK_FPS, drawToad } from './art/toad';
 import { TOAD_BOMB_FRAMES, TOAD_SMOKE_FRAMES, TOAD_SMOKE_FRAME_MS, drawToadBomb, drawToadSmoke } from './art/toadPoison';
 import { BLOB_VARIANTS, BLOB_FRAMES, BLOB_MOVE_FRAMES, BLOB_ATTACK_FRAMES, BLOB_ATTACK_FRAME_MS, makeInfectedBlobFrame } from './art/infectedBlob';
+import { IRONCAP_SIZE, IRONCAP_FRAMES, IRONCAP_MOVE_FRAMES, IRONCAP_ATTACK_FRAMES, IRONCAP_MOVE_FPS, IRONCAP_ATTACK_FPS, drawIroncap } from './art/ironcap';
 import {
   Put, PutRGB, P, S,
   pxIdx, pxEq, pxCopy, scale2x, makeCanvas, mirrorX,
@@ -118,8 +119,9 @@ export function generateAllArt(scene: Phaser.Scene) {
   for (let variant = 0; variant < BLOB_VARIANTS; variant++) {
     for (const frame of BLOB_FRAMES) add(scene, `eiblob${variant}_${frame}`, makeInfectedBlobFrame(frame, variant));
   }
-  // Infected heavy uses the extended frame set (6-frame lumber, 4-frame swipe)
-  for (const f of e6Frames) add(scene, `eih_${f}`, makeCanvas(32, drawEnemyInfectedHeavy(f)));
+  for (const f of IRONCAP_FRAMES) {
+    add(scene, `eih_${f}`, makeHD(IRONCAP_SIZE, drawIroncap(f), { outline: false, flash: f === 'hit' }));
+  }
   for (const f of TOAD_FRAMES) {
     add(scene, `etd_${f}`, makeHD(64, drawToad(f), { outline: false }));
   }
@@ -526,11 +528,9 @@ export function registerAnimations(scene: Phaser.Scene) {
     mk(`${prefix}-hit`, [`${prefix}_hit`], 10, 0);
   }
 
-  // 6-frame upright lumber + 4-frame claw swipe
-  mk('eih-move', ['eih_move0','eih_move1','eih_move2','eih_move3','eih_move4','eih_move5'], 9, -1);
-  mk('eih-atk',  ['eih_atk0','eih_atk1','eih_atk2','eih_atk3'], 8, -1);
+  mk('eih-move', IRONCAP_MOVE_FRAMES.map(f => `eih_${f}`), IRONCAP_MOVE_FPS, -1);
+  mk('eih-atk', IRONCAP_ATTACK_FRAMES.map(f => `eih_${f}`), IRONCAP_ATTACK_FPS, 0);
   mk('eih-hit',  ['eih_hit'], 8, 0);
-  mk('eih-die',  ['eih_die0','eih_die1','eih_die2','eih_die3'], 8, 0);
 
   // Blighted Toad
   mk('etd-idle', TOAD_IDLE_FRAMES.map(f => `etd_${f}`), TOAD_IDLE_FPS, -1);
