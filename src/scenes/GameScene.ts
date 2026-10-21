@@ -22,6 +22,7 @@ import { SellSystem } from '../systems/SellSystem';
 import { CombatSystem } from '../systems/CombatSystem';
 import { EnemyDeathSystem } from '../systems/EnemyDeathSystem';
 import { ToadPoisonSystem } from '../systems/ToadPoisonSystem';
+import { InfectedBlobSystem } from '../systems/InfectedBlobSystem';
 import { EnemyBossSystem } from '../systems/EnemyBossSystem';
 import { SpawnSystem } from '../systems/SpawnSystem';
 import { EndSystem } from '../systems/EndSystem';
@@ -460,6 +461,7 @@ export class GameScene extends Phaser.Scene {
     this.combat = new CombatSystem(this);
     this.enemyDeaths = new EnemyDeathSystem(this);
     this.toadPoison = new ToadPoisonSystem(this);
+    this.infectedBlobs = new InfectedBlobSystem(this);
     this.enemyBoss = new EnemyBossSystem(this);
     this.spawn = new SpawnSystem(this);
     this.end = new EndSystem(this);
@@ -930,6 +932,7 @@ export class GameScene extends Phaser.Scene {
   combat!: CombatSystem;
   enemyDeaths!: EnemyDeathSystem;
   toadPoison!: ToadPoisonSystem;
+  infectedBlobs!: InfectedBlobSystem;
   enemyBoss!: EnemyBossSystem;
   spawn!: SpawnSystem;
   end!: EndSystem;
@@ -1017,6 +1020,8 @@ export class GameScene extends Phaser.Scene {
     this.updatePlayer(time, vd);
     this.combat.updateTowers(time);
     this.toadPoison.update(vd);
+    if (this.endState.dying) return;
+    this.infectedBlobs.update(vd);
     if (this.endState.dying) return;
     this.enemyBoss.updateEnemies(time, vd);
     if (this.biome === 'desert') this.updateDesertEnemyHazards(time);
@@ -1327,6 +1332,7 @@ export class GameScene extends Phaser.Scene {
   shutdown() {
     this.enemyDeaths.destroy();
     this.toadPoison.destroy();
+    this.infectedBlobs.destroy();
     SFX.stopBgm();
     if (this._onUiBuild) getEvents(this.game.events).off('ui-build', this._onUiBuild);
     if (this._onUiSell) getEvents(this.game.events).off('ui-sell', this._onUiSell);

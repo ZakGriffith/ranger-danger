@@ -166,6 +166,20 @@ export class EnemyBossSystem {
       if (!e || !e.active || e.dying) return true;
       e.updateShadow();
 
+      if (e.kind === 'infected_basic') {
+        if (scene.physics.world.isPaused || scene.buildState.paused) return true;
+        if (scene.infectedBlobs.isAttacking(e) || scene.infectedBlobs.tryAttack(e)) {
+          e.lastMovingAt = time;
+          e.prevX = e.x;
+          e.prevY = e.y;
+          e.stuckMsec = 0;
+          e.windowStartedAt = time;
+          e.windowStartX = e.x;
+          e.windowStartY = e.y;
+          return true;
+        }
+      }
+
       const tx = scene.player.x, ty = scene.player.y;
       e.targetRef = scene.player;
       const prefix = e.dirPrefix();
@@ -530,7 +544,7 @@ export class EnemyBossSystem {
       // (setVelocity 0) alternating with chase-velocity motion.
       const wasAttacking = (e as any)._attacking === true;
       const attackThresh = wasAttacking ? 40 * 40 : 30 * 30;
-      if (dist2 < attackThresh) {
+      if (e.kind !== 'infected_basic' && dist2 < attackThresh) {
         (e as any)._attacking = true;
         e.setVelocity(0, 0);
         if (e.rotates) {
@@ -611,7 +625,7 @@ export class EnemyBossSystem {
           e.setFlipX(dx < 0);
         }
         const moveAnim = `${e.dirPrefix()}-move`;
-        if (!wolfBiting && e.anims.currentAnim?.key !== moveAnim) e.play(moveAnim);
+        if (e.kind !== 'infected_basic' && !wolfBiting && e.anims.currentAnim?.key !== moveAnim) e.play(moveAnim);
         // NOTE: do NOT clear e.path here. Keeping the cached path lets the
         // enemy fall straight into path-following the moment LOS blocks
         // (e.g. player walks behind a tree). Clearing it meant the enemy
@@ -749,7 +763,7 @@ export class EnemyBossSystem {
         e.setFlipX(facingX < 0);
       }
       const moveAnim = `${e.dirPrefix()}-move`;
-      if (!wolfBiting && e.anims.currentAnim?.key !== moveAnim) e.play(moveAnim);
+      if (e.kind !== 'infected_basic' && !wolfBiting && e.anims.currentAnim?.key !== moveAnim) e.play(moveAnim);
       return true;
     });
   }
@@ -1748,6 +1762,10 @@ export class EnemyBossSystem {
   enemyHitsPlayer(e: Enemy) {
     const scene = this.scene;
     if (!e.active || e.dying) return;
+    if (e.kind === 'infected_basic') {
+      scene.infectedBlobs.tryAttack(e);
+      return;
+    }
     if (scene.vTime > e.attackCd) {
       e.attackCd = scene.vTime + 700;
       if (e.kind === 'bear') this.playBearAttack(e);

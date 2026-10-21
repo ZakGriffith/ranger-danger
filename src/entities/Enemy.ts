@@ -4,13 +4,13 @@ import { applyEntityVisual } from '../assets/spriteOverrides';
 import { Shadow } from './Shadow';
 import { DEBUG } from '../debug.config';
 import { RAT_VARIANTS } from '../assets/art/rat';
+import { BLOB_ORIGIN_Y, BLOB_VARIANTS } from '../assets/art/infectedBlob';
 import type { GameScene } from '../scenes/GameScene';
 
 export type EnemyKind = 'basic' | 'heavy' | 'runner' | 'snake' | 'rat' | 'deer' | 'wolf' | 'bear' | 'spider' | 'infected_basic' | 'infected_heavy' | 'infected_runner' | 'toad' | 'crow' | 'bat' | 'dragonfly' | 'mosquito' | 'skeleton' | 'warlock' | 'golem' | 'shadow_imp' | 'castle_bat' | 'castle_rat' | 'scorpion' | 'boss_scorpion' | 'scarab' | 'sand_mite' | 'cactus_hopper' | 'dune_strider' | 'sand_wraith' | 'temple_guardian' | 'sun_mote';
 
 export class Enemy extends Phaser.Physics.Arcade.Sprite {
   kind: EnemyKind;
-  /** Palette variant for kinds that have several (rat); 0 otherwise. */
   readonly variant: number;
   hp: number;
   maxHp: number;
@@ -126,8 +126,8 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
         this.play('es-move');
         break;
       case 'infected_basic':
-        applyEntityVisual(this, 'infected_basic', 'move', 0.5, 24, 24, 20, 24);
-        this.play('eib-move');
+        this.setScale(0.5).setOrigin(0.5, BLOB_ORIGIN_Y);
+        this.setSize(44, 24).setOffset(26, 76);
         break;
       case 'infected_heavy':
         // 0.5 → 0.6: renders 20% larger than infected_basic so the heavy
@@ -243,7 +243,9 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     // applied inside Shadow. Snakes slither directly on the ground so they
     // skip the shadow entirely.
     if (kind !== 'snake') {
-      this.shadow = Shadow.fromSprite(scene, this, this.texture.key, { flying: this.flying });
+      this.shadow = kind === 'infected_basic'
+        ? new Shadow(scene, 27, 8)
+        : Shadow.fromSprite(scene, this, this.texture.key, { flying: this.flying });
       this.shadow.update(this);
     }
 
@@ -253,6 +255,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
 
   /** Kinds with several palette variants pick one per enemy; the variant selects the texture set. */
   static pickVariant(kind: EnemyKind): number {
+    if (kind === 'infected_basic') return Phaser.Math.Between(0, BLOB_VARIANTS - 1);
     return kind === 'rat' || kind === 'castle_rat' ? Phaser.Math.Between(0, RAT_VARIANTS - 1) : 0;
   }
 
@@ -262,9 +265,9 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
       case 'snake': return 'esnk';
       case 'rat': return `erat${variant}`;
       case 'deer': return 'eder';
-      case 'infected_basic': return 'eib';
+      case 'infected_basic': return `eiblob${variant}`;
       case 'infected_heavy': return 'eih';
-      case 'infected_runner': return 'eib'; // reuses infected basic sprites
+      case 'infected_runner': return 'eib';
       case 'toad': return 'etd';
       case 'wolf': return 'ew';
       case 'bear': return 'ear'; // default to right-facing

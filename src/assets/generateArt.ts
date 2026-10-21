@@ -24,6 +24,7 @@ import { SPIDER_FRAMES, SPIDER_MOVE_FRAMES, SPIDER_ATK_FRAMES, drawSpider } from
 import { drawRat, RAT_VARIANTS } from './art/rat';
 import { TOAD_FRAMES, TOAD_IDLE_FRAMES, TOAD_HOP_FRAMES, TOAD_ATTACK_FRAMES, TOAD_IDLE_FPS, TOAD_ATTACK_FPS, drawToad } from './art/toad';
 import { TOAD_BOMB_FRAMES, TOAD_SMOKE_FRAMES, TOAD_SMOKE_FRAME_MS, drawToadBomb, drawToadSmoke } from './art/toadPoison';
+import { BLOB_VARIANTS, BLOB_FRAMES, BLOB_MOVE_FRAMES, BLOB_ATTACK_FRAMES, BLOB_ATTACK_FRAME_MS, makeInfectedBlobFrame } from './art/infectedBlob';
 import {
   Put, PutRGB, P, S,
   pxIdx, pxEq, pxCopy, scale2x, makeCanvas, mirrorX,
@@ -112,8 +113,11 @@ export function generateAllArt(scene: Phaser.Scene) {
   add(scene, 'esnk_move0t', makeHD(64, drawSnake('move0', true)));
   for (let v = 0; v < RAT_VARIANTS; v++) for (const f of MEADOW_FRAMES) add(scene, `erat${v}_${f}`, makeHD(64, drawRat(f, v)));
   for (const f of MEADOW_FRAMES) add(scene, `eder_${f}`, makeHD(64, drawDeer(f)));
-  // Infected basic uses the extended frame set (6-frame lumber, 4-frame bite)
+  // Infected runners retain the original six-frame lumber and four-frame bite.
   for (const f of e6Frames) add(scene, `eib_${f}`, makeCanvas(32, drawEnemyInfectedBasic(f)));
+  for (let variant = 0; variant < BLOB_VARIANTS; variant++) {
+    for (const frame of BLOB_FRAMES) add(scene, `eiblob${variant}_${frame}`, makeInfectedBlobFrame(frame, variant));
+  }
   // Infected heavy uses the extended frame set (6-frame lumber, 4-frame swipe)
   for (const f of e6Frames) add(scene, `eih_${f}`, makeCanvas(32, drawEnemyInfectedHeavy(f)));
   for (const f of TOAD_FRAMES) {
@@ -514,6 +518,13 @@ export function registerAnimations(scene: Phaser.Scene) {
   mk('eib-atk',  ['eib_atk0','eib_atk1','eib_atk2','eib_atk3'], 10, -1);
   mk('eib-hit',  ['eib_hit'], 10, 0);
   mk('eib-die',  ['eib_die0','eib_die1','eib_die2','eib_die3'], 10, 0);
+
+  for (let variant = 0; variant < BLOB_VARIANTS; variant++) {
+    const prefix = `eiblob${variant}`;
+    mk(`${prefix}-move`, BLOB_MOVE_FRAMES.map(frame => `${prefix}_${frame}`), 32, -1);
+    mk(`${prefix}-atk`, BLOB_ATTACK_FRAMES.map(frame => `${prefix}_${frame}`), 1000 / BLOB_ATTACK_FRAME_MS, 0);
+    mk(`${prefix}-hit`, [`${prefix}_hit`], 10, 0);
+  }
 
   // 6-frame upright lumber + 4-frame claw swipe
   mk('eih-move', ['eih_move0','eih_move1','eih_move2','eih_move3','eih_move4','eih_move5'], 9, -1);
