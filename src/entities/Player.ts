@@ -31,7 +31,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.nockedArrow = scene.add.sprite(x, y, 'arrow_0').setDepth(11.5).setScale(0.5);
   }
 
-  hurt(amount: number, scene: Phaser.Scene) {
+  hurt(amount: number, scene: Phaser.Scene, feedback: 'hit' | 'poison' = 'hit') {
     if (DEBUG.noDamage) return;
     const now = (scene as any).vTime ?? scene.time.now;
     if (this.invuln > now) return;
@@ -44,6 +44,13 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       stats.playerHits++;
     }
     this.invuln = now + 500;
+    if (feedback === 'poison') {
+      this.setTint(0xadc976);
+      scene.time.delayedCall(120, () => {
+        if (this.scene) this.clearTint();
+      });
+      return;
+    }
     SFX.play('playerHurt');
     this.play('player-hit', true);
     scene.tweens.add({

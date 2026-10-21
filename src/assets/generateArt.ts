@@ -5,13 +5,13 @@
 // in order via registerAnimations().
 
 import Phaser from 'phaser';
+import { CFG } from '../config';
 import { PFrame, PPose, drawPlayer, drawBow, TOWER_ARCHER } from './art/player';
 import { makeHD } from './art/hd';
 import {
-  EFrame, EFrame6, ToadFrame,
+  EFrame, EFrame6,
   drawEnemyBasic, drawEnemyHeavy,
   drawEnemyInfectedBasic, drawEnemyInfectedHeavy,
-  drawEnemyToad, drawToadGlob,
   drawEnemyCrow, drawEnemyBat, drawEnemyDragonfly,
   drawEnemyMosquito, drawMosquitoDart, drawBirdPoop,
   drawEnemySkeleton, drawEnemyWarlock, drawEnemyGolem, drawEnemyShadowImp,
@@ -22,6 +22,8 @@ import { MEADOW_FRAMES, MEADOW_MOVE_FRAMES, MEADOW_ATK_FRAMES, drawSnake } from 
 import { drawDeer } from './art/deer';
 import { SPIDER_FRAMES, SPIDER_MOVE_FRAMES, SPIDER_ATK_FRAMES, drawSpider } from './art/spider';
 import { drawRat, RAT_VARIANTS } from './art/rat';
+import { TOAD_FRAMES, TOAD_IDLE_FRAMES, TOAD_HOP_FRAMES, TOAD_ATTACK_FRAMES, TOAD_IDLE_FPS, TOAD_ATTACK_FPS, drawToad } from './art/toad';
+import { TOAD_BOMB_FRAMES, TOAD_SMOKE_FRAMES, TOAD_SMOKE_FRAME_MS, drawToadBomb, drawToadSmoke } from './art/toadPoison';
 import {
   Put, PutRGB, P, S,
   pxIdx, pxEq, pxCopy, scale2x, makeCanvas, mirrorX,
@@ -114,12 +116,13 @@ export function generateAllArt(scene: Phaser.Scene) {
   for (const f of e6Frames) add(scene, `eib_${f}`, makeCanvas(32, drawEnemyInfectedBasic(f)));
   // Infected heavy uses the extended frame set (6-frame lumber, 4-frame swipe)
   for (const f of e6Frames) add(scene, `eih_${f}`, makeCanvas(32, drawEnemyInfectedHeavy(f)));
-  // Blighted Toad — uses its own frame set (idle + hop + atk + hit + die)
-  const toadFrames: ToadFrame[] = ['idle', 'hop0', 'hop1', 'hop2', 'hop3', 'atk0', 'atk1', 'hit', 'die0', 'die1', 'die2', 'die3'];
-  for (const f of toadFrames) add(scene, `etd_${f}`, makeCanvas(32, drawEnemyToad(f)));
-  // Toad glob projectile
-  add(scene, 'tglob_0', makeCanvas(16, drawToadGlob('glob0')));
-  add(scene, 'tglob_1', makeCanvas(16, drawToadGlob('glob1')));
+  for (const f of TOAD_FRAMES) {
+    add(scene, `etd_${f}`, makeHD(64, drawToad(f), { outline: false }));
+  }
+  for (const f of TOAD_BOMB_FRAMES) add(scene, `toad_bomb_${f}`, makeHD(32, drawToadBomb(f), { outline: false }));
+  for (const f of TOAD_SMOKE_FRAMES) {
+    add(scene, `toad_smoke_${f}`, makeHD(128, drawToadSmoke(f * TOAD_SMOKE_FRAME_MS, CFG.infected.toadPoisonLifetime), { outline: false }));
+  }
   for (const f of WOLF_FRAMES) add(scene, `ew_${f}`, makeHD(64, drawWolf(f), { outline: false }));
   for (const f of BEAR_FRAMES) {
     add(scene, `ear_${f}`, makeHD(64, drawBear(f, 'r')));
@@ -519,12 +522,10 @@ export function registerAnimations(scene: Phaser.Scene) {
   mk('eih-die',  ['eih_die0','eih_die1','eih_die2','eih_die3'], 8, 0);
 
   // Blighted Toad
-  mk('etd-idle', ['etd_idle'], 1, -1);
-  mk('etd-hop',  ['etd_hop0','etd_hop1','etd_hop2','etd_hop3'], 8, 0); // plays once per hop
-  mk('etd-atk',  ['etd_atk0','etd_atk1'], 6, 0);
+  mk('etd-idle', TOAD_IDLE_FRAMES.map(f => `etd_${f}`), TOAD_IDLE_FPS, -1);
+  mk('etd-hop', TOAD_HOP_FRAMES.map(f => `etd_${f}`), TOAD_HOP_FRAMES.length * 1000 / CFG.infected.toadHopDuration, 0);
+  mk('etd-atk', TOAD_ATTACK_FRAMES.map(f => `etd_${f}`), TOAD_ATTACK_FPS, 0);
   mk('etd-hit',  ['etd_hit'], 8, 0);
-  mk('etd-die',  ['etd_die0','etd_die1','etd_die2','etd_die3'], 8, 0);
-  mk('tglob-spin', ['tglob_0','tglob_1'], 8, -1);
 
   mk('ew-move', WOLF_MOVE_FRAMES.map(f => `ew_${f}`), WOLF_MOVE_FPS, -1);
   mk('ew-atk', WOLF_ATK_FRAMES.map(f => `ew_${f}`), WOLF_ATK_FPS, 0);

@@ -21,6 +21,7 @@ import { BuildSystem } from '../systems/BuildSystem';
 import { SellSystem } from '../systems/SellSystem';
 import { CombatSystem } from '../systems/CombatSystem';
 import { EnemyDeathSystem } from '../systems/EnemyDeathSystem';
+import { ToadPoisonSystem } from '../systems/ToadPoisonSystem';
 import { EnemyBossSystem } from '../systems/EnemyBossSystem';
 import { SpawnSystem } from '../systems/SpawnSystem';
 import { EndSystem } from '../systems/EndSystem';
@@ -117,7 +118,6 @@ export class GameScene extends Phaser.Scene {
   enemies!: Phaser.Physics.Arcade.Group;
   projectiles!: Phaser.Physics.Arcade.Group;
   enemyDarts!: Phaser.Physics.Arcade.Group;
-  toadGlobs!: Phaser.Physics.Arcade.Group;
   coins!: Phaser.Physics.Arcade.Group;
   walls: Wall[] = [];
   towers: Tower[] = [];
@@ -459,6 +459,7 @@ export class GameScene extends Phaser.Scene {
     this.sell = new SellSystem(this);
     this.combat = new CombatSystem(this);
     this.enemyDeaths = new EnemyDeathSystem(this);
+    this.toadPoison = new ToadPoisonSystem(this);
     this.enemyBoss = new EnemyBossSystem(this);
     this.spawn = new SpawnSystem(this);
     this.end = new EndSystem(this);
@@ -467,7 +468,6 @@ export class GameScene extends Phaser.Scene {
     this.enemies = this.physics.add.group({ classType: Enemy, runChildUpdate: false });
     this.projectiles = this.physics.add.group({ classType: Projectile, runChildUpdate: false });
     this.enemyDarts = this.physics.add.group({ runChildUpdate: false });
-    this.toadGlobs = this.physics.add.group({ runChildUpdate: false });
     this.coins = this.physics.add.group({ classType: Coin, runChildUpdate: false });
     this.warlockBolts = this.physics.add.group({ runChildUpdate: false });
     this.queenOrbs = this.physics.add.group({ runChildUpdate: false });
@@ -602,8 +602,6 @@ export class GameScene extends Phaser.Scene {
     this.physics.add.overlap(this.player, this.enemyDarts, (_p, d) => this.enemyBoss.enemyDartHitsPlayer(d as Phaser.Physics.Arcade.Sprite));
     this.physics.add.overlap(this.enemyDarts, this.wallGroup, (_d, _w) => { (_d as Phaser.Physics.Arcade.Sprite).destroy(); });
     this.physics.add.overlap(this.enemyDarts, this.towerGroup, (_d, _t) => { (_d as Phaser.Physics.Arcade.Sprite).destroy(); });
-    // Toad globs hit the player (they arc over walls/towers — no wall/tower overlap)
-    this.physics.add.overlap(this.player, this.toadGlobs, (_p, g) => this.enemyBoss.toadGlobHitsPlayer(g as Phaser.Physics.Arcade.Sprite));
     // Castle warlock bolts, queen orbs, dragon fireballs
     this.physics.add.overlap(this.player, this.warlockBolts, (_p, b) => this.enemyBoss.castleBoltHitsPlayer(b as Phaser.Physics.Arcade.Sprite));
     this.physics.add.overlap(this.warlockBolts, this.wallGroup, (_b, _w) => { (_b as Phaser.Physics.Arcade.Sprite).destroy(); });
@@ -931,6 +929,7 @@ export class GameScene extends Phaser.Scene {
   sell!: SellSystem;
   combat!: CombatSystem;
   enemyDeaths!: EnemyDeathSystem;
+  toadPoison!: ToadPoisonSystem;
   enemyBoss!: EnemyBossSystem;
   spawn!: SpawnSystem;
   end!: EndSystem;
@@ -1017,6 +1016,8 @@ export class GameScene extends Phaser.Scene {
 
     this.updatePlayer(time, vd);
     this.combat.updateTowers(time);
+    this.toadPoison.update(vd);
+    if (this.endState.dying) return;
     this.enemyBoss.updateEnemies(time, vd);
     if (this.biome === 'desert') this.updateDesertEnemyHazards(time);
     this.enemyBoss.updateBoss(time);
@@ -1024,7 +1025,6 @@ export class GameScene extends Phaser.Scene {
     this.enemyBoss.updateBirdPoops(time);
     this.combat.updateProjectiles(time);
     this.enemyBoss.updateEnemyDarts();
-    this.enemyBoss.updateToadGlobs();
     this.enemyBoss.updateBoulders(time);
     this.enemyBoss.updateCastleProjectiles();
     this.coinSystem.update(vd);
@@ -1326,6 +1326,7 @@ export class GameScene extends Phaser.Scene {
 
   shutdown() {
     this.enemyDeaths.destroy();
+    this.toadPoison.destroy();
     SFX.stopBgm();
     if (this._onUiBuild) getEvents(this.game.events).off('ui-build', this._onUiBuild);
     if (this._onUiSell) getEvents(this.game.events).off('ui-sell', this._onUiSell);

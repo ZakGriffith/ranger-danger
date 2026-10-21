@@ -216,7 +216,7 @@ const BUILTIN: CharacterSpec[] = [
   { folder: 'toad', texPrefix: 'etd', anims: [
     { suffix: 'move', indexed: true,  indexSep: '', animKey: 'etd-hop'  },
     { suffix: 'atk',  indexed: true,  indexSep: '', animKey: 'etd-atk'  },
-    { suffix: 'idle', indexed: false, indexSep: '', animKey: 'etd-idle', derivedFrom: 'move' },
+    { suffix: 'idle', indexed: true,  indexSep: '', animKey: 'etd-idle', derivedFrom: 'move' },
   ]},
   // Player — keys use an underscore separator before the index (p_move_0, p_idle_0, etc.).
   { folder: 'player', texPrefix: 'p', anims: [

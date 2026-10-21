@@ -129,13 +129,14 @@ export const CFG = {
     clusterSpread: 24,          // px spread within the cluster
     rampFactor: 0.88,           // faster ramp than normal (0.93)
     minInterval: 250,           // tighter floor than normal (350)
-    toadRange: 300,             // px — distance at which toad starts lobbing globs (it keeps hopping while in range)
+    toadRange: 300,             // px — distance at which toad starts lobbing bombs (it keeps hopping while in range)
     toadFireRate: 2800,         // ms between lobs
-    toadGlobSpeed: 120,         // slow arcing glob
-    toadGlobDmg: 8,
-    toadGlobSplash: 12,         // smaller than half a tile — easier to sidestep
-    toadGlobLifetime: 3500,
-    toadGlobArcHeight: 60,      // px — peak height of the arc
+    toadBombSpeed: 120,
+    toadBombArcHeight: 60,
+    toadPoisonRadius: 26,
+    toadPoisonLifetime: 4000,
+    toadPoisonDamage: 1,
+    toadPoisonTickMs: 500,
     toadHopInterval: 500,       // ms between hops
     toadHopDuration: 350,       // ms a hop takes (airborne)
     toadChance: 0.15,           // chance a spawn is a toad instead of normal infected

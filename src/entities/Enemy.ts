@@ -68,7 +68,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     const data = dataMap[kind];
     const variant = Enemy.pickVariant(kind);
     const texPrefix = Enemy.texPrefix(kind, variant);
-    super(scene, x, y, `${texPrefix}_move0`);
+    super(scene, x, y, `${texPrefix}_${kind === 'toad' ? 'idle0' : 'move0'}`);
     this.kind = kind;
     this.variant = variant;
     this.hp = data.hp;

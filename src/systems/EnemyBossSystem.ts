@@ -380,6 +380,7 @@ export class EnemyBossSystem {
       }
 
       if (e.kind === 'toad') {
+        if (scene.physics.world.isPaused) return true;
         const toadRange = CFG.infected.toadRange;
         const dist = Math.sqrt(dist2);
         e.setFlipX(tx - e.x < 0);
@@ -394,9 +395,7 @@ export class EnemyBossSystem {
         if (dist < toadRange && dist > 40 && time > e.attackCd && !td._toadHopping && this.enemyOnScreen(e)) {
           e.attackCd = time + CFG.infected.toadFireRate;
           e.play('etd-atk');
-          scene.time.delayedCall(200 / scene.timeMult, () => {
-            if (e.active && !e.dying) this.spawnToadGlob(e.x, e.y, tx, ty);
-          });
+          scene.toadPoison.queueThrow(e, tx, ty);
         }
 
         // Let the attack animation finish before the hop/idle logic stomps it.
@@ -1791,92 +1790,6 @@ export class EnemyBossSystem {
     scene.enemyDarts.children.iterate((c: any) => {
       if (!c || !c.active) return true;
       if (scene.vTime - c._born > (c._lifetime ?? CFG.river.mosquitoDartLifetime)) { c.destroy(); return true; }
-      return true;
-    });
-  }
-
-  spawnToadGlob(x: number, y: number, tx: number, ty: number) {
-    const scene = this.scene;
-    const glob = scene.physics.add.sprite(x, y, 'tglob_0').setScale(0.8).setDepth(12);
-    glob.play('tglob-spin');
-    glob.setSize(10, 10).setOffset(3, 3);
-    scene.toadGlobs.add(glob);
-
-    const dx = tx - x, dy = ty - y;
-    const dist = Math.hypot(dx, dy) || 1;
-    const spd = CFG.infected.toadGlobSpeed;
-
-    const g = glob as any;
-    g._born = scene.vTime;
-    g._startX = x;
-    g._startY = y;
-    g._targetX = tx;
-    g._targetY = ty;
-    g._totalDist = dist;
-    g._dmg = CFG.infected.toadGlobDmg;
-    g._splash = CFG.infected.toadGlobSplash;
-    g._arcHeight = CFG.infected.toadGlobArcHeight;
-    g._flat = false;
-    g._landed = false;
-
-    glob.setVelocity((dx / dist) * spd, (dy / dist) * spd);
-  }
-
-  landToadGlob(glob: Phaser.Physics.Arcade.Sprite) {
-    const scene = this.scene;
-    if (!glob.active) return;
-    const g = glob as any;
-    if (g._landed) return;
-    g._landed = true;
-
-    glob.setVelocity(0, 0);
-    glob.setScale(0.8);
-    glob.setOrigin(0.5, 0.5);
-    (glob.body as Phaser.Physics.Arcade.Body).enable = false;
-
-    const dmg = g._dmg ?? CFG.infected.toadGlobDmg;
-    const splash = g._splash ?? CFG.infected.toadGlobSplash;
-
-    const pdx = scene.player.x - glob.x, pdy = scene.player.y - glob.y;
-    if (pdx * pdx + pdy * pdy < splash * splash) {
-      scene.player.hurt(dmg, scene);
-      scene.hud.pushHud();
-      if (scene.player.hp <= 0) scene.end.lose();
-    }
-
-    const splat = scene.add.circle(glob.x, glob.y, splash, 0x40e060, 0.5).setDepth(5);
-    scene.tweens.add({ targets: splat, alpha: 0, duration: 500, onComplete: () => splat.destroy() });
-    glob.setTintFill(0x40e060);
-    scene.tweens.add({ targets: glob, alpha: 0, scaleX: 1.2, scaleY: 0.3, duration: 200, onComplete: () => glob.destroy() });
-  }
-
-  toadGlobHitsPlayer(glob: Phaser.Physics.Arcade.Sprite) {
-    if (!glob.active || (glob as any)._landed) return;
-    this.landToadGlob(glob);
-  }
-
-  updateToadGlobs() {
-    const scene = this.scene;
-    scene.toadGlobs.children.iterate((c: any) => {
-      if (!c || !c.active || c._landed) return true;
-      const elapsed = scene.vTime - c._born;
-      if (elapsed > CFG.infected.toadGlobLifetime) { this.landToadGlob(c); return true; }
-
-      const dx = c.x - c._startX, dy = c.y - c._startY;
-      const traveled = Math.hypot(dx, dy);
-      if (traveled >= c._totalDist) {
-        this.landToadGlob(c);
-        return true;
-      }
-
-      const progress = traveled / c._totalDist;
-      if (c._arcHeight > 0) {
-        const arc = -4 * c._arcHeight * progress * (progress - 1);
-        const scaleMod = 1 + (arc / c._arcHeight) * 0.4;
-        c.setScale(0.8 * scaleMod);
-        c.setOrigin(0.5, 0.5 + arc / 16);
-      }
-
       return true;
     });
   }
