@@ -52,11 +52,6 @@ export class LevelSelectScene extends Phaser.Scene {
   p(v: number) { return v * this.sf; }
   /** Build a font-size string at the scaled resolution */
   fs(px: number) { return `${Math.round(px * this.sf)}px`; }
-  /** Play the door-open pitched sound, falling back to a click if the buffer isn't loaded yet. */
-  private playDoorOpen(volume: number, rate: number, offset = 0) {
-    SFX.hasBuffer('doorOpen') ? SFX.playPitched('doorOpen', volume, rate, offset) : SFX.play('click');
-  }
-
   constructor() { super('LevelSelect'); }
 
   create() {
@@ -564,7 +559,7 @@ export class LevelSelectScene extends Phaser.Scene {
           this.showTooltip(cx, cy - R - this.p(14), 'Coming Soon');
           return;
         }
-        this.playDoorOpen(0.34, 2.0, 0.12);
+        SFX.play('select');
         this.openDifficultyPanel(level);
         if (getRegistry(this.game).get('tutorialActive')) {
           getEvents(this.game.events).emit('tutorial-level-clicked', level.id);
@@ -580,7 +575,7 @@ export class LevelSelectScene extends Phaser.Scene {
         glowG.strokeCircle(cx, cy, R + this.p(9));
 
         hitZone.on('pointerover', () => {
-          SFX.play('click');
+          SFX.play('hover');
           glowG.setAlpha(1);
           this.tweens.add({
             targets: glowG, alpha: 0.6, yoyo: true, repeat: -1, duration: 600
@@ -766,7 +761,7 @@ export class LevelSelectScene extends Phaser.Scene {
       hitRect.on('pointerdown', () => {
         // During tutorial, only Easy is selectable
         if (getRegistry(this.game).get('tutorialActive') && diff !== 'easy') return;
-        this.playDoorOpen(0.34, 2.0, 0.12);
+        SFX.play('select');
         this.selectedDiff = diff;
         for (const btn of this.diffButtons) {
           const sel = btn.diff === diff;
@@ -892,7 +887,7 @@ export class LevelSelectScene extends Phaser.Scene {
       text.setColor('#7cf29a');
       hit.setInteractive({ useHandCursor: true });
       hit.off('pointerdown');
-      hit.on('pointerdown', () => { this.playDoorOpen(0.34, 2.0, 0.12); this.startMission(); });
+      hit.on('pointerdown', () => { SFX.play('select'); this.startMission(); });
       hit.on('pointerover', () => {
         g.clear();
         g.fillStyle(0x2a6a3e, 1);

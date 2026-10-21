@@ -2,11 +2,13 @@
  * Sound effects manager.
  *
  * Drop WAV/MP3/OGG files into public/audio/ and map them below.
- * Any sound without a file falls back to a jsfxr-generated tone.
+ * Any sound without a file falls back to a jsfxr-generated tone or to a
+ * sound rendered in code (synth.ts and the load* methods below).
  *
  * File naming convention:  public/audio/<key>.wav  (e.g. public/audio/arrowShoot.wav)
  */
 import { sfxr } from 'jsfxr';
+import { SYNTH_RATE, hoverPat, selectDrum, gameOverHorn, bossThunder, victoryCoins, hammerBlows } from './synth';
 
 // ---- Sound keys the game uses ----
 const SFX_KEYS = [
@@ -23,7 +25,8 @@ const SFX_KEYS = [
   'victory',      // game won
   'gameOver',     // game lost
   'click',        // UI button click
-  'doorOpen',     // castle door / play button
+  'hover',        // level map node under the mouse
+  'select',       // level, difficulty or start picked on the level map
   'structDestroy',// wall / tower torn down (sold or destroyed by boss)
 ] as const;
 
@@ -46,7 +49,6 @@ const AUDIO_FILES: Partial<Record<SfxKey, string>> = {
   // victory: '/audio/victory.wav',
   // gameOver: '/audio/gameOver.wav',
   // click: '/audio/click.wav',
-  doorOpen: '/audio/PlayButton.wav',
 };
 
 // ---- jsfxr fallbacks (b58 encoded) for sounds without a file ----
@@ -55,14 +57,10 @@ const FALLBACKS: Partial<Record<SfxKey, string>> = {
   cannonShoot: '12eZRSDW9BMogwNAtzYnLSRoy3YwZx6LxmvDVzyRESygjypkNZbnJsttfvpVtet95EpujKgmAYxtqRHddt5TDH7n6g4wjx2qmx8Szk3YFba8fmPKJRa41VF1yZ',
   hit:         '12eZRSDGK2a8nkE7ocbPN2Zfn34PjaBUS2KFypdmt2hBhWtcRfVMabfr2MCGEaj2op9XeKw5NELanteLuMhsgRQVeCwJJsNdEiAj55sMwroNS8kJ8rpm8AQgRD',
   // coin uses a custom programmatic tone (see loadCoin below)
-  towerPlace:  '7BMHBGG45s3FvKh6FzS7kZfiABdTAz9MnSYVcFhuDwCxHSywhwSyjDxrPJrV3FA74MLDseKvrHTGsAcCa3vBYDuASRXVABXboaWqYT8joRuAUoYGFeeLGtrt7',
   wallPlace:   '12eZRSDGK2a8ncanb4HHKxEkayTgXz1bEGVRiT35nZXFBk38k5xYdmjADDLNFnMEJPG2gYFCMuHcepZzUbEKmhs6E6CM6oHRi7isDz48fB1m5WcUuAYrdGnHj5',
   boom:        '12eZRSDRnjsSkoovj21LDvGd5SbDnrfDbsaxdmMRaT3XK9Qa8jgXdTSa1MaBys6CgmNjtff7futsPfmfcRpWTZUnXr2TWv2gdboDKZmc6GTpUZxc97qpXJWtyD',
-  bossSpawn:   '12eZRSDSVRrD67KRceReSAHfH5R3pqU9JuRJpxZuQ1eMG9Fn1aSWE8wmnE3HgvjZiNptQo2zpHgj9fqofhSaDFuEok9jcFWnVvN3cW1iDBbN4qzVuw8gJNnhKM',
   // playerHurt uses a custom programmatic tone (see loadPlayerHurt below)
-  // upgrade uses a custom programmatic tone (see loadUpgrade below)
-  // victory uses a custom programmatic fanfare (see loadVictory below)
-  gameOver:    '12eZRSDW9BpyimpJ2g3CzvFeX7gYUb8STeQhqTheS6kbAXPHtF43iMHM4X4FDyt6hu2Gpiiz5scgQdCbp1Kd9YLifs2Xp7PKJhDZqHPZAsDXZesN5w4R7vko6X',
+  // hover, select, towerPlace, upgrade, bossSpawn, victory and gameOver are rendered by synth.ts (see loadAssets)
   // click uses a custom programmatic tone (see loadClick below)
 };
 
@@ -112,12 +110,13 @@ class SfxManager {
     arrowShoot: 60,
     cannonShoot: 100,
     wallPlace: 80,
+    hover: 80,
+    bossSpawn: 1500,
   };
   /** Per-sound volume multipliers (0–1, default 1) */
   private volumes: Partial<Record<SfxKey, number>> = {
     cannonShoot: 0.5,
     playerHurt: 0.85,
-    doorOpen: 0.5,
   };
   /** Per-sound playback-rate multipliers (1 = original pitch). <1 = lower
    *  pitch, >1 = higher. */
@@ -200,10 +199,16 @@ class SfxManager {
     await Promise.all(loads);
     this.loadClick();
     this.loadCoin();
-    this.loadUpgrade();
     this.loadPlayerHurt();
-    this.loadVictory();
     this.loadStructDestroy();
+    this.loadSynth('hover', hoverPat());
+    this.loadSynth('select', selectDrum());
+    this.loadSynth('gameOver', gameOverHorn());
+    this.loadSynth('bossSpawn', bossThunder());
+    this.loadSynth('victory', victoryCoins());
+    const blows = hammerBlows();
+    this.loadSynth('towerPlace', blows);
+    this.loadSynth('upgrade', blows);
   }
 
   /** @deprecated kept for any old call sites — equivalent to loadAssets(). */
@@ -263,28 +268,6 @@ class SfxManager {
     this.buffers.coin = buf;
   }
 
-  /** Mario power-up style ascending arpeggio */
-  private loadUpgrade() {
-    const sr = 44100;
-    // Fast ascending notes: E5 → G5 → B5 → E6 → G6 → B6 → E7
-    const notes = [659, 784, 988, 1319, 1568, 1976, 2637];
-    const noteLen = Math.floor(sr * 0.055); // 55ms per note
-    const totalLen = notes.length * noteLen;
-    const buf = this.ctx!.createBuffer(1, totalLen, sr);
-    const ch = buf.getChannelData(0);
-    const vol = 0.3;
-    for (let n = 0; n < notes.length; n++) {
-      const off = n * noteLen;
-      const freq = notes[n];
-      for (let i = 0; i < noteLen; i++) {
-        const t = i / sr;
-        const env = 1 - (i / noteLen) * 0.5; // gentle decay per note
-        ch[off + i] = Math.sin(2 * Math.PI * freq * t) * env * vol;
-      }
-    }
-    this.buffers.upgrade = buf;
-  }
-
   /** Soft thud with descending pitch — less harsh than jsfxr version */
   private loadPlayerHurt() {
     const sr = 44100;
@@ -306,45 +289,6 @@ class SfxManager {
       ch[i] = (sine * 0.7 + tri * 0.3) * env * vol;
     }
     this.buffers.playerHurt = buf;
-  }
-
-  /** Triumphant ascending fanfare for level-complete. Three short bumps
-   *  (C5, E5, G5) climbing the major triad, finishing on a sustained C6. */
-  private loadVictory() {
-    const sr = 44100;
-    const totalDur = 1.45;
-    const len = Math.floor(sr * totalDur);
-    const buf = this.ctx!.createBuffer(1, len, sr);
-    const ch = buf.getChannelData(0);
-    type Note = { freq: number; start: number; dur: number; vol: number };
-    const notes: Note[] = [
-      { freq: 523, start: 0.00, dur: 0.18, vol: 0.36 }, // C5
-      { freq: 659, start: 0.16, dur: 0.18, vol: 0.36 }, // E5
-      { freq: 784, start: 0.32, dur: 0.20, vol: 0.40 }, // G5
-      { freq: 1046, start: 0.50, dur: 0.95, vol: 0.45 }, // C6 sustained
-    ];
-    for (const n of notes) {
-      const startSample = Math.floor(n.start * sr);
-      const noteLen = Math.floor(n.dur * sr);
-      for (let i = 0; i < noteLen && (startSample + i) < len; i++) {
-        const t = i / sr;
-        const progress = i / noteLen;
-        // Quick attack (~5ms), exponential decay across the note's duration
-        const attack = 1 - Math.exp(-i / (sr * 0.005));
-        const decay = Math.exp(-progress * 2.4);
-        const env = attack * decay;
-        const phase = 2 * Math.PI * n.freq * t;
-        // Fundamental + slight 3rd harmonic for a warmer, brassier tone
-        const sample = Math.sin(phase) * 0.7 + Math.sin(phase * 3) * 0.12;
-        ch[startSample + i] += sample * env * n.vol;
-      }
-    }
-    // Defensive clamp in case overlapping notes clip
-    for (let i = 0; i < len; i++) {
-      if (ch[i] > 1) ch[i] = 1;
-      else if (ch[i] < -1) ch[i] = -1;
-    }
-    this.buffers.victory = buf;
   }
 
   /** Wall / tower crumble — short noise burst over a descending low sine
@@ -387,6 +331,12 @@ class SfxManager {
     this.buffers[key] = buf;
   }
 
+  private loadSynth(key: SfxKey, samples: Float32Array<ArrayBuffer>) {
+    const buf = this.ctx!.createBuffer(1, samples.length, SYNTH_RATE);
+    buf.copyToChannel(samples, 0);
+    this.buffers[key] = buf;
+  }
+
   /** Play a sound effect. Uses Web Audio API for instant playback. */
   play(key: SfxKey) {
     if (this._muted || !this.ctx || !this.gainNode) return;
@@ -418,25 +368,6 @@ class SfxManager {
       source.connect(this.gainNode);
     }
     source.start(0);
-  }
-
-  /** Returns true if the given key's AudioBuffer has been decoded and is ready for playback. */
-  hasBuffer(key: SfxKey): boolean { return !!this.buffers[key]; }
-
-  /** Play a sound with custom pitch and volume. Useful for UI click variants. */
-  playPitched(key: SfxKey, volume: number, rate: number, startOffset = 0) {
-    if (this._muted || !this.ctx || !this.gainNode) return;
-    const buf = this.buffers[key];
-    if (!buf) return;
-    if (this.ctx.state === 'suspended') this.ctx.resume();
-    const source = this.ctx.createBufferSource();
-    source.buffer = buf;
-    source.playbackRate.value = rate;
-    const g = this.ctx.createGain();
-    g.gain.value = volume;
-    source.connect(g);
-    g.connect(this.gainNode);
-    source.start(0, startOffset);
   }
 
   get volume() { return this._volume; }
