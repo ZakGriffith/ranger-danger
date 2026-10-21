@@ -169,6 +169,7 @@ export class EnemyBossSystem {
       const tx = scene.player.x, ty = scene.player.y;
       e.targetRef = scene.player;
       const prefix = e.dirPrefix();
+      const wolfBiting = e.kind === 'wolf' && e.anims.currentAnim?.key === 'ew-atk' && e.anims.isPlaying;
       const dist2 = (tx - e.x) ** 2 + (ty - e.y) ** 2;
 
       // Path debug emit — runs before any early returns so we capture every
@@ -535,13 +536,14 @@ export class EnemyBossSystem {
         e.setVelocity(0, 0);
         if (e.rotates) {
           e.rotateToward(tx - e.x, ty - e.y);
-        } else if (e.kind !== 'bear') {
+        } else if (e.kind !== 'bear' && e.kind !== 'wolf') {
           e.setFlipX(tx - e.x < 0);
         }
-        if (e.kind !== 'bear' && e.anims.currentAnim?.key !== `${prefix}-atk`) e.play(`${prefix}-atk`);
+        if (e.kind !== 'bear' && e.kind !== 'wolf' && e.anims.currentAnim?.key !== `${prefix}-atk`) e.play(`${prefix}-atk`);
         if (time > e.attackCd) {
           e.attackCd = time + 800;
           if (e.kind === 'bear') this.playBearAttack(e);
+          else if (e.kind === 'wolf') this.playWolfAttack(e);
           scene.player.hurt(e.dmg, scene);
           scene.hud.pushHud();
           if (scene.player.hp <= 0) scene.end.lose();
@@ -606,11 +608,11 @@ export class EnemyBossSystem {
           e.rotateToward(dx, dy);
         } else if (e.kind === 'bear') {
           e.updateFacing(dx);
-        } else {
+        } else if (!wolfBiting) {
           e.setFlipX(dx < 0);
         }
         const moveAnim = `${e.dirPrefix()}-move`;
-        if (e.anims.currentAnim?.key !== moveAnim) e.play(moveAnim);
+        if (!wolfBiting && e.anims.currentAnim?.key !== moveAnim) e.play(moveAnim);
         // NOTE: do NOT clear e.path here. Keeping the cached path lets the
         // enemy fall straight into path-following the moment LOS blocks
         // (e.g. player walks behind a tree). Clearing it meant the enemy
@@ -744,11 +746,11 @@ export class EnemyBossSystem {
         e.rotateToward(moveX, moveY);
       } else if (e.kind === 'bear') {
         if (facingX !== 0) e.updateFacing(facingX);
-      } else {
+      } else if (!wolfBiting) {
         e.setFlipX(facingX < 0);
       }
       const moveAnim = `${e.dirPrefix()}-move`;
-      if (e.anims.currentAnim?.key !== moveAnim) e.play(moveAnim);
+      if (!wolfBiting && e.anims.currentAnim?.key !== moveAnim) e.play(moveAnim);
       return true;
     });
   }
@@ -1739,12 +1741,18 @@ export class EnemyBossSystem {
     e.play(`${e.dirPrefix()}-${attack}`);
   }
 
+  private playWolfAttack(e: Enemy) {
+    e.setFlipX(this.scene.player.x - e.x < 0);
+    e.play('ew-atk');
+  }
+
   enemyHitsPlayer(e: Enemy) {
     const scene = this.scene;
     if (!e.active || e.dying) return;
     if (scene.vTime > e.attackCd) {
       e.attackCd = scene.vTime + 700;
       if (e.kind === 'bear') this.playBearAttack(e);
+      else if (e.kind === 'wolf') this.playWolfAttack(e);
       scene.player.hurt(e.dmg, scene);
       scene.hud.pushHud();
       if (scene.player.hp <= 0) scene.end.lose();

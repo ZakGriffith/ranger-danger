@@ -11,7 +11,7 @@ import {
   EFrame, EFrame6, ToadFrame,
   drawEnemyBasic, drawEnemyHeavy,
   drawEnemyInfectedBasic, drawEnemyInfectedHeavy,
-  drawEnemyToad, drawToadGlob, drawEnemyWolf,
+  drawEnemyToad, drawToadGlob,
   drawEnemyCrow, drawEnemyBat, drawEnemyDragonfly,
   drawEnemyMosquito, drawMosquitoDart, drawBirdPoop,
   drawEnemySkeleton, drawEnemyWarlock, drawEnemyGolem, drawEnemyShadowImp,
@@ -28,6 +28,7 @@ import {
   rect, disc, ring, line, ellipse, flashOverlay, hexToRgb, add,
 } from './art/canvas';
 import { BEAR_FRAMES, BEAR_MOVE_FRAMES, BEAR_ATK_FRAMES, BEAR_BITE_FRAMES, BEAR_MOVE_FPS, BEAR_ATK_FPS, drawBear, drawBearBite } from './art/bear';
+import { WOLF_FRAMES, WOLF_MOVE_FRAMES, WOLF_ATK_FRAMES, WOLF_MOVE_FPS, WOLF_ATK_FPS, drawWolf } from './art/wolf';
 import {
   BossFrame, RamFrame, ForestBossFrame, forestBossFrames, riverBossFrames, infectedBossFrames,
   phantomQueenFrames, castleDragonFrames,
@@ -119,8 +120,7 @@ export function generateAllArt(scene: Phaser.Scene) {
   // Toad glob projectile
   add(scene, 'tglob_0', makeCanvas(16, drawToadGlob('glob0')));
   add(scene, 'tglob_1', makeCanvas(16, drawToadGlob('glob1')));
-  // Wolf uses the extended frame set (6-frame trot, 4-frame bite)
-  for (const f of e6Frames) add(scene, `ew_${f}`, makeCanvas(32, drawEnemyWolf(f)));
+  for (const f of WOLF_FRAMES) add(scene, `ew_${f}`, makeHD(64, drawWolf(f), { outline: false }));
   for (const f of BEAR_FRAMES) {
     add(scene, `ear_${f}`, makeHD(64, drawBear(f, 'r')));
     add(scene, `eal_${f}`, makeHD(64, drawBear(f, 'l')));
@@ -526,9 +526,8 @@ export function registerAnimations(scene: Phaser.Scene) {
   mk('etd-die',  ['etd_die0','etd_die1','etd_die2','etd_die3'], 8, 0);
   mk('tglob-spin', ['tglob_0','tglob_1'], 8, -1);
 
-  // 6-frame trot + 4-frame coil-and-bite lunge
-  mk('ew-move', ['ew_move0','ew_move1','ew_move2','ew_move3','ew_move4','ew_move5'], 14, -1);
-  mk('ew-atk',  ['ew_atk0','ew_atk1','ew_atk2','ew_atk3'], 12, -1);
+  mk('ew-move', WOLF_MOVE_FRAMES.map(f => `ew_${f}`), WOLF_MOVE_FPS, -1);
+  mk('ew-atk', WOLF_ATK_FRAMES.map(f => `ew_${f}`), WOLF_ATK_FPS, 0);
   mk('ew-hit',  ['ew_hit'], 10, 0);
   mk('ew-die',  ['ew_die0','ew_die1','ew_die2','ew_die3'], 10, 0);
 
