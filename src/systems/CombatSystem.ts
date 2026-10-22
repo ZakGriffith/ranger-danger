@@ -8,6 +8,10 @@ import { Coin } from '../entities/Coin';
 import { Projectile } from '../entities/Projectile';
 import { SFX } from '../audio/sfx';
 import { playerFrameBob } from '../assets/art/player';
+import {
+  CANNON_DIRECTION_COUNT, CANNON_GROUND_Y, CANNON_HEIGHT_Y,
+  CANNON_BARREL_HEIGHT, CANNON_MUZZLE_DISTANCE,
+} from '../assets/art/cannon';
 import type { Tower } from '../entities/Tower';
 import type { GameScene } from '../scenes/GameScene';
 
@@ -27,37 +31,23 @@ export class CombatSystem {
       // player can't milk damage from a tower they've already cashed out.
       // Walls keep blocking enemies until the timer completes (handled by
       // the grid still containing them until executeSell).
-      if (scene.sellTimers.has(tower)) continue;
+      if (scene.sellTimers.has(tower)) {
+        tower.muzzleFlash?.setVisible(false);
+        continue;
+      }
       const st = tower.stats();
 
       if (st.splashRadius > 0) {
         // Cannon: aim at the spot that hits the most enemies
         const aim = this.findBestCannonTarget(tower.x, tower.y, st.range, st.splashRadius, st.projectileSpeed);
         if (!aim) continue;
-        const launchY = tower.top.y; // fire from the barrel position, not base center
-        // Cannonball arcs visually via `vy(t) = startY + dy·t − 22·sin(t·π)`
-        // (see updateProjectiles). Tangent at the muzzle (t=0) is
-        // (dx, dy − 22π) — totalDist drops out. Aim the barrel along that
-        // tangent so the cannon points where the ball is actually heading
-        // when it leaves the bore, not straight at the target.
-        const dx = aim.x - tower.x;
-        const dy = aim.y - launchY;
-        const ARC_LIFT = 22 * Math.PI;
-        const angle = Math.atan2(dy - ARC_LIFT, dx);
-        tower.top.setRotation(angle);
+        const muzzle = this.aimCannon(tower, aim.x, aim.y);
         if (time > tower.lastShot + st.fireRate) {
           tower.lastShot = time;
           SFX.play('cannonShoot');
-          tower.top.play('cannon-top-shoot', true);
+          tower.muzzleFlash!.play('c-muzzle-flash');
           const cScale = 0.5 + tower.level * 0.15;
-          // Spawn the cannonball at the muzzle of the barrel, not the pivot
-          // — same trick the arrow tower uses with the bow tip. Cannon top
-          // has origin (0.5, 0.5) and the muzzle sits +22 source px right of
-          // origin → +11 world at scale 0.5; +13 puts the spawn just past
-          // the muzzle flash so it reads as emerging from the bore.
-          const spawnX = tower.top.x + Math.cos(angle) * 26;
-          const spawnY = tower.top.y + Math.sin(angle) * 26;
-          this.spawnProjectile(spawnX, spawnY, aim.x, aim.y, st.projectileSpeed, st.damage, st.splashRadius, cScale);
+          this.spawnProjectile(muzzle.x, muzzle.y, aim.x, aim.y, st.projectileSpeed, st.damage, st.splashRadius, cScale);
         }
       } else {
         // Arrow: shoot at nearest enemy with lead targeting
@@ -99,6 +89,25 @@ export class CombatSystem {
         }
       }
     }
+  }
+
+  private aimCannon(tower: Tower, aimX: number, aimY: number): { x: number; y: number } {
+    const top = tower.top;
+    const centerY = top.y - CANNON_BARREL_HEIGHT * CANNON_HEIGHT_Y * top.scaleY;
+    // The visual arc starts with tangent (dx, dy - 22π). Invert the ground
+    // projection before choosing a frame so the lit barrel follows that tangent.
+    const yaw = Math.atan2(
+      (aimY - centerY - 22 * Math.PI) / (CANNON_GROUND_Y * top.scaleY),
+      (aimX - top.x) / top.scaleX,
+    );
+    tower.cannonDirection = Phaser.Math.Wrap(Math.round(yaw / (Math.PI * 2) * CANNON_DIRECTION_COUNT), 0, CANNON_DIRECTION_COUNT);
+    top.setFrame(tower.cannonDirection).setRotation(0);
+    const heading = tower.cannonDirection / CANNON_DIRECTION_COUNT * Math.PI * 2;
+    const dx = Math.cos(heading) * top.scaleX;
+    const dy = Math.sin(heading) * CANNON_GROUND_Y * top.scaleY;
+    const muzzle = { x: top.x + CANNON_MUZZLE_DISTANCE * dx, y: centerY + CANNON_MUZZLE_DISTANCE * dy };
+    tower.muzzleFlash!.setPosition(muzzle.x, muzzle.y).setRotation(Math.atan2(dy, dx)).setScale(top.scaleX, top.scaleY);
+    return muzzle;
   }
 
   /**

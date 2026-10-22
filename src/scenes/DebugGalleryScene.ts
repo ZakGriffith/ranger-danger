@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { CFG } from '../config';
 import { generateAllArt } from '../assets/generateArt';
+import { CANNON_PIVOT_Y } from '../assets/art/cannon';
 import towerBaseImg from '../assets/sprites/tower_base.png';
 import arrowBase1Img from '../assets/sprites/arrow_base_1.png';
 import arrowBase2Img from '../assets/sprites/arrow_base_2.png';
@@ -78,7 +79,7 @@ type GalleryCard = {
 type StaticDebugGroup = {
   title: string;
   subtitle: string;
-  textures: { key: string; label: string }[];
+  textures: { key: string; label: string; frame?: number }[];
 };
 
 const STATIC_GROUPS: StaticDebugGroup[] = [
@@ -89,7 +90,7 @@ const STATIC_GROUPS: StaticDebugGroup[] = [
       { key: 't_base', label: 'arrow base' },
       { key: 'ta0_idle_0', label: 'archer' },
       { key: 'c_base', label: 'cannon base' },
-      { key: 'c_top_0', label: 'cannon' },
+      { key: 'c_top', label: 'cannon', frame: 0 },
     ],
   },
   {
@@ -365,7 +366,7 @@ export class DebugGalleryScene extends Phaser.Scene {
       const tex = group.textures[i];
       if (!this.textures.exists(tex.key)) continue;
       const x0 = 48 + i * 56;
-      const sprite = this.add.sprite(x0, 66, tex.key).setOrigin(0.5);
+      const sprite = this.add.sprite(x0, 66, tex.key, tex.frame).setOrigin(0.5);
       this.fitSprite(sprite, 46, 46, 1.2);
       const label = this.add.text(x0, 92, tex.label, {
         fontFamily: 'monospace', fontSize: '9px', color: MUTED,
@@ -438,7 +439,7 @@ export class DebugGalleryScene extends Phaser.Scene {
       const tex = group.textures[i];
       if (!this.textures.exists(tex.key)) continue;
       const x = 180 + i * 98;
-      const sprite = this.add.sprite(x, 82, tex.key).setOrigin(0.5);
+      const sprite = this.add.sprite(x, 82, tex.key, tex.frame).setOrigin(0.5);
       this.fitSprite(sprite, 72, 72, 1.5);
       const label = this.add.text(x, 128, tex.label, {
         fontFamily: 'monospace', fontSize: '12px', color: MUTED,
@@ -776,9 +777,9 @@ export class DebugGalleryScene extends Phaser.Scene {
 
   private addLineupCannonTop(x: number, baseY: number, baseH: number) {
     const centerY = baseY - baseH / 2;
-    for (const [key, offY] of [['c_mount', -20], ['c_top_0', -20]] as const) {
+    for (const key of ['c_mount', 'c_top']) {
       if (!this.textures.exists(key)) continue;
-      this.sandbox.add(this.add.sprite(x, centerY + offY, key).setScale(0.5));
+      this.sandbox.add(this.add.sprite(x, centerY + CANNON_PIVOT_Y, key, key === 'c_top' ? 0 : undefined).setScale(0.5));
     }
   }
 

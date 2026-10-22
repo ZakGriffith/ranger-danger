@@ -1,8 +1,6 @@
 // Procedural pixel art drawn at logical resolution then Scale2x'\d to 2× physical.
 // Logical sizes: gameplay sprites 32→64px, towers/boss 64→128px.
 // All sprites use setScale(0.5) to maintain the same world-space dimensions.
-// Every frame is registered as its own texture and animations reference them
-// in order via registerAnimations().
 
 import Phaser from 'phaser';
 import { CFG } from '../config';
@@ -41,8 +39,10 @@ import {
   drawQueenOrb, drawDragonFireball, drawDragonFireExplosion,
 } from './art/bosses';
 import {
-  drawTowerBase, drawBallistaStand, drawCannonMount, drawCannonTop,
+  drawTowerBase, drawBallistaStand,
 } from './art/towers';
+import { CANNON_SIZE, CANNON_DIRECTION_COUNT, makeCannonSheet, drawCannonFlash } from './art/cannon';
+import { CANNON_MOUNT_SIZE, drawCannonMount } from './art/cannonMount';
 import {
   CoinTier,
   drawArrow, drawCannonball, drawBoulder, drawBoulderShadow,
@@ -250,9 +250,16 @@ export function generateAllArt(scene: Phaser.Scene) {
     add(scene, `t_top${t}_0`, makeHD(64, drawBow(false, outfit.tunic)));
     add(scene, `t_top${t}_1`, makeHD(64, drawBow(true, outfit.tunic)));
   });
-  add(scene, 'c_mount', makeCanvas(64, drawCannonMount()));
-  add(scene, 'c_top_0', makeCanvas(64, drawCannonTop(false)));
-  add(scene, 'c_top_1', makeCanvas(64, drawCannonTop(true)));
+  add(scene, 'c_mount', makeHD(CANNON_MOUNT_SIZE, drawCannonMount, { outline: false }));
+  const cannonSheet = makeCannonSheet();
+  add(scene, 'c_top', cannonSheet);
+  const cannonTexture = scene.textures.get('c_top');
+  const cannonColumns = cannonSheet.width / CANNON_SIZE;
+  for (let frame = 0; frame < CANNON_DIRECTION_COUNT; frame++) {
+    cannonTexture.add(frame, 0, frame % cannonColumns * CANNON_SIZE,
+      Math.floor(frame / cannonColumns) * CANNON_SIZE, CANNON_SIZE, CANNON_SIZE);
+  }
+  add(scene, 'c_muzzle_flash', makeHD(32, drawCannonFlash, { outline: false }));
 
   // Off-screen tower indicators
   add(scene, 'ind_arrow',  makeCanvas(32, drawIndicatorArrow()));
@@ -636,8 +643,11 @@ export function registerAnimations(scene: Phaser.Scene) {
     mk(`tower-top${t}-idle`,  [`t_top${t}_0`], 1, 0);
     mk(`tower-top${t}-shoot`, [`t_top${t}_1`, `t_top${t}_0`], 14, 0);
   });
-  mk('cannon-top-idle',  ['c_top_0'], 1, 0);
-  mk('cannon-top-shoot', ['c_top_1','c_top_0'], 10, 0);
+  if (a.exists('c-muzzle-flash')) a.remove('c-muzzle-flash');
+  a.create({
+    key: 'c-muzzle-flash', frames: [{ key: 'c_muzzle_flash' }], duration: 100,
+    repeat: 0, showOnStart: true, hideOnComplete: true,
+  });
 
   mk('arrow-spin', ['arrow_0','arrow_1'], 20, -1);
   mk('cball-spin', ['cball_0','cball_1'], 8, -1);

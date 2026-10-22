@@ -14,7 +14,7 @@ const STATIC_TEXTURE_KEYS: string[] = [
   'ta0_idle_0', 'ta1_idle_0', 'ta2_idle_0',
   't_top0_0', 't_top0_1',
   'c_mount',
-  'c_top_0', 'c_top_1',
+  'c_top', 'c_muzzle_flash',
   'foundation',
   // Tower bases (already PNG-backed)
   't_base', 't_base_1', 't_base_2',

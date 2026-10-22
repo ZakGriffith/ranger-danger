@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { CFG } from '../config';
 import { DEBUG } from '../debug.config';
+import { CANNON_PIVOT_Y } from '../assets/art/cannon';
 
 export type TowerKind = 'arrow' | 'cannon';
 
@@ -14,6 +15,8 @@ export class Tower extends Phaser.Physics.Arcade.Sprite {
   stand: Phaser.GameObjects.Sprite | null = null; // archer body (arrow) or cannon mount
   top: Phaser.GameObjects.Sprite;
   nockedArrow: Phaser.GameObjects.Sprite | null = null; // real arrow resting on bow (arrow only)
+  muzzleFlash: Phaser.GameObjects.Sprite | null = null;
+  cannonDirection = 0;
   hpBar: Phaser.GameObjects.Graphics;
   tileX: number;
   tileY: number;
@@ -53,7 +56,7 @@ export class Tower extends Phaser.Physics.Arcade.Sprite {
     body.setCircle(bodyRadius, offX, offY);
     body.updateFromGameObject();
 
-    const topOffY = kind === 'arrow' ? -24 : -20;
+    const topOffY = kind === 'arrow' ? -24 : CANNON_PIVOT_Y;
 
     if (kind === 'arrow') {
       // Archer standing on the tower: breathes, faces and tilts toward the aim
@@ -64,15 +67,17 @@ export class Tower extends Phaser.Physics.Arcade.Sprite {
       this.stand = scene.add.sprite(wx, wy + topOffY, 'c_mount').setDepth(6.5).setScale(0.5);
     }
 
-    // Rotating top (bow for arrow tower, barrel for cannon)
-    const topTex = kind === 'cannon' ? 'c_top_0' : 't_top0_0';
-    this.top = scene.add.sprite(wx, wy + topOffY, topTex).setDepth(7).setScale(0.5);
+    const topTex = kind === 'cannon' ? 'c_top' : 't_top0_0';
+    this.top = scene.add.sprite(wx, wy + topOffY, topTex, kind === 'cannon' ? 0 : undefined).setDepth(7).setScale(0.5);
     if (kind === 'arrow') {
       // The bow carries the arms (player.ts drawBow): origin at the grip, held out
       // to the side at rest, the nocked arrow's fletching on the string. Matches
       // CombatSystem.aimArcher at rotation 0 so nothing jumps on the first aim.
       this.top.setOrigin(0.25, 0.5).setPosition(wx + 10, wy + topOffY + 2);
       this.nockedArrow = scene.add.sprite(wx + 25, wy + topOffY + 2, 'arrow_0').setDepth(7.5).setScale(0.5);
+    } else {
+      this.muzzleFlash = scene.add.sprite(wx, wy + topOffY, 'c_muzzle_flash')
+        .setOrigin(0.25, 0.5).setDepth(7.5).setScale(0.5).setVisible(false);
     }
 
     this.hpBar = scene.add.graphics().setDepth(20);
@@ -209,6 +214,7 @@ export class Tower extends Phaser.Physics.Arcade.Sprite {
     this.top.destroy();
     if (this.stand) this.stand.destroy();
     if (this.nockedArrow) this.nockedArrow.destroy();
+    if (this.muzzleFlash) this.muzzleFlash.destroy();
     this.destroy();
   }
 }
