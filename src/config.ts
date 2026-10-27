@@ -69,7 +69,7 @@ export const CFG = {
     dragonfly: { hp: 10, speed: 135, dmg: 4,  coin: 1, color: 0x28a0b4 },
     mosquito:  { hp: 14, speed: 50,  dmg: 3,  coin: 1, color: 0x504638 },
     // Infected ranged enemy
-    toad:      { hp: 30, speed: 45,  dmg: 8,  coin: 2, color: 0x9040d0 },
+    toad:      { hp: 30, speed: 120,  dmg: 8,  coin: 2, color: 0x9040d0 },
     // Castle enemies
     skeleton:    { hp: 22, speed: 55,  dmg: 8,  coin: 1, color: 0xd8d0c0 },
     warlock:     { hp: 18, speed: 38,  dmg: 6,  coin: 2, color: 0x6a28a0 },
@@ -131,7 +131,7 @@ export const CFG = {
     minInterval: 250,           // tighter floor than normal (350)
     toadRange: 300,             // px — distance at which toad starts lobbing bombs (it keeps hopping while in range)
     toadFireRate: 2800,         // ms between lobs
-    toadBombSpeed: 120,
+    toadBombSpeed: 108,
     toadBombArcHeight: 60,
     spiderPoisonRadius: 18,
     spiderPoisonLifetime: 3000,
@@ -139,7 +139,7 @@ export const CFG = {
     toadPoisonLifetime: 4000,
     toadPoisonDamage: 1,
     toadPoisonTickMs: 500,
-    toadHopInterval: 500,       // ms between hops
+    toadHopInterval: 300,       // ms resting after each hop
     toadHopDuration: 350,       // ms a hop takes (airborne)
     toadChance: 0.15,           // chance a spawn is a toad instead of normal infected
   },
