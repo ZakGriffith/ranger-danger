@@ -6,6 +6,7 @@ import Phaser from 'phaser';
 import { CFG } from '../config';
 import { PFrame, PPose, drawPlayer, drawBow, TOWER_ARCHER } from './art/player';
 import { makeHD } from './art/hd';
+import { POISON_SMOKE_VARIANTS, POISON_SMOKE_FRAME_MS } from './art/poisonSmoke';
 import {
   EFrame, EFrame6,
   drawEnemyBasic, drawEnemyHeavy,
@@ -18,10 +19,12 @@ import {
 } from './art/enemies';
 import { MEADOW_FRAMES, MEADOW_MOVE_FRAMES, MEADOW_ATK_FRAMES, drawSnake } from './art/meadow';
 import { drawDeer } from './art/deer';
+import { SPIDER_SMOKE_FRAMES, drawSpiderSmoke } from './art/spiderPoison';
+import { INFECTED_SPIDER_FRAMES, INFECTED_SPIDER_MOVE_FRAMES, INFECTED_SPIDER_ATTACK_FRAMES, INFECTED_SPIDER_MOVE_FPS, INFECTED_SPIDER_ATTACK_FPS, drawInfectedSpider } from './art/infectedSpider';
 import { SPIDER_FRAMES, SPIDER_MOVE_FRAMES, SPIDER_ATK_FRAMES, drawSpider } from './art/spider';
 import { drawRat, RAT_VARIANTS } from './art/rat';
 import { TOAD_FRAMES, TOAD_IDLE_FRAMES, TOAD_HOP_FRAMES, TOAD_ATTACK_FRAMES, TOAD_IDLE_FPS, TOAD_ATTACK_FPS, drawToad } from './art/toad';
-import { TOAD_BOMB_FRAMES, TOAD_SMOKE_FRAMES, TOAD_SMOKE_FRAME_MS, drawToadBomb, drawToadSmoke } from './art/toadPoison';
+import { TOAD_BOMB_FRAMES, TOAD_SMOKE_FRAMES, drawToadBomb, drawToadSmoke } from './art/toadPoison';
 import { BLOB_VARIANTS, BLOB_FRAMES, BLOB_MOVE_FRAMES, BLOB_ATTACK_FRAMES, BLOB_ATTACK_FRAME_MS, makeInfectedBlobFrame } from './art/infectedBlob';
 import { IRONCAP_SIZE, IRONCAP_FRAMES, IRONCAP_MOVE_FRAMES, IRONCAP_ATTACK_FRAMES, IRONCAP_MOVE_FPS, IRONCAP_ATTACK_FPS, drawIroncap } from './art/ironcap';
 import {
@@ -114,7 +117,9 @@ export function generateAllArt(scene: Phaser.Scene) {
   add(scene, 'esnk_move0t', makeHD(64, drawSnake('move0', true)));
   for (let v = 0; v < RAT_VARIANTS; v++) for (const f of MEADOW_FRAMES) add(scene, `erat${v}_${f}`, makeHD(64, drawRat(f, v)));
   for (const f of MEADOW_FRAMES) add(scene, `eder_${f}`, makeHD(64, drawDeer(f)));
-  // Infected runners retain the original six-frame lumber and four-frame bite.
+  for (const frame of INFECTED_SPIDER_FRAMES) {
+    add(scene, `eir_${frame}`, makeHD(64, drawInfectedSpider(frame), { outline: false }));
+  }
   for (const f of e6Frames) add(scene, `eib_${f}`, makeCanvas(32, drawEnemyInfectedBasic(f)));
   for (let variant = 0; variant < BLOB_VARIANTS; variant++) {
     for (const frame of BLOB_FRAMES) add(scene, `eiblob${variant}_${frame}`, makeInfectedBlobFrame(frame, variant));
@@ -125,9 +130,12 @@ export function generateAllArt(scene: Phaser.Scene) {
   for (const f of TOAD_FRAMES) {
     add(scene, `etd_${f}`, makeHD(64, drawToad(f), { outline: false }));
   }
+  for (let variant = 0; variant < POISON_SMOKE_VARIANTS; variant++) for (const frame of SPIDER_SMOKE_FRAMES) {
+    add(scene, `spider_smoke_${variant}_${frame}`, makeHD(128, drawSpiderSmoke(frame * POISON_SMOKE_FRAME_MS, variant), { outline: false }));
+  }
   for (const f of TOAD_BOMB_FRAMES) add(scene, `toad_bomb_${f}`, makeHD(32, drawToadBomb(f), { outline: false }));
-  for (const f of TOAD_SMOKE_FRAMES) {
-    add(scene, `toad_smoke_${f}`, makeHD(128, drawToadSmoke(f * TOAD_SMOKE_FRAME_MS, CFG.infected.toadPoisonLifetime), { outline: false }));
+  for (let variant = 0; variant < POISON_SMOKE_VARIANTS; variant++) for (const f of TOAD_SMOKE_FRAMES) {
+    add(scene, `toad_smoke_${variant}_${f}`, makeHD(128, drawToadSmoke(f * POISON_SMOKE_FRAME_MS, CFG.infected.toadPoisonLifetime, variant), { outline: false }));
   }
   for (const f of WOLF_FRAMES) add(scene, `ew_${f}`, makeHD(64, drawWolf(f), { outline: false }));
   for (const f of BEAR_FRAMES) {
@@ -521,6 +529,9 @@ export function registerAnimations(scene: Phaser.Scene) {
 
   mk('eder-move', mv('eder'), 12, -1);
   mk('eder-atk',  ak('eder'), 10, -1);
+
+  mk('eir-move', INFECTED_SPIDER_MOVE_FRAMES.map(frame => `eir_${frame}`), INFECTED_SPIDER_MOVE_FPS, -1);
+  mk('eir-atk', INFECTED_SPIDER_ATTACK_FRAMES.map(frame => `eir_${frame}`), INFECTED_SPIDER_ATTACK_FPS, -1);
 
   // 6-frame three-legged lumber + 4-frame gape-lunge-bite
   mk('eib-move', ['eib_move0','eib_move1','eib_move2','eib_move3','eib_move4','eib_move5'], 10, -1);

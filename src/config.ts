@@ -133,6 +133,8 @@ export const CFG = {
     toadFireRate: 2800,         // ms between lobs
     toadBombSpeed: 120,
     toadBombArcHeight: 60,
+    spiderPoisonRadius: 18,
+    spiderPoisonLifetime: 3000,
     toadPoisonRadius: 26,
     toadPoisonLifetime: 4000,
     toadPoisonDamage: 1,

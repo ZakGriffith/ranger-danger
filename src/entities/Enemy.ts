@@ -136,10 +136,9 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
         this.play('eih-move');
         break;
       case 'infected_runner':
-        applyEntityVisual(this, 'infected_basic', 'move', 0.425, 20, 20, 22, 26);
-        this.play('eib-move');
-        this.baseTint = 0xe0d020; // yellow tint for infected runners
-        this.setTint(this.baseTint);
+        this.setScale(0.425);
+        this.setSize(40, 26).setOffset(12, 26);
+        this.play('eir-move');
         break;
       case 'toad':
         applyEntityVisual(this, 'toad', 'move', 0.55, 28, 24, 18, 22);
@@ -269,7 +268,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
       case 'deer': return 'eder';
       case 'infected_basic': return `eiblob${variant}`;
       case 'infected_heavy': return 'eih';
-      case 'infected_runner': return 'eib';
+      case 'infected_runner': return 'eir';
       case 'toad': return 'etd';
       case 'wolf': return 'ew';
       case 'bear': return 'ear'; // default to right-facing
@@ -348,6 +347,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
       this.setVelocity(0, 0);
       (this.body as Phaser.Physics.Arcade.Body).enable = false;
       (this.scene as GameScene).enemyDeaths.play(this, this.baseTint);
+      if (this.kind === 'infected_runner') (this.scene as GameScene).toadPoison.spawnSpiderCloud(this.x, this.y);
       this.destroy();
       return;
     }

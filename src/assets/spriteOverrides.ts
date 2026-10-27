@@ -13,7 +13,7 @@ const UNIVERSAL_FOLDERS = ['player'];
 const CAMPAIGN_BIOME_FOLDERS: Record<Biome, string[]> = {
   grasslands: ['basic', 'heavy', 'snake', 'rat', 'deer', 'boss_meadow', 'boss_grasslands'],
   forest:     ['bear', 'spider', 'wolf', 'boss_forest'],
-  infected:   ['toad', 'infected_basic', 'infected_heavy', 'boss_infected'],
+  infected:   ['toad', 'infected_basic', 'infected_heavy', 'infected_runner', 'boss_infected'],
   river:      ['crow', 'bat', 'dragonfly', 'mosquito', 'boss_river'],
   castle:     ['skeleton', 'warlock', 'golem', 'shadow_imp', 'bat', 'rat', 'boss_castle_q', 'boss_castle_d'],
   desert:     ['scorpion', 'boss_scorpion', 'scarab', 'sand_mite', 'cactus_hopper', 'dune_strider', 'sand_wraith', 'temple_guardian', 'sun_mote', 'boss_desert_burrower', 'boss_desert_scorpion', 'boss_desert_sandstorm', 'boss_desert_wraith', 'boss_desert_construct', 'boss_desert_sun_priest'],
@@ -188,6 +188,7 @@ const BUILTIN: CharacterSpec[] = [
   { folder: 'wolf',           texPrefix: 'ew',    anims: stdEnemyAnims('ew') },
   { folder: 'spider',         texPrefix: 'es',    anims: stdEnemyAnims('es') },
   { folder: 'infected_basic', texPrefix: 'eib',   anims: stdEnemyAnims('eib') },
+  { folder: 'infected_runner', texPrefix: 'eir', anims: stdEnemyAnims('eir') },
   { folder: 'infected_heavy', texPrefix: 'eih',   anims: stdEnemyAnims('eih') },
   { folder: 'crow',           texPrefix: 'ecr',   anims: stdEnemyAnims('ecr') },
   { folder: 'bat',            texPrefix: 'ebt',   anims: stdEnemyAnims('ebt') },

@@ -1,7 +1,8 @@
 import type Phaser from 'phaser';
 import { CFG } from '../config';
 import { TOAD_ATTACK_RELEASE_MS, TOAD_SPIT_ORIGIN } from '../assets/art/toad';
-import { TOAD_BOMB_FRAMES, TOAD_SMOKE_FRAMES, TOAD_BOMB_FRAME_MS, TOAD_SMOKE_FRAME_MS, TOAD_SMOKE_GROUND_Y, TOAD_SMOKE_RADIUS, TOAD_SMOKE_DEPTH } from '../assets/art/toadPoison';
+import { TOAD_BOMB_FRAMES, TOAD_BOMB_FRAME_MS } from '../assets/art/toadPoison';
+import { POISON_SMOKE_VARIANTS, POISON_SMOKE_FRAME_MS, POISON_SMOKE_GROUND_Y, POISON_SMOKE_RADIUS, POISON_SMOKE_DEPTH } from '../assets/art/poisonSmoke';
 import type { Tower } from '../entities/Tower';
 import type { Enemy } from '../entities/Enemy';
 import type { GameScene } from '../scenes/GameScene';
@@ -18,7 +19,8 @@ type Bomb = {
   born: number;
   duration: number;
 };
-type Cloud = { sprite: Phaser.GameObjects.Image; x: number; y: number; born: number };
+type CloudStyle = { radius: number; lifetime: number; texturePrefix: string };
+type Cloud = CloudStyle & { sprite: Phaser.GameObjects.Image; x: number; y: number; born: number; variant: number };
 type ExposureInterval = { start: number; end: number };
 
 export class ToadPoisonSystem {
@@ -37,6 +39,14 @@ export class ToadPoisonSystem {
 
   spawn(sx: number, sy: number, tx: number, ty: number): void {
     this.spawnAt(sx, sy, tx, ty, this.time);
+  }
+
+  spawnSpiderCloud(x: number, y: number): void {
+    this.addCloud(x, y, this.time, {
+      radius: CFG.infected.spiderPoisonRadius,
+      lifetime: CFG.infected.spiderPoisonLifetime,
+      texturePrefix: 'spider_smoke',
+    });
   }
 
   update(deltaGameMs: number): void {
@@ -87,11 +97,11 @@ export class ToadPoisonSystem {
     if (!scene.endState.gameOver && !scene.endState.dying) this.updateTowerExposure(start);
     for (const cloud of this.clouds) {
       const age = this.time - cloud.born;
-      if (age >= CFG.infected.toadPoisonLifetime) {
+      if (age >= cloud.lifetime) {
         cloud.sprite.destroy();
         this.clouds.delete(cloud);
       } else {
-        cloud.sprite.setTexture(`toad_smoke_${Math.min(TOAD_SMOKE_FRAMES.length - 1, Math.floor(age / TOAD_SMOKE_FRAME_MS))}`);
+        cloud.sprite.setTexture(`${cloud.texturePrefix}_${cloud.variant}_${Math.floor(age / POISON_SMOKE_FRAME_MS)}`);
       }
     }
   }
@@ -144,12 +154,18 @@ export class ToadPoisonSystem {
     }
   }
 
-  private addCloud(x: number, y: number, born: number): void {
-    const radius = CFG.infected.toadPoisonRadius;
-    const sprite = this.scene.add.image(x, y, 'toad_smoke_0')
-      .setOrigin(0.5, TOAD_SMOKE_GROUND_Y / 128).setScale(radius / TOAD_SMOKE_RADIUS)
-      .setDepth(100 + (y + radius * TOAD_SMOKE_DEPTH) * 0.1 + 0.1).setName('toad-poison-cloud');
-    this.clouds.add({ sprite, x, y, born });
+  private addCloud(x: number, y: number, born: number, style: CloudStyle = {
+    radius: CFG.infected.toadPoisonRadius,
+    lifetime: CFG.infected.toadPoisonLifetime,
+    texturePrefix: 'toad_smoke',
+  }): void {
+    const { radius, texturePrefix } = style;
+    const variant = Math.floor(Math.random() * POISON_SMOKE_VARIANTS);
+    const sprite = this.scene.add.image(x, y, `${texturePrefix}_${variant}_0`)
+      .setFlipX(Math.random() < 0.5)
+      .setOrigin(0.5, POISON_SMOKE_GROUND_Y / 128).setScale(radius / POISON_SMOKE_RADIUS)
+      .setDepth(100 + (y + radius * POISON_SMOKE_DEPTH) * 0.1 + 0.1).setName(`${texturePrefix}-cloud`);
+    this.clouds.add({ sprite, x, y, born, variant, ...style });
   }
 
   private updateExposure(start: number): void {
@@ -179,14 +195,13 @@ export class ToadPoisonSystem {
   }
 
   private coverage(start: number, x: number, y: number, halfWidth = 0, halfHeight = 0): { intervals: ExposureInterval[]; insideAtEnd: boolean } {
-    const radiusSquared = CFG.infected.toadPoisonRadius ** 2;
     const intervals: ExposureInterval[] = [];
     let insideAtEnd = false;
     for (const cloud of this.clouds) {
       const dx = Math.max(0, Math.abs(x - cloud.x) - halfWidth);
-      const dy = Math.max(0, Math.abs(y - cloud.y) - halfHeight) / TOAD_SMOKE_DEPTH;
-      if (dx * dx + dy * dy >= radiusSquared) continue;
-      const expiry = cloud.born + CFG.infected.toadPoisonLifetime;
+      const dy = Math.max(0, Math.abs(y - cloud.y) - halfHeight) / POISON_SMOKE_DEPTH;
+      if (dx * dx + dy * dy >= cloud.radius ** 2) continue;
+      const expiry = cloud.born + cloud.lifetime;
       const interval = { start: Math.max(start, cloud.born), end: Math.min(this.time, expiry) };
       if (interval.end > interval.start) intervals.push(interval);
       if (cloud.born <= this.time && expiry > this.time) insideAtEnd = true;

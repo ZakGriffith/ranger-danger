@@ -43,6 +43,7 @@ const ENTITY_PROC_SCALES: Record<string, number> = {
   bear: 0.55,
   spider: 0.45,
   infected_basic: 0.5,
+  infected_runner: 0.425,
   infected_heavy: 0.5,
   toad: 0.55,
   crow: 0.5,
