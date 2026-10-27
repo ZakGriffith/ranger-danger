@@ -183,7 +183,10 @@ export class Tower extends Phaser.Physics.Arcade.Sprite {
     this.top.setTintFill(0xffffff);
     if (this.stand) this.stand.setTintFill(0xffffff);
     if (this.nockedArrow) this.nockedArrow.setTintFill(0xffffff);
-    this.scene.time.delayedCall(60, () => { this.applyTierVisual(); });
+    this.scene.time.delayedCall(60, () => {
+      if (!this.scene) return;
+      this.applyTierVisual();
+    });
   }
 
   /** Cached values from the last drawHpBar paint — skip re-rendering when

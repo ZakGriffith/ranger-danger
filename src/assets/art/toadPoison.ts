@@ -6,6 +6,7 @@ export const TOAD_BOMB_FRAME_MS = 75;
 export const TOAD_SMOKE_FRAME_MS = 50;
 export const TOAD_SMOKE_GROUND_Y = 74;
 export const TOAD_SMOKE_RADIUS = 52;
+export const TOAD_SMOKE_DEPTH = 0.6;
 
 type Point = readonly [number, number];
 type Pen = { put: HdPut; angle: number };
@@ -109,7 +110,7 @@ function cloudShape(put: HdPut, points: readonly Point[], x: number, y: number, 
 function groundHaze(raw: RawPut, alpha: number, spread: number, time: number) {
   const radius = TOAD_SMOKE_RADIUS * spread;
   const groundPen = (opacity: number): HdPut => (x, y, color) => {
-    const distance = Math.hypot(x - 64, y - TOAD_SMOKE_GROUND_Y) / radius;
+    const distance = Math.hypot(x - 64, (y - TOAD_SMOKE_GROUND_Y) / TOAD_SMOKE_DEPTH) / radius;
     if (color === null || distance >= 1) return;
     const edge = distance > 0.96 ? 0.55 : distance > 0.87 ? 0.8 : 1;
     raw(x, y, color, alpha * opacity * edge);
@@ -118,15 +119,15 @@ function groundHaze(raw: RawPut, alpha: number, spread: number, time: number) {
     const angle = i * Math.PI / 24;
     const scallop = 0.965 + 0.035 * Math.cos(angle * 9 + time * 0.5);
     return [Math.round(64 + Math.cos(angle) * radius * scallop),
-      Math.round(TOAD_SMOKE_GROUND_Y + Math.sin(angle) * radius * scallop)];
+      Math.round(TOAD_SMOKE_GROUND_Y + Math.sin(angle) * radius * scallop * TOAD_SMOKE_DEPTH)];
   });
   poly(groundPen(0.18), contour, SMOKE.ground);
   for (const wisp of GROUND_WISPS) {
     const sway = Math.sin(time * 1.8 + wisp.phase);
     const x = Math.round(64 + (wisp.x - 64 + sway) * spread);
-    const y = Math.round(TOAD_SMOKE_GROUND_Y + (wisp.y - TOAD_SMOKE_GROUND_Y) * spread);
+    const y = Math.round(TOAD_SMOKE_GROUND_Y + (wisp.y - TOAD_SMOKE_GROUND_Y) * spread * TOAD_SMOKE_DEPTH);
     const sx = wisp.sx * spread * (1 + sway * 0.04);
-    const sy = wisp.sy * spread;
+    const sy = wisp.sy * spread * TOAD_SMOKE_DEPTH;
     cloudShape(groundPen(0.25), PUFF, x, y, sx, sy, SMOKE.shade);
     cloudShape(groundPen(0.23), INNER, x, y, sx, sy, SMOKE.mist);
     cloudShape(groundPen(0.26), CURL, x, y, sx * 0.9, sy * 0.9, SMOKE.light);

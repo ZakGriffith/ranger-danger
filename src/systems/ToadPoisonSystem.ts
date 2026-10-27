@@ -1,7 +1,8 @@
 import type Phaser from 'phaser';
 import { CFG } from '../config';
 import { TOAD_ATTACK_RELEASE_MS, TOAD_SPIT_ORIGIN } from '../assets/art/toad';
-import { TOAD_BOMB_FRAMES, TOAD_SMOKE_FRAMES, TOAD_BOMB_FRAME_MS, TOAD_SMOKE_FRAME_MS, TOAD_SMOKE_GROUND_Y, TOAD_SMOKE_RADIUS } from '../assets/art/toadPoison';
+import { TOAD_BOMB_FRAMES, TOAD_SMOKE_FRAMES, TOAD_BOMB_FRAME_MS, TOAD_SMOKE_FRAME_MS, TOAD_SMOKE_GROUND_Y, TOAD_SMOKE_RADIUS, TOAD_SMOKE_DEPTH } from '../assets/art/toadPoison';
+import type { Tower } from '../entities/Tower';
 import type { Enemy } from '../entities/Enemy';
 import type { GameScene } from '../scenes/GameScene';
 
@@ -23,6 +24,7 @@ type ExposureInterval = { start: number; end: number };
 export class ToadPoisonSystem {
   private time = 0;
   private exposure = 0;
+  private towerExposure = new Map<Tower, number>();
   private pending = new Set<PendingThrow>();
   private bombs = new Set<Bomb>();
   private clouds = new Set<Cloud>();
@@ -82,6 +84,7 @@ export class ToadPoisonSystem {
     }
 
     this.updateExposure(start);
+    if (!scene.endState.gameOver && !scene.endState.dying) this.updateTowerExposure(start);
     for (const cloud of this.clouds) {
       const age = this.time - cloud.born;
       if (age >= CFG.infected.toadPoisonLifetime) {
@@ -101,6 +104,7 @@ export class ToadPoisonSystem {
     for (const cloud of this.clouds) cloud.sprite.destroy();
     this.clouds.clear();
     this.exposure = 0;
+    this.towerExposure.clear();
   }
 
   private spawnAt(sx: number, sy: number, tx: number, ty: number, born: number): void {
@@ -144,31 +148,13 @@ export class ToadPoisonSystem {
     const radius = CFG.infected.toadPoisonRadius;
     const sprite = this.scene.add.image(x, y, 'toad_smoke_0')
       .setOrigin(0.5, TOAD_SMOKE_GROUND_Y / 128).setScale(radius / TOAD_SMOKE_RADIUS)
-      .setDepth(100 + (y + radius) * 0.1 + 0.1).setName('toad-poison-cloud');
+      .setDepth(100 + (y + radius * TOAD_SMOKE_DEPTH) * 0.1 + 0.1).setName('toad-poison-cloud');
     this.clouds.add({ sprite, x, y, born });
   }
 
   private updateExposure(start: number): void {
     const scene = this.scene;
-    const radiusSquared = CFG.infected.toadPoisonRadius ** 2;
-    const intervals: ExposureInterval[] = [];
-    let insideAtEnd = false;
-    for (const cloud of this.clouds) {
-      if ((scene.player.x - cloud.x) ** 2 + (scene.player.y - cloud.y) ** 2 >= radiusSquared) continue;
-      const expiry = cloud.born + CFG.infected.toadPoisonLifetime;
-      const interval = { start: Math.max(start, cloud.born), end: Math.min(this.time, expiry) };
-      if (interval.end > interval.start) intervals.push(interval);
-      if (cloud.born <= this.time && expiry > this.time) insideAtEnd = true;
-    }
-    intervals.sort((a, b) => a.start - b.start);
-    // Merge coverage before ticking: overlapping clouds are one poison exposure,
-    // and a landing partway through a frame cannot count its earlier flight time.
-    const merged: ExposureInterval[] = [];
-    for (const interval of intervals) {
-      const previous = merged[merged.length - 1];
-      if (previous && interval.start <= previous.end) previous.end = Math.max(previous.end, interval.end);
-      else merged.push({ ...interval });
-    }
+    const { intervals: merged, insideAtEnd } = this.coverage(start, scene.player.x, scene.player.y);
     let cursor = start;
     for (const interval of merged) {
       if (interval.start > cursor) this.exposure = 0;
@@ -190,6 +176,61 @@ export class ToadPoisonSystem {
       cursor = interval.end;
     }
     if (!insideAtEnd || cursor < this.time) this.exposure = 0;
+  }
+
+  private coverage(start: number, x: number, y: number, halfWidth = 0, halfHeight = 0): { intervals: ExposureInterval[]; insideAtEnd: boolean } {
+    const radiusSquared = CFG.infected.toadPoisonRadius ** 2;
+    const intervals: ExposureInterval[] = [];
+    let insideAtEnd = false;
+    for (const cloud of this.clouds) {
+      const dx = Math.max(0, Math.abs(x - cloud.x) - halfWidth);
+      const dy = Math.max(0, Math.abs(y - cloud.y) - halfHeight) / TOAD_SMOKE_DEPTH;
+      if (dx * dx + dy * dy >= radiusSquared) continue;
+      const expiry = cloud.born + CFG.infected.toadPoisonLifetime;
+      const interval = { start: Math.max(start, cloud.born), end: Math.min(this.time, expiry) };
+      if (interval.end > interval.start) intervals.push(interval);
+      if (cloud.born <= this.time && expiry > this.time) insideAtEnd = true;
+    }
+    intervals.sort((a, b) => a.start - b.start);
+    // Merge coverage before ticking: overlapping clouds are one poison exposure,
+    // and a landing partway through a frame cannot count its earlier flight time.
+    const merged: ExposureInterval[] = [];
+    for (const interval of intervals) {
+      const previous = merged[merged.length - 1];
+      if (previous && interval.start <= previous.end) previous.end = Math.max(previous.end, interval.end);
+      else merged.push({ ...interval });
+    }
+    return { intervals: merged, insideAtEnd };
+  }
+
+  private updateTowerExposure(start: number): void {
+    const scene = this.scene;
+    for (const tower of this.towerExposure.keys()) {
+      if (!tower.active) this.towerExposure.delete(tower);
+    }
+    // Destruction removes towers from scene.towers while this loop is running.
+    for (const tower of [...scene.towers]) {
+      const halfSize = tower.size * CFG.tile / 2;
+      const { intervals, insideAtEnd } = this.coverage(start, tower.x, tower.y, halfSize, halfSize);
+      let exposure = this.towerExposure.get(tower) ?? 0;
+      let cursor = start;
+      for (const interval of intervals) {
+        if (interval.start > cursor) exposure = 0;
+        exposure += interval.end - interval.start;
+        const ticks = Math.floor(exposure / CFG.infected.toadPoisonTickMs);
+        if (ticks > 0) {
+          exposure -= ticks * CFG.infected.toadPoisonTickMs;
+          tower.hurt(ticks * CFG.infected.toadPoisonDamage);
+          if (tower.hp <= 0) {
+            scene.sell.destroyTower(tower);
+            break;
+          }
+        }
+        cursor = interval.end;
+      }
+      if (tower.active && insideAtEnd && cursor === this.time) this.towerExposure.set(tower, exposure);
+      else this.towerExposure.delete(tower);
+    }
   }
 
   private destroyBomb(bomb: Bomb): void {
