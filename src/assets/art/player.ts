@@ -14,7 +14,7 @@
 // Sprite is 64 HD px = 32 world px (entities render at scale 0.5), so
 // 2 HD px = 1 world px. Facing right; GameScene flips X to face left.
 
-import { HdDraw, Mat, Paint, rect, rrect, disc, ellipse, line, poly, groundShadow } from './hd';
+import { HdDraw, HdPut, Mat, Paint, rect, rrect, disc, ellipse, line, poly, groundShadow } from './hd';
 
 export type PPose = 'level' | 'up' | 'down';
 export type PFrame =
@@ -27,14 +27,14 @@ export type Outfit = {
   hood: Mat;
   /** 'tail': hood with a trailing tail; 'point': peaked hood; 'cap': close-fitting cap. */
   hat: 'tail' | 'point' | 'cap';
-  feather: Mat | null;
+  feather: { vane: Mat; quill: Paint } | null;
   pouch: boolean;
   /** Quiver slung over the left shoulder, or hung off the left hip. */
   quiver: 'back' | 'hip';
   /** Belt and hood-edge material; a leather belt and a lighter hood edge when null. */
   trim: Mat | null;
 };
-export const RANGER: Outfit = { tunic: 'blue', hood: 'hood', hat: 'tail', feather: 'gold', pouch: true, quiver: 'back', trim: null };
+export const RANGER: Outfit = { tunic: 'blue', hood: 'hood', hat: 'tail', feather: { vane: 'red', quill: 'gold.d' }, pouch: true, quiver: 'back', trim: null };
 /** Indexed by tower level: field green, then a darker veteran, then crimson hood with gold trim. */
 export const TOWER_ARCHER: readonly Outfit[] = [
   { tunic: 'green',  hood: 'olive',   hat: 'tail', feather: null, pouch: false, quiver: 'hip', trim: null },
@@ -57,6 +57,55 @@ export function playerFrameBob(textureKey: string): number {
 }
 
 const EYE = '#0b0f1a';
+
+export type Plume = {
+  base: readonly [number, number];
+  tip: readonly [number, number];
+  /** How far the spine bows away from the base-tip chord, toward the outer edge. */
+  bow: number;
+  /** Half-width of the vane at its widest. */
+  width: number;
+  vane: Paint;
+  quill: Paint;
+  edge: Paint;
+  /** Positions along the spine (0..1) where the outer edge is notched into barbs. */
+  notches?: readonly number[];
+};
+
+/** Tapered feather: a bowed spine with a quill, a light outer edge, and barb notches. */
+export function drawPlume(put: HdPut, p: Plume) {
+  const [x0, y0] = p.base, [x1, y1] = p.tip;
+  const len = Math.hypot(x1 - x0, y1 - y0);
+  const nx = -(y1 - y0) / len, ny = (x1 - x0) / len;
+  const mx = (x0 + x1) / 2 + nx * p.bow, my = (y0 + y1) / 2 + ny * p.bow;
+  const spine = (t: number): [number, number, number, number] => [
+    (1 - t) ** 2 * x0 + 2 * (1 - t) * t * mx + t * t * x1,
+    (1 - t) ** 2 * y0 + 2 * (1 - t) * t * my + t * t * y1,
+    2 * (1 - t) * (mx - x0) + 2 * t * (x1 - mx),
+    2 * (1 - t) * (my - y0) + 2 * t * (y1 - my),
+  ];
+  const steps = Math.ceil(len * 3);
+  // Stamp into a map so the quill lands on top of the vane regardless of order.
+  const cells = new Map<number, [number, number, Paint]>();
+  const stamp = (x: number, y: number, c: Paint) => { x = Math.round(x); y = Math.round(y); cells.set(y * 1000 + x, [x, y, c]); };
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    const [cx, cy, tx, ty] = spine(t);
+    const tl = Math.hypot(tx, ty) || 1;
+    const pnx = -ty / tl, pny = tx / tl;
+    let w = p.width * Math.sin(Math.PI * Math.min(1, t * 1.15)) ** 0.8;
+    if (t < 0.12) w = Math.min(w, 0.6);                                    // bare quill at the base
+    const notched = (p.notches ?? []).some((n) => Math.abs(t - n) < 0.045);
+    const outerW = notched ? w * 0.45 : w;
+    for (let s = -w; s <= outerW; s += 0.35)
+      stamp(cx + pnx * s, cy + pny * s, s > outerW - 0.9 && t <= 0.82 ? p.edge : p.vane);
+  }
+  for (let i = 0; i <= steps * 0.78; i++) {
+    const [cx, cy] = spine(i / steps);
+    stamp(cx, cy, p.quill);
+  }
+  for (const [x, y, c] of cells.values()) put(x, y, c);
+}
 
 export function drawPlayer(frame: PFrame, pose: PPose = 'level', o: Outfit = RANGER): HdDraw {
   const tunic = o.tunic, tunicD = `${o.tunic}.d` as Paint;
@@ -143,9 +192,12 @@ export function drawPlayer(frame: PFrame, pose: PPose = 'level', o: Outfit = RAN
       poly(put, [[capCx - 5, headCy - 9], [capCx + 3, headCy - 10], [capCx - 1, headCy - 14], [capCx - 6, headCy - 12]], hood);
     }
     if (o.feather) {
-      // feather swept back along the hood
-      line(put, capCx - 4, headCy - 9, capCx - 13, headCy - 5, o.feather, 3);
-      put(capCx - 14, headCy - 4, `${o.feather}.l` as Paint);
+      // tucked in the front of the hood band and curving back over the crown;
+      // kept on the facing side so it stays clear of the quiver
+      drawPlume(put, {
+        base: [capCx + 11, headCy - 4], tip: [capCx - 5, headCy - 14], bow: 3, width: 2.6,
+        vane: o.feather.vane, quill: o.feather.quill, edge: `${o.feather.vane}.l`, notches: [0.45, 0.65],
+      });
     }
     // face (quarter view — features sit toward the facing side)
     if (blink) {
