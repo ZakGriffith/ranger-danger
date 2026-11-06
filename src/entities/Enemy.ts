@@ -116,10 +116,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
         this.play('ew-move');
         break;
       case 'bear':
-        // Body sized to the visible bear silhouette in bear/move.png. The bear's
-        // pngScaleMultiplier of 3.0 magnifies any padding around the character,
-        // so the body's source values need to match the PNG, not a 32×32 stub.
-        applyEntityVisual(this, 'bear', 'move', 0.60, 23, 15, 5, 8);
+        applyEntityVisual(this, 'bear', 'move', 0.60, 40, 30, 12, 18);
         this.play('ear-move');
         break;
       case 'spider':

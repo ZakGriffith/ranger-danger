@@ -14,7 +14,7 @@ export class Projectile extends Phaser.Physics.Arcade.Sprite {
   totalDist = 0;
   shadow: Phaser.GameObjects.Sprite | null = null;
   arcOffset = 0; // current visual Y offset (pixels above ground)
-  homingTarget: Phaser.GameObjects.Sprite | null = null;
+  homingTarget: Phaser.Physics.Arcade.Sprite | null = null;
   speed = 0;
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
@@ -27,7 +27,7 @@ export class Projectile extends Phaser.Physics.Arcade.Sprite {
     this.setSize(20, 8).setOffset(20, 28);
   }
 
-  fire(tx: number, ty: number, speed: number, damage: number, splashRadius = 0, scale = 0.5, tint = 0, homingTarget: Phaser.GameObjects.Sprite | null = null) {
+  fire(tx: number, ty: number, speed: number, damage: number, splashRadius = 0, scale = 0.5, tint = 0, homingTarget: Phaser.Physics.Arcade.Sprite | null = null) {
     this.damage = damage;
     this.splashRadius = splashRadius;
     this.speed = speed;

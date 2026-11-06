@@ -271,7 +271,7 @@ export class CombatSystem {
     return best;
   }
 
-  spawnProjectile(x: number, y: number, tx: number, ty: number, speed: number, dmg: number, splashRadius = 0, scale = 0.5, tint = 0, homingTarget: Phaser.GameObjects.Sprite | null = null) {
+  spawnProjectile(x: number, y: number, tx: number, ty: number, speed: number, dmg: number, splashRadius = 0, scale = 0.5, tint = 0, homingTarget: Phaser.Physics.Arcade.Sprite | null = null) {
     const scene = this.scene;
     const pr = new Projectile(scene, x, y);
     scene.projectiles.add(pr);
@@ -288,8 +288,9 @@ export class CombatSystem {
       // Homing arrows: steer toward target each frame
       if (p.homingTarget && !p.groundTarget) {
         if (p.homingTarget.active && !(p.homingTarget as any).dying) {
-          const dx = p.homingTarget.x - p.x;
-          const dy = p.homingTarget.y - p.y;
+          const targetBody = p.homingTarget.body as Phaser.Physics.Arcade.Body;
+          const dx = targetBody.center.x - p.x;
+          const dy = targetBody.center.y - p.y;
           const d = Math.hypot(dx, dy) || 1;
           const angle = Math.atan2(dy, dx);
           p.setVelocity((dx / d) * p.speed, (dy / d) * p.speed);
