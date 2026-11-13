@@ -26,11 +26,26 @@ const SHADOW = hex('#0b0f1a');
 const SHADOW_ALPHA = 0.18;
 
 type TreePal = { dark: Rgb; mid: Rgb; light: Rgb; bright: Rgb; trunk: Rgb; trunkDark: Rgb };
+// Six hue families, all green: blue spruce, cool pine, deep pine, mid pine,
+// warm pine, yellow pine. A per-tree brightness jitter and highlight density
+// are layered on top so no two neighbours shade the same way.
 const PINE: TreePal[] = [
-  { dark: hex('#122a16'), mid: hex('#1f4a26'), light: hex('#2f6a34'), bright: hex('#4a8f45'), trunk: hex('#4a2e16'), trunkDark: hex('#2a1808') },
+  { dark: hex('#0f2a22'), mid: hex('#1b4a3a'), light: hex('#2b6a4c'), bright: hex('#4a9a68'), trunk: hex('#45301c'), trunkDark: hex('#261a0c') },
   { dark: hex('#10261a'), mid: hex('#1b442a'), light: hex('#2a6438'), bright: hex('#43874a'), trunk: hex('#45301c'), trunkDark: hex('#261a0c') },
-  { dark: hex('#162c14'), mid: hex('#254c22'), light: hex('#376c30'), bright: hex('#55923f'), trunk: hex('#4e3218'), trunkDark: hex('#2c1a0a') },
+  { dark: hex('#0e2412'), mid: hex('#193e1e'), light: hex('#255a2a'), bright: hex('#3c7e3c'), trunk: hex('#3e2814'), trunkDark: hex('#22140a') },
+  { dark: hex('#122a16'), mid: hex('#1f4a26'), light: hex('#2f6a34'), bright: hex('#4a8f45'), trunk: hex('#4a2e16'), trunkDark: hex('#2a1808') },
+  { dark: hex('#1a2e12'), mid: hex('#2c5222'), light: hex('#3f7430'), bright: hex('#5f9a42'), trunk: hex('#4e3218'), trunkDark: hex('#2c1a0a') },
+  { dark: hex('#223214'), mid: hex('#3a5a22'), light: hex('#527c2e'), bright: hex('#78a842'), trunk: hex('#54381a'), trunkDark: hex('#30200c') },
 ];
+
+const scaleRgb = (c: Rgb, f: number): Rgb => [Math.min(255, Math.round(c[0] * f)), Math.min(255, Math.round(c[1] * f)), Math.min(255, Math.round(c[2] * f))];
+
+/** A tree's own palette: one of the hue families, brightened or dimmed a little. */
+function treePalette(seed: number): TreePal {
+  const base = PINE[Math.floor(hash2(seed, 1, 5) * PINE.length)];
+  const f = 0.9 + hash2(seed, 2, 5) * 0.2;
+  return { dark: scaleRgb(base.dark, f), mid: scaleRgb(base.mid, f), light: scaleRgb(base.light, f), bright: scaleRgb(base.bright, f), trunk: base.trunk, trunkDark: base.trunkDark };
+}
 
 /** An RGBA pixel buffer with straight alpha; empty pixels stay transparent. */
 class Raster {
@@ -64,7 +79,7 @@ class Body {
 }
 
 /** One scalloped conifer tier: a triangular bough with a wavy bottom, lit top-left, dark underside. */
-function tier(put: (x: number, y: number, c: Rgb) => void, cx: number, top: number, bot: number, halfW: number, p: TreePal, seed: number): void {
+function tier(put: (x: number, y: number, c: Rgb) => void, cx: number, top: number, bot: number, halfW: number, p: TreePal, seed: number, dabs: number): void {
   const h = bot - top;
   for (let y = Math.floor(top); y <= Math.ceil(bot) + 3; y++) {
     const t = Math.max(0, Math.min(1, (y - top) / h));
@@ -80,14 +95,15 @@ function tier(put: (x: number, y: number, c: Rgb) => void, cx: number, top: numb
       else if (u < -0.15 && t > 0.15 && t < 0.9) c = p.light;
       else if (u > 0.45) c = p.dark;
       else c = p.mid;
-      if (!underside && u < -0.25 && t > 0.35 && t < 0.75 && hash2(x, y, seed) > 0.72) c = p.bright;
+      if (!underside && u < -0.25 && t > 0.35 && t < 0.75 && hash2(x, y, seed) > dabs) c = p.bright;
       put(x, y, c);
     }
   }
 }
 
 function drawPine(r: Raster, cx: number, cy: number, h: number, baseHalf: number, seed: number): void {
-  const p = PINE[seed % 3];
+  const p = treePalette(seed);
+  const dabs = 0.64 + hash2(seed, 3, 5) * 0.22; // highlight dab density: sparse to generous
   const b = new Body(r);
   // trunk and root flare
   for (let y = cy - 14; y <= cy; y++) {
@@ -101,7 +117,7 @@ function drawPine(r: Raster, cx: number, cy: number, h: number, baseHalf: number
     const tTop = top + h * f0 * 0.92 - 4;
     const tBot = top + h * f1 * 0.92 + (i === tiers - 1 ? -6 : 2);
     const half = baseHalf * (0.3 + 0.7 * f1);
-    tier(b.put, cx, tTop, tBot, half, p, seed * 7 + i);
+    tier(b.put, cx, tTop, tBot, half, p, seed * 7 + i, dabs);
   }
   // tip
   for (let y = top - 3; y <= top + 2; y++) b.put(cx, y, p.bright);
