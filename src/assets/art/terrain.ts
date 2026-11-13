@@ -8,6 +8,7 @@ import {
   pxIdx, pxEq, scale2x, makeCanvas, mirrorX,
   rect, disc, ring, line, hexToRgb, add,
 } from './canvas';
+import { MEADOW_TILE_PX, drawMeadowChunk } from './groundMeadow';
 
 // ==================================================================
 //  GROUND TILE (32x32) — noise speckle
@@ -339,101 +340,6 @@ function drawGroundRiver(tileX: number, tileY: number) {
 
 // Grasslands ground — gradient transitions between green shades like Bounty of One
 // Dark green → medium green → light green → yellow-green in large smooth zones
-function drawGroundWorld(tileX: number, tileY: number) {
-  return (put: Put) => {
-    // 4 grass shades from dark to light
-    const shades = [
-      [0x2a, 0x48, 0x26],
-      [0x32, 0x52, 0x2e],
-      [0x3c, 0x5e, 0x36],
-      [0x48, 0x6a, 0x3e],
-    ];
-    // Pre-compute hex strings for the 4 base shades
-    const shadeHex = shades.map(([r, g, b]) =>
-      '#' + r.toString(16).padStart(2, '0') + g.toString(16).padStart(2, '0') + b.toString(16).padStart(2, '0')
-    );
-    // Lerp helper for transition bands
-    const lerpCol = (a: number[], b: number[], t: number): string => {
-      const r = Math.round(a[0] + (b[0] - a[0]) * t);
-      const g = Math.round(a[1] + (b[1] - a[1]) * t);
-      const bl = Math.round(a[2] + (b[2] - a[2]) * t);
-      return '#' + r.toString(16).padStart(2, '0') + g.toString(16).padStart(2, '0') + bl.toString(16).padStart(2, '0');
-    };
-
-    // Per-tile RNG for small detail placement
-    let s = ((tileX * 73856093 + tileY * 19349669) >>> 0) % 2147483647;
-    const rnd = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
-
-    // Transition: fade-out, solid mid band, fade-in (each as fraction of shade range)
-    const fadeW = 0.06;  // fade from current shade to midpoint
-    const midW  = 0.03;  // thin solid band of the midpoint color
-    const totalW = fadeW + midW + fadeW; // full transition zone width
-
-    // Precompute noise at 1/4 resolution for performance
-    const sampleN = precomputeNoise(tileX, tileY, 8000, 1000, 400);
-
-    for (let py = 0; py < 32; py++) {
-      for (let px = 0; px < 32; px++) {
-        const n = sampleN(px, py);
-
-        // Continuous position within shade space (0..4 mapped to 4 shades)
-        const pos = Math.min(3.999, n * 4);
-        const idx = Math.floor(pos);
-        const frac = pos - idx; // 0..1 within this shade
-
-        // Two-layer transition at boundaries between shades
-        // Layout: [solid shade] [fade→mid] [solid mid] [fade→next] [solid next shade]
-        const bandStart = 1 - totalW;
-        if (idx < 3 && frac > bandStart) {
-          const mid = shades[idx].map((c, i) => Math.round((c + shades[idx + 1][i]) / 2));
-          const t = frac - bandStart; // 0..totalW
-          if (t < fadeW) {
-            // Fade from current shade toward midpoint
-            put(px, py, lerpCol(shades[idx], mid, t / fadeW));
-          } else if (t < fadeW + midW) {
-            // Thin solid midpoint band
-            put(px, py, lerpCol(mid, mid, 0)); // just mid color
-          } else {
-            // Fade from midpoint toward next shade
-            put(px, py, lerpCol(mid, shades[idx + 1], (t - fadeW - midW) / fadeW));
-          }
-        } else {
-          put(px, py, shadeHex[idx]);
-        }
-      }
-    }
-
-    // Scattered single flowers (0-2 per tile, ~15% of tiles)
-    const flowerCount = rnd() < 0.15 ? (rnd() < 0.5 ? 1 : 2) : 0;
-    const flowerColors = ['#e84060', '#e8d040', '#d070e0', '#70a0e8', '#e8a040'];
-    for (let i = 0; i < flowerCount; i++) {
-      const fx = 2 + Math.floor(rnd() * 28);
-      const fy = 2 + Math.floor(rnd() * 28);
-      const col = flowerColors[Math.floor(rnd() * flowerColors.length)];
-      put(fx, fy, col);
-      put(fx, fy + 1, '#1a3a18');
-    }
-
-    // Scattered single rock (0-1, ~10% of tiles)
-    if (rnd() < 0.1) {
-      const rx = 2 + Math.floor(rnd() * 28);
-      const ry = 2 + Math.floor(rnd() * 28);
-      put(rx, ry, '#7a8290');
-      put(rx + 1, ry, '#6a7280');
-      put(rx, ry + 1, '#5a6270');
-    }
-
-    // Rare grass tuft (~20% of tiles)
-    if (rnd() < 0.2) {
-      const tx = 3 + Math.floor(rnd() * 26);
-      const ty = 3 + Math.floor(rnd() * 26);
-      put(tx, ty, '#4a7a42');
-      put(tx + 1, ty, '#4a7a42');
-      put(tx, ty - 1, '#4a7a42');
-    }
-  };
-}
-
 // Castle ground — smooth flagstone and courtyard dirt with decorations
 function drawGroundCastle(tileX: number, tileY: number) {
   return (put: Put) => {
@@ -1519,12 +1425,28 @@ export function drawFoundation(put: Put) {
     put(x, y, '#a08060');
   }
 }
-/** Create and register a ground chunk texture covering chunkSize×chunkSize tiles */
+/**
+ * Create and register a ground chunk texture covering chunkSize×chunkSize
+ * tiles. The texture is `tileSize` px per tile for the legacy biomes and
+ * MEADOW_TILE_PX for grasslands, so callers size the display from the
+ * chunk's world extent rather than the texture.
+ */
 export function createGroundChunk(scene: Phaser.Scene, chunkX: number, chunkY: number, chunkSize: number, tileSize: number, biome = 'grasslands'): string {
   const sceneLevelId = (scene as any).levelId ?? 1;
   const terrainKey = biome === 'desert' ? `${biome}_${sceneLevelId}` : biome;
   const key = `gnd_chunk_${terrainKey}_${chunkX}_${chunkY}`;
   if (scene.textures.exists(key)) return key;
+  if (biome === 'grasslands') {
+    const pxSize = chunkSize * MEADOW_TILE_PX;
+    const canvas = document.createElement('canvas');
+    canvas.width = pxSize; canvas.height = pxSize;
+    const ctx = canvas.getContext('2d')!;
+    const imageData = ctx.createImageData(pxSize, pxSize);
+    drawMeadowChunk(imageData.data, pxSize, chunkX * pxSize, chunkY * pxSize);
+    ctx.putImageData(imageData, 0, 0);
+    scene.textures.addCanvas(key, canvas);
+    return key;
+  }
   const pxSize = chunkSize * tileSize; // e.g. 16 * 32 = 512
   const canvas = document.createElement('canvas');
   canvas.width = pxSize; canvas.height = pxSize;
@@ -1542,8 +1464,7 @@ export function createGroundChunk(scene: Phaser.Scene, chunkX: number, chunkY: n
                  : biome === 'infected' ? drawGroundInfected(worldTX, worldTY)
                  : biome === 'river' ? drawGroundRiver(worldTX, worldTY)
                  : biome === 'castle' ? drawGroundCastle(worldTX, worldTY)
-                 : biome === 'desert' ? drawGroundDesert(worldTX, worldTY, sceneLevelId)
-                 : drawGroundWorld(worldTX, worldTY);
+                 : drawGroundDesert(worldTX, worldTY, sceneLevelId);
       const ox = tx * tileSize;
       const oy = ty * tileSize;
       const put: Put = (x, y, col) => {

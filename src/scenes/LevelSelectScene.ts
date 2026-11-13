@@ -27,6 +27,17 @@ function saveTestUnlock(v: boolean): void {
   catch { /* private mode — toggle still works in-session */ }
 }
 
+/** Gated like GameScene's ?boss= hook: dev build or localhost only. */
+function requestedDirectLevel(): { level: LevelDef; diff: Difficulty } | null {
+  const params = new URLSearchParams(window.location.search);
+  const level = LEVELS.find(l => l.id === Number(params.get('level')));
+  if (!level) return null;
+  const hostname = window.location.hostname;
+  if (!(import.meta.env.DEV || hostname === 'localhost' || hostname === '127.0.0.1')) return null;
+  const diff = params.get('diff') as Difficulty | null;
+  return { level, diff: diff && DIFFICULTY_ORDER.includes(diff) ? diff : 'easy' };
+}
+
 export class LevelSelectScene extends Phaser.Scene {
   medalStore!: MedalStore;
   medalCount = 0;
@@ -159,6 +170,16 @@ export class LevelSelectScene extends Phaser.Scene {
 
     this.drawPlayerLevelBanner();
     this.drawTestUnlockToggle();
+
+    // Dev/testing hook: ?level=N[&diff=easy] skips the map and starts that
+    // level directly, so a level can be screenshotted or shared headlessly.
+    const direct = requestedDirectLevel();
+    if (direct) {
+      this.selectedLevel = direct.level;
+      this.selectedDiff = direct.diff;
+      this.startMission();
+      return;
+    }
 
     // Launch tutorial for first-time players
     if (isTutorialNeeded()) {

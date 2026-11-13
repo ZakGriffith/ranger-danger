@@ -44,16 +44,17 @@ export class ChunkSystem {
     const tile2 = CFG.tile;
     const chunkPx = cs2 * tile2;
     const radius = 3; // generate around viewport
+    const terrainKey = scene.biome === 'desert' ? `${scene.biome}_${scene.levelId}` : scene.biome;
     for (let dy = -radius; dy <= radius; dy++) {
       for (let dx = -radius; dx <= radius; dx++) {
         const ck = `${cx + dx},${cy + dy}`;
         // Already have a display image? skip
         if (scene.chunkImages.has(ck)) continue;
         // Texture already cached from a previous visit? Just create image, no re-render
-        const terrainKey = scene.biome === 'desert' ? `${scene.biome}_${scene.levelId}` : scene.biome;
         const texKey = `gnd_chunk_${terrainKey}_${cx + dx}_${cy + dy}`;
         if (scene.generatedChunks.has(ck) && scene.textures.exists(texKey)) {
-          const img = scene.add.image((cx + dx) * chunkPx + chunkPx / 2, (cy + dy) * chunkPx + chunkPx / 2, texKey).setDepth(-1000);
+          const img = scene.add.image((cx + dx) * chunkPx + chunkPx / 2, (cy + dy) * chunkPx + chunkPx / 2, texKey)
+            .setDepth(-1000).setDisplaySize(chunkPx, chunkPx);
           scene.chunkImages.set(ck, img);
           continue;
         }
@@ -69,13 +70,24 @@ export class ChunkSystem {
       ((a.cx - cx) ** 2 + (a.cy - cy) ** 2) - ((b.cx - cx) ** 2 + (b.cy - cy) ** 2)
     );
 
-    // Destroy distant chunk images (textures stay cached for instant re-creation)
+    // Destroy distant chunk images; textures stay cached a while longer for
+    // instant re-creation, then go too (a 1024² HD chunk is 4 MB, and the
+    // generators are deterministic so a far chunk simply regenerates).
     const cullRadius = radius + 3;
+    const textureCullRadius = cullRadius + 3;
     for (const [key, img] of scene.chunkImages) {
       const [kcx, kcy] = key.split(',').map(Number);
       if (Math.abs(kcx - cx) > cullRadius || Math.abs(kcy - cy) > cullRadius) {
         img.destroy();
         scene.chunkImages.delete(key);
+      }
+    }
+    for (const key of scene.generatedChunks) {
+      const [kcx, kcy] = key.split(',').map(Number);
+      if (Math.abs(kcx - cx) > textureCullRadius || Math.abs(kcy - cy) > textureCullRadius) {
+        const texKey = `gnd_chunk_${terrainKey}_${kcx}_${kcy}`;
+        if (scene.textures.exists(texKey)) scene.textures.remove(texKey);
+        scene.generatedChunks.delete(key);
       }
     }
   }
@@ -98,7 +110,9 @@ export class ChunkSystem {
       if (budgetMs > 0 && performance.now() - start >= budgetMs) break;
       const { cx: ccx, cy: ccy } = scene.pendingChunks.shift()!;
       const texKey = createGroundChunk(scene, ccx, ccy, cs, 32, scene.biome);
-      const chunkImg = scene.add.image(ccx * chunkPx + chunkPx / 2, ccy * chunkPx + chunkPx / 2, texKey).setDepth(-1000);
+      // HD ground textures are 2 px per world px; display from the world extent so both densities land the same
+      const chunkImg = scene.add.image(ccx * chunkPx + chunkPx / 2, ccy * chunkPx + chunkPx / 2, texKey)
+        .setDepth(-1000).setDisplaySize(chunkPx, chunkPx);
       scene.chunkImages.set(`${ccx},${ccy}`, chunkImg);
       // Generate trees for this chunk if forest biome
       if (scene.biome === 'forest' || scene.biome === 'infected') this.placeTreesInChunk(ccx, ccy);
