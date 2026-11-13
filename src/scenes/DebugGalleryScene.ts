@@ -1,6 +1,8 @@
 import Phaser from 'phaser';
 import { CFG } from '../config';
 import { generateAllArt } from '../assets/generateArt';
+import { MEADOW_ENEMY_ART } from '../assets/art/meadowEnemies/textures';
+import { MEADOW_RAM_ART } from '../assets/art/meadowRam';
 import { CANNON_PIVOT_Y } from '../assets/art/cannon';
 import {
   registerRangerGalleryArt,
@@ -49,11 +51,12 @@ const RANGER_ENTRY: SpriteDebugEntry = {
 };
 
 const ENTITY_PROC_SCALES: Record<string, number> = {
+  boss_meadow: CFG.bossScale,
   basic: 0.5,
   heavy: 0.5,
-  snake: 0.5,
+  snake: MEADOW_ENEMY_ART.snake.spriteScale,
   rat: 0.45,
-  deer: 0.55,
+  deer: MEADOW_ENEMY_ART.deer.spriteScale,
   wolf: 0.45,
   bear: 0.55,
   spider: 0.45,
@@ -766,9 +769,12 @@ export class DebugGalleryScene extends Phaser.Scene {
 
   private updateSandboxLineupScale() {
     if (!this.sandboxLineupSprite || !this.selected) return;
+    const { folder } = this.selected;
+    const meadowScale = folder === 'boss_meadow' ? MEADOW_RAM_ART.scale
+      : folder === 'snake' || folder === 'deer' ? MEADOW_ENEMY_ART[folder].scale : 1;
     const baseScale = this.selected.kind === 'player'
       ? RANGER_SCALE
-      : getEntityVisualScale(this, this.selected.folder, 'move', ENTITY_PROC_SCALES[this.selected.folder] ?? 0.5);
+      : getEntityVisualScale(this, folder, 'move', ENTITY_PROC_SCALES[folder] ?? 0.5, meadowScale);
     this.sandboxLineupSprite.setScale(baseScale * this.previewScale);
     this.sandboxLineupSprite.y = Math.max(
       this.sandboxLineupBaseY,

@@ -41,7 +41,7 @@ export class Shadow {
     let groundOffset: number;
     if (bounds) {
       visibleWidth = (bounds.right - bounds.left + 1) * sprite.scaleX;
-      groundOffset = (bounds.bottom - bounds.sourceH / 2) * sprite.scaleY;
+      groundOffset = (bounds.bottom - sprite.displayOriginY) * sprite.scaleY;
     } else {
       // Tainted canvas or fully-transparent texture — fall back to display dims.
       visibleWidth = sprite.displayWidth;

@@ -1,6 +1,8 @@
 import type { RamFrame } from './bosses';
 import { meadowEnemyPose, type MeadowEnemyPose } from './meadowEnemies/pose';
 
+export const MEADOW_RAM_ART = { scale: 1.15, feetY: 112, frameScale: .86 } as const;
+
 type Path = (ctx: CanvasRenderingContext2D) => void;
 type RamDetails = {
   idleBob?: number;
@@ -303,8 +305,8 @@ export function createMeadowRamFrame(frame: RamFrame): HTMLCanvasElement {
   canvas.width = canvas.height = 128;
   const ctx = canvas.getContext('2d')!;
   // Match the original frame's world scale and place the hooves above its shadow plane.
-  ctx.translate(61, 112);
-  ctx.scale(.86, .86);
+  ctx.translate(61, MEADOW_RAM_ART.feetY);
+  ctx.scale(MEADOW_RAM_ART.frameScale, MEADOW_RAM_ART.frameScale);
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
 

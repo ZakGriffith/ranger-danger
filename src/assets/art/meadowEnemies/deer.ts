@@ -3,6 +3,7 @@ import type { MeadowEnemyPose } from './pose';
 const ink = '#30242a';
 const shadow = '#684047';
 const bone = '#ffe3ae';
+const LEG_EXTENSION = 9;
 
 function wash(ctx: CanvasRenderingContext2D, top: number, bottom: number, stops: readonly (readonly [number, string])[]) {
   const gradient = ctx.createLinearGradient(0, top, 0, bottom);
@@ -37,12 +38,14 @@ function spot(ctx: CanvasRenderingContext2D, x: number, y: number, rx: number, r
 
 function leg(ctx: CanvasRenderingContext2D, rootX: number, rootY: number, ankleX: number, ankleY: number, hind: boolean, far: boolean) {
   const jointX = hind ? rootX + 6 : rootX + 1;
-  const jointY = hind ? rootY + 13 : rootY + 15;
+  const jointY = rootY + (hind ? 13 : 15) + LEG_EXTENSION / 3;
   const hockX = hind ? rootX - 3 + (ankleX - rootX) * .34 : rootX + 1.5 + (ankleX - rootX) * .45;
   const hockY = ankleY - 9;
+  const rootLeft = rootX - (hind ? 9 : 5);
+  const capRise = hind ? 12 : 9;
   const color = far ? '#78484a' : wash(ctx, rootY, ankleY, [[0, '#cf8e5e'], [.44, '#aa6248'], [1, '#62383d']]);
   shape(ctx, color, p => {
-    p.moveTo(rootX - (hind ? 9 : 5), rootY - 2);
+    p.moveTo(rootLeft, rootY - 2);
     p.quadraticCurveTo(rootX - 10, rootY + 6, jointX - 5, jointY + 2);
     p.quadraticCurveTo(hockX - 5, hockY - 3, hockX - 3, hockY);
     p.lineTo(ankleX - 3, ankleY - 3);
@@ -52,6 +55,7 @@ function leg(ctx: CanvasRenderingContext2D, rootX: number, rootY: number, ankleX
     p.quadraticCurveTo(hockX + 2.5, hockY - 1, hockX + 3, hockY - 2);
     p.quadraticCurveTo(jointX + 4, jointY + 1, jointX + 3, jointY - 5);
     p.quadraticCurveTo(rootX + 11, rootY + 4, rootX + 6, rootY - 3);
+    p.bezierCurveTo(rootX + 4, rootY - capRise, rootLeft + 2, rootY - capRise, rootLeft, rootY - 2);
   }, far ? 2.15 : 2.55);
   shape(ctx, far ? '#46313c' : '#463038', p => {
     p.moveTo(ankleX - 2.5, ankleY - 4.2);
@@ -62,8 +66,8 @@ function leg(ctx: CanvasRenderingContext2D, rootX: number, rootY: number, ankleX
   });
   if (!far) {
     line(ctx, '#e7a66d', 1.2, p => {
-      p.moveTo(rootX - 5, rootY + 3);
-      p.quadraticCurveTo(rootX - 3, rootY + 8, jointX - 2, jointY - 2);
+      p.moveTo(rootX + 1, rootY - capRise * .45);
+      p.bezierCurveTo(rootLeft + 1, rootY - capRise * .7, rootLeft + 2, rootY + 5, jointX - 2, jointY - 2);
     });
     line(ctx, '#9d7067', .9, p => {
       p.moveTo(ankleX + .8, ankleY - 2.8);
@@ -273,7 +277,8 @@ function gait(phase: number, offset: number, stride: number) {
 export function drawDeer(ctx: CanvasRenderingContext2D, { mode, phase, anticipation, lunge, strike, recovery }: MeadowEnemyPose) {
   const moving = mode === 'move';
   const step = Math.PI * 2 * phase;
-  const bob = moving ? -.5 - 2.1 * (1 - Math.cos(step * 2)) : 2.5 * anticipation - 1.5 * lunge + 2 * recovery;
+  const bounce = moving ? -.5 - 2.1 * (1 - Math.cos(step * 2)) : 2.5 * anticipation - 1.5 * lunge + 2 * recovery;
+  const bob = bounce - LEG_EXTENSION;
   const headX = 27 - 7 * anticipation + 17 * lunge;
   const headY = -47 + bob + 6 * anticipation + 4 * lunge;
   const angle = moving ? Math.sin(step * 2 + .75) * .054 : .23 * anticipation + .67 * strike + .16 * recovery;

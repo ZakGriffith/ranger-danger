@@ -6,6 +6,7 @@ import { DEBUG } from '../debug.config';
 import { RAT_VARIANTS } from '../assets/art/rat';
 import { BLOB_ORIGIN_Y, BLOB_VARIANTS } from '../assets/art/infectedBlob';
 import { IRONCAP_ORIGIN_Y } from '../assets/art/ironcap';
+import { MEADOW_ENEMY_ART } from '../assets/art/meadowEnemies/textures';
 import type { GameScene } from '../scenes/GameScene';
 
 export type EnemyKind = 'basic' | 'heavy' | 'runner' | 'snake' | 'rat' | 'deer' | 'wolf' | 'bear' | 'spider' | 'infected_basic' | 'infected_heavy' | 'infected_runner' | 'toad' | 'crow' | 'bat' | 'dragonfly' | 'mosquito' | 'skeleton' | 'warlock' | 'golem' | 'shadow_imp' | 'castle_bat' | 'castle_rat' | 'scorpion' | 'boss_scorpion' | 'scarab' | 'sand_mite' | 'cactus_hopper' | 'dune_strider' | 'sand_wraith' | 'temple_guardian' | 'sun_mote';
@@ -98,7 +99,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
         this.setTint(this.baseTint);
         break;
       case 'snake':
-        applyEntityVisual(this, 'snake', 'move', 0.5, 28, 14, 18, 25);
+        applyEntityVisual(this, 'snake', 'move', MEADOW_ENEMY_ART.snake.spriteScale, 28, 14, 18, 25, MEADOW_ENEMY_ART.snake);
         this.play('esnk-move');
         break;
       case 'rat':
@@ -106,7 +107,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
         this.play(`${texPrefix}-move`);
         break;
       case 'deer':
-        applyEntityVisual(this, 'deer', 'move', 0.55, 36, 32, 8, 28);
+        applyEntityVisual(this, 'deer', 'move', MEADOW_ENEMY_ART.deer.spriteScale, 36, 32, 8, 28, MEADOW_ENEMY_ART.deer);
         this.play('eder-move');
         break;
       case 'wolf':

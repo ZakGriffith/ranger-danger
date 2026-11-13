@@ -465,6 +465,7 @@ export function applyEntityVisual(
   procBodyH: number,
   procOffsetX: number,
   procOffsetY: number,
+  proceduralArt?: { scale: number; feetY: number },
 ): void {
   const c = CHARACTERS.find(cs => cs.folder === characterFolder);
   const sheetK = c ? sheetKey(c.texPrefix, primarySuffix) : '';
@@ -511,6 +512,15 @@ export function applyEntityVisual(
       sprite.setSize(procBodyW * ratio, procBodyH * ratio);
       sprite.setOffset(procOffsetX * ratio, procOffsetY * ratio);
     }
+  } else if (proceduralArt) {
+    const { scale, feetY } = proceduralArt;
+    const { displayOriginX, displayOriginY } = sprite;
+    // Scale around the feet and convert the existing collision box back to source pixels.
+    const originY = feetY + (displayOriginY - feetY) / scale;
+    sprite.setScale(procScale * scale).setDisplayOrigin(displayOriginX, originY);
+    sprite.setSize(procBodyW / scale, procBodyH / scale);
+    sprite.setOffset(displayOriginX + (procOffsetX - displayOriginX) / scale,
+      originY + (procOffsetY - displayOriginY) / scale);
   } else {
     sprite.setScale(procScale);
     sprite.setSize(procBodyW, procBodyH);
@@ -523,10 +533,11 @@ export function getEntityVisualScale(
   characterFolder: string,
   primarySuffix: string,
   procScale: number,
+  proceduralBoost = 1,
 ): number {
   const c = CHARACTERS.find(cs => cs.folder === characterFolder);
   const sheetK = c ? sheetKey(c.texPrefix, primarySuffix) : '';
-  if (!c || !scene.textures.exists(sheetK)) return procScale;
+  if (!c || !scene.textures.exists(sheetK)) return procScale * proceduralBoost;
 
   const img = scene.textures.get(sheetK).getSourceImage() as HTMLImageElement;
   const proc = c.proceduralCanvasSize ?? 64;

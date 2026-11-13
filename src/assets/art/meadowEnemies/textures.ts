@@ -8,12 +8,17 @@ import { meadowEnemyPose, type MeadowEnemyPose } from './pose';
 
 type EnemyArt = (ctx: CanvasRenderingContext2D, pose: MeadowEnemyPose) => void;
 
+export const MEADOW_ENEMY_ART = {
+  snake: { scale: 1.25, feetY: 41, frameScale: .45, spriteScale: .5 },
+  deer: { scale: 1.30, feetY: 60, frameScale: .49, spriteScale: .55 },
+} as const;
+
 const SPRITE_SIZE = 64;
 const ATTACK_PHASES = [0, .35, .56, .71, .9];
 const ART = [
-  { prefix: 'esnk', draw: drawSnake, x: 30, y: 41, scale: .45 },
+  { prefix: 'esnk', draw: drawSnake, x: 30, y: MEADOW_ENEMY_ART.snake.feetY, scale: MEADOW_ENEMY_ART.snake.frameScale },
   { prefix: 'erat', draw: drawRat, x: 30, y: 51, scale: .48 },
-  { prefix: 'eder', draw: drawDeer, x: 28, y: 60, scale: .49 },
+  { prefix: 'eder', draw: drawDeer, x: 28, y: MEADOW_ENEMY_ART.deer.feetY, scale: MEADOW_ENEMY_ART.deer.frameScale },
 ];
 
 function makeMeadowEnemyFrame(art: { draw: EnemyArt; x: number; y: number; scale: number }, pose: MeadowEnemyPose): HTMLCanvasElement {
