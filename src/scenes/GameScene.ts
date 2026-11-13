@@ -20,6 +20,7 @@ import { TowerPanelSystem } from '../systems/TowerPanelSystem';
 import { BuildSystem } from '../systems/BuildSystem';
 import { SellSystem } from '../systems/SellSystem';
 import { CombatSystem } from '../systems/CombatSystem';
+import { PlayerCombatSystem } from '../systems/PlayerCombatSystem';
 import { EnemyDeathSystem } from '../systems/EnemyDeathSystem';
 import { ToadPoisonSystem } from '../systems/ToadPoisonSystem';
 import { InfectedBlobSystem } from '../systems/InfectedBlobSystem';
@@ -34,7 +35,6 @@ import { RunStats } from '../state/RunStats';
 import { PlayerUpgradeState } from '../state/PlayerUpgradeState';
 import { SFX } from '../audio/sfx';
 import { generateAllArt, registerAnimations } from '../assets/generateArt';
-import { playerFrameBob } from '../assets/art/player';
 import { Difficulty, Biome, LEVELS } from '../levels';
 import { computeViewport, viewportWorldSize } from '../viewport';
 
@@ -150,7 +150,6 @@ export class GameScene extends Phaser.Scene {
   private _onUiResume?: () => void;
   private menuPaused = false;
   nextRunnerPack = 0;
-  playerStoppedAt = 0;
   ghost!: Phaser.GameObjects.Sprite;
   deleteIcon!: Phaser.GameObjects.Graphics;
   gridOverlay!: Phaser.GameObjects.Graphics;
@@ -269,15 +268,6 @@ export class GameScene extends Phaser.Scene {
   _lastWallCheckPlayerTile = '';
   _warmupFrames = 0;
 
-  // Bow / nocked-arrow offsets relative to the player center, recomputed in
-  // updatePlayer and re-applied in POST_UPDATE so the bow tracks the player's
-  // post-physics-sync position (otherwise the body integrates in UPDATE,
-  // sprite syncs in POST_UPDATE, and the bow renders one frame behind).
-  _bowOffsetX = 10;
-  _bowOffsetY = 2;
-  _nockOffsetX = 25;
-  _nockOffsetY = 2;
-
   constructor() { super('Game'); }
 
   init(data: GameSceneInitData) {
@@ -300,7 +290,6 @@ export class GameScene extends Phaser.Scene {
     this.menuPaused = false;
     this.buildState.reset();
     this.nextRunnerPack = 0;
-    this.playerStoppedAt = 0;
     this.spawnTimer = 0;
     this.spawnInterval = CFG.spawn.initialInterval;
     this.rampTimer = 0;
@@ -459,6 +448,7 @@ export class GameScene extends Phaser.Scene {
     this.build = new BuildSystem(this);
     this.sell = new SellSystem(this);
     this.combat = new CombatSystem(this);
+    this.playerCombat = new PlayerCombatSystem(this);
     this.enemyDeaths = new EnemyDeathSystem(this);
     this.toadPoison = new ToadPoisonSystem(this);
     this.infectedBlobs = new InfectedBlobSystem(this);
@@ -799,8 +789,6 @@ export class GameScene extends Phaser.Scene {
     this.physics.pause();
     this._warmupFrames = 0;
 
-    this.events.on(Phaser.Scenes.Events.POST_UPDATE, this._syncBowToPlayer);
-
     // Debug pre-built maze. Parses the ASCII grid in DEBUG.preBuiltMaze and
     // places a wall at every '#'. '@' marks the player's tile (defaults to
     // grid center if not specified). Empty string skips this entirely.
@@ -930,6 +918,7 @@ export class GameScene extends Phaser.Scene {
   build!: BuildSystem;
   sell!: SellSystem;
   combat!: CombatSystem;
+  playerCombat!: PlayerCombatSystem;
   enemyDeaths!: EnemyDeathSystem;
   toadPoison!: ToadPoisonSystem;
   infectedBlobs!: InfectedBlobSystem;
@@ -1094,7 +1083,7 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  updatePlayer(time: number, _delta: number) {
+  updatePlayer(time: number, delta: number) {
     // Physics-paused covers tutorial step prompts and the upgrade panel.
     // Returning here freezes facing, animation, and the auto-fire loop so
     // the world feels actually paused rather than just no-movement.
@@ -1182,12 +1171,9 @@ export class GameScene extends Phaser.Scene {
       vx /= len; vy /= len;
       const runMult = this.playerUpgrades.multiplier('runSpeed');
       this.player.setVelocity(vx * CFG.player.speed * speedMult * runMult, vy * CFG.player.speed * speedMult * runMult);
-      if (vx !== 0) this.player.facingRight = vx > 0;
     } else {
       this.player.setVelocity(0, 0);
     }
-    // Facing + body animation are resolved below, after the aim target is
-    // known — the stance (up/down/backpedal) depends on the aim direction.
 
     // Tutorial leash: keep tower visible on screen
     if (getRegistry(this.game).get('tutorialActive') && this.towers.length > 0) {
@@ -1210,124 +1196,8 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    // Bow follows player with offset based on aim direction
-    const bow = this.player.bow;
-    const nock = this.player.nockedArrow;
-
-    // The body textures bake in a ±1px breathing/run bob — read it off the
-    // current frame so the bow/arms ride the torso instead of floating at a
-    // fixed height while the body moves under them.
-    const bowBob = playerFrameBob(this.player.anims.currentFrame?.textureKey ?? '');
-
-    // Find most threatening enemy — prioritizes shortest path distance, not euclidean
-    const target = this.combat.findMostThreateningEnemy(this.player.x, this.player.y, CFG.player.range * this.playerUpgrades.multiplier('atkRange'));
-
-    // Vertical aim stance + backpedal, resolved once the target is known
-    let aimPose: 'level' | 'up' | 'down' = 'level';
-    let backpedal = false;
-
-    if (target) {
-      // Aim bow at target
-      const aimAngle = Math.atan2(target.y - this.player.y, target.x - this.player.x);
-      bow.setRotation(aimAngle);
-      bow.setFlipY(Math.abs(aimAngle) > Math.PI / 2);
-
-      // Stance: tilt the body when shooting steeply up or down. Aiming up
-      // means shooting away from the camera, so the bow renders behind the
-      // body (DepthSortSystem reads bowBehind).
-      const vert = Math.sin(aimAngle); // negative = aiming up-screen
-      aimPose = vert < -0.45 ? 'up' : vert > 0.45 ? 'down' : 'level';
-      this.player.bowBehind = vert < -0.3;
-
-      // Push bow outward from body center along the aim direction
-      // More offset when aiming horizontally, less when vertical
-      const horizFactor = Math.abs(Math.cos(aimAngle)); // 1 at sides, 0 at top/bottom
-      const offset = 6 + horizFactor * 5; // 6px minimum, up to 11px at the sides
-      // Anchor at shoulder height when aiming up, hip height when aiming down
-      const bowAnchorY = aimPose === 'up' ? 0 : aimPose === 'down' ? 4 : 2;
-      this._bowOffsetX = Math.cos(aimAngle) * offset;
-      this._bowOffsetY = bowAnchorY + bowBob + Math.sin(aimAngle) * offset;
-      bow.setPosition(this.player.x + this._bowOffsetX, this.player.y + this._bowOffsetY);
-
-      // Body faces the target; if horizontal movement opposes the facing,
-      // the ranger backpedals (run cycle played in reverse) so he keeps
-      // aiming at an enemy behind him while retreating.
-      this.player.facingRight = target.x >= this.player.x;
-      backpedal = moving && vx !== 0 && (vx > 0) !== this.player.facingRight;
-
-      // Fire rate: half speed while moving, full speed after standing still for 400ms
-      if (moving) {
-        this.playerStoppedAt = 0;
-      } else if (this.playerStoppedAt === 0) {
-        this.playerStoppedAt = time;
-      }
-      const stoodLongEnough = !moving && this.playerStoppedAt > 0 && (time - this.playerStoppedAt) >= 400;
-      const rate = (stoodLongEnough ? CFG.player.fireRate : CFG.player.fireRate * 2) / this.playerUpgrades.multiplier('atkSpeed');
-      if (time > this.player.lastShot + rate) {
-        this.player.lastShot = time;
-        SFX.play('arrowShoot');
-        bow.play('bow-shoot', true);
-        nock.setVisible(false);
-        bow.once('animationcomplete-bow-shoot', () => {
-          bow.play('bow-idle');
-          nock.setVisible(true);
-        });
-        // Lead the target
-        let aimX = target.x, aimY = target.y;
-        if (target.body) {
-          const dist = Math.hypot(target.x - this.player.x, target.y - this.player.y) || 1;
-          const travelTime = dist / CFG.player.projectileSpeed;
-          const tb = target.body as Phaser.Physics.Arcade.Body;
-          aimX = target.x + tb.velocity.x * travelTime;
-          aimY = target.y + tb.velocity.y * travelTime;
-        }
-        // Spawn the projectile at the nocked-arrow position so it emanates from the bow
-        const spawnX = bow.x + Math.cos(bow.rotation) * 15;
-        const spawnY = bow.y + Math.sin(bow.rotation) * 15;
-        this.combat.spawnProjectile(spawnX, spawnY, aimX, aimY, CFG.player.projectileSpeed, CFG.player.damage * this.playerUpgrades.multiplier('atkPower'), 0, 0.5, 0, target);
-      }
-    } else {
-      // No target — bow points in the direction the player faces, held out to the side
-      const idleDir = this.player.facingRight ? 1 : -1;
-      bow.setRotation(this.player.facingRight ? 0 : Math.PI);
-      bow.setFlipY(!this.player.facingRight);
-      this._bowOffsetX = idleDir * 10;
-      this._bowOffsetY = 2 + bowBob;
-      bow.setPosition(this.player.x + this._bowOffsetX, this.player.y + this._bowOffsetY);
-      this.player.bowBehind = false;
-    }
-
-    // Body animation: pose-variant idle/run; backpedal plays the run cycle
-    // in reverse so the legs read as retreating while the torso keeps
-    // facing the target.
-    this.player.setFlipX(!this.player.facingRight);
-    const animKey = (moving ? 'player-move' : 'player-idle') + (aimPose === 'level' ? '' : `-${aimPose}`);
-    if (this.player.anims.currentAnim?.key !== animKey || this.player.anims.inReverse !== backpedal) {
-      if (backpedal) this.player.playReverse(animKey);
-      else this.player.play(animKey);
-    }
-
-    // Nocked arrow rides with the bow — fletching tip sits on the bowstring.
-    // Offset = (bowstring_x - bow_origin_x) + (arrow_center_x - arrow_back_x) = 1 + 14 = 15 world px.
-    this._nockOffsetX = this._bowOffsetX + Math.cos(bow.rotation) * 15;
-    this._nockOffsetY = this._bowOffsetY + Math.sin(bow.rotation) * 15;
-    nock.setPosition(this.player.x + this._nockOffsetX, this.player.y + this._nockOffsetY);
-    nock.setRotation(bow.rotation);
+    this.playerCombat.update(time, delta, vx, vy);
   }
-
-  /** Re-apply bow + nock positions after arcade physics has synced the player
-   *  sprite from its body in POST_UPDATE. Otherwise the bow renders at the
-   *  pre-sync (last frame) player position and visibly lags during movement. */
-  private _syncBowToPlayer = () => {
-    const p = this.player;
-    if (!p || !p.bow) return;
-    p.bow.setPosition(p.x + this._bowOffsetX, p.y + this._bowOffsetY);
-    p.nockedArrow.setPosition(p.x + this._nockOffsetX, p.y + this._nockOffsetY);
-  };
-
-
-
-
 
   shutdown() {
     this.enemyDeaths.destroy();
@@ -1345,6 +1215,5 @@ export class GameScene extends Phaser.Scene {
     this._onUiPause = undefined;
     this._onUiResume = undefined;
     this.menuPaused = false;
-    this.events.off(Phaser.Scenes.Events.POST_UPDATE, this._syncBowToPlayer);
   }
 }

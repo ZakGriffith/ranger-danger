@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { RANGER_ARROW_TIP_X } from '../assets/art/ranger/textures';
 
 export class Projectile extends Phaser.Physics.Arcade.Sprite {
   damage = 10;
@@ -23,11 +24,10 @@ export class Projectile extends Phaser.Physics.Arcade.Sprite {
     scene.add.existing(this);
     scene.physics.add.existing(this);
     this.setDepth(9);
-    this.play('arrow-spin');
     this.setSize(20, 8).setOffset(20, 28);
   }
 
-  fire(tx: number, ty: number, speed: number, damage: number, splashRadius = 0, scale = 0.5, tint = 0, homingTarget: Phaser.Physics.Arcade.Sprite | null = null) {
+  fire(tx: number, ty: number, speed: number, damage: number, splashRadius = 0, scale = 0.5, tint = 0, homingTarget: Phaser.Physics.Arcade.Sprite | null = null, arrowTexture?: string) {
     this.damage = damage;
     this.splashRadius = splashRadius;
     this.speed = speed;
@@ -62,12 +62,12 @@ export class Projectile extends Phaser.Physics.Arcade.Sprite {
     } else {
       // Arrow
       this.groundTarget = false;
-      this.setTexture('arrow_0');
-      this.play('arrow-spin');
+      if (arrowTexture) this.setTexture(arrowTexture).setDisplayOrigin(RANGER_ARROW_TIP_X, 32);
+      else this.play('arrow-spin');
       this.setRotation(angle);
       this.setScale(scale);
       if (tint) this.setTint(tint); else this.clearTint();
-      this.setSize(20, 8).setOffset(20, 28);
+      this.setSize(20, 8).setOffset(this.displayOriginX - 12, 28);
       this.setDepth(9);
       if (this.shadow) { this.shadow.destroy(); this.shadow = null; }
     }

@@ -30,15 +30,7 @@ export class DepthSortSystem {
     const scene = this.scene;
     const yD = DepthSortSystem.yDepth;
 
-    // Player (and bow/nocked arrow ride with it)
-    const py = scene.player.y;
-    const pd = yD(py);
-    scene.player.setDepth(pd);
-    // Aiming up-screen tucks the bow behind the body (nock stays just in
-    // front of the bow so the arrow remains visible against it).
-    const behind = scene.player.bowBehind;
-    scene.player.bow.setDepth(pd + (behind ? -0.5 : 0.5));
-    scene.player.nockedArrow.setDepth(pd + (behind ? -0.4 : 1));
+    scene.player.setDepth(yD(scene.player.y));
 
     // Enemies move every frame — keep sorting them.
     const enemies = scene.enemies.getChildren() as Phaser.Physics.Arcade.Sprite[];

@@ -132,7 +132,6 @@ export class EndSystem {
     const deathY = scene.player.y;
 
     scene.player.setVisible(false);
-    scene.player.bow.setVisible(false);
 
     const flash = scene.add.circle(deathX, deathY, 30, 0xffffff, 0.95).setDepth(19);
     scene.tweens.add({

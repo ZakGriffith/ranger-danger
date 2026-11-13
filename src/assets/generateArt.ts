@@ -4,7 +4,8 @@
 
 import Phaser from 'phaser';
 import { CFG } from '../config';
-import { PFrame, PPose, drawPlayer, drawBow, TOWER_ARCHER } from './art/player';
+import { PFrame, drawPlayer, drawBow, TOWER_ARCHER } from './art/player';
+import { generateRangerArrow } from './art/ranger/textures';
 import { makeHD } from './art/hd';
 import { POISON_SMOKE_VARIANTS, POISON_SMOKE_FRAME_MS } from './art/poisonSmoke';
 import {
@@ -84,26 +85,7 @@ let artGenerated = false;
 export function generateAllArt(scene: Phaser.Scene) {
   if (artGenerated) return;
   artGenerated = true;
-  // Player — HD (64 px) sprites: 3 vertical aim poses × (4-frame idle +
-  // 6-frame run), plus shoot/hit
-  const pPoses: { pose: PPose; tag: string }[] = [
-    { pose: 'level', tag: '' },
-    { pose: 'up',    tag: 'up_' },
-    { pose: 'down',  tag: 'down_' },
-  ];
-  for (const { pose, tag } of pPoses) {
-    for (let i = 0; i < 4; i++)
-      add(scene, `p_idle_${tag}${i}`, makeHD(64, drawPlayer(`idle${i}` as PFrame, pose)));
-    for (let i = 0; i < 6; i++)
-      add(scene, `p_move_${tag}${i}`, makeHD(64, drawPlayer(`move${i}` as PFrame, pose)));
-  }
-  add(scene, 'p_shoot_0', makeHD(64, drawPlayer('shoot0')));
-  add(scene, 'p_shoot_1', makeHD(64, drawPlayer('shoot1')));
-  add(scene, 'p_hit_0', makeHD(64, drawPlayer('hit'), { flash: true }));
-
-  // Bow (separate rotatable sprite, origin at the grip ~(16, 32))
-  add(scene, 'bow_0', makeHD(64, drawBow(false)));
-  add(scene, 'bow_1', makeHD(64, drawBow(true)));
+  generateRangerArrow(scene.textures);
 
   // Enemies
   const eFrames: EFrame[] = ['move0','move1','move2','move3','atk0','atk1','hit','die0','die1','die2','die3'];
@@ -481,25 +463,12 @@ export function registerAnimations(scene: Phaser.Scene) {
     a.create({ key, frames: framesFromKeys(keys), frameRate, repeat });
   };
 
-  const pIdle = (tag: string) => Array.from({ length: 4 }, (_, i) => `p_idle_${tag}${i}`);
-  const pMove = (tag: string) => Array.from({ length: 6 }, (_, i) => `p_move_${tag}${i}`);
-  mk('player-idle',      pIdle(''),      4, -1);
-  mk('player-idle-up',   pIdle('up_'),   4, -1);
-  mk('player-idle-down', pIdle('down_'), 4, -1);
-  mk('player-move',      pMove(''),      12, -1);
-  mk('player-move-up',   pMove('up_'),   12, -1);
-  mk('player-move-down', pMove('down_'), 12, -1);
-  mk('player-shoot', ['p_shoot_0','p_shoot_1'], 14, 0);
-  mk('player-hit',   ['p_hit_0'], 8, 0);
   TOWER_ARCHER.forEach((_, t) => {
     const aIdle = (tag: string) => [0, 1, 2, 3].map(i => `ta${t}_idle_${tag}${i}`);
     mk(`archer${t}-idle`,      aIdle(''),      4, -1);
     mk(`archer${t}-idle-up`,   aIdle('up_'),   4, -1);
     mk(`archer${t}-idle-down`, aIdle('down_'), 4, -1);
   });
-  mk('bow-idle',  ['bow_0'], 1, 0);
-  mk('bow-shoot', ['bow_1', 'bow_0'], 10, 0);
-
   mk('eb-move', ['eb_move0','eb_move1','eb_move2','eb_move3'], 8, -1);
   mk('eb-atk',  ['eb_atk0','eb_atk1'], 8, -1);
   mk('eb-hit',  ['eb_hit'], 10, 0);

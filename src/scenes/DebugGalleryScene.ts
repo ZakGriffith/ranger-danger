@@ -2,6 +2,14 @@ import Phaser from 'phaser';
 import { CFG } from '../config';
 import { generateAllArt } from '../assets/generateArt';
 import { CANNON_PIVOT_Y } from '../assets/art/cannon';
+import {
+  registerRangerGalleryArt,
+  RANGER_GALLERY_ANIMS,
+  RANGER_GALLERY_IDLE_FRAME,
+  RANGER_SCALE,
+  RANGER_TEXTURE_FEET,
+  RANGER_TEXTURE_HEIGHT,
+} from '../assets/art/ranger/textures';
 import towerBaseImg from '../assets/sprites/tower_base.png';
 import arrowBase1Img from '../assets/sprites/arrow_base_1.png';
 import arrowBase2Img from '../assets/sprites/arrow_base_2.png';
@@ -32,6 +40,13 @@ const TEXT = '#d8e6ff';
 const MUTED = '#7f93b3';
 const ACCENT = '#4ad96a';
 const WARN = '#ffd36a';
+
+const RANGER_ENTRY: SpriteDebugEntry = {
+  folder: 'player',
+  texPrefix: 'ranger',
+  kind: 'player',
+  anims: RANGER_GALLERY_ANIMS,
+};
 
 const ENTITY_PROC_SCALES: Record<string, number> = {
   basic: 0.5,
@@ -193,6 +208,7 @@ export class DebugGalleryScene extends Phaser.Scene {
   create() {
     this.resizeDebugCanvas();
     generateAllArt(this);
+    registerRangerGalleryArt(this);
     applySpriteOverrides(this);
     reregisterSpriteOverrideAnimations(this);
 
@@ -215,7 +231,7 @@ export class DebugGalleryScene extends Phaser.Scene {
     this.sandbox = this.add.container(0, this.headerH).setDepth(16).setVisible(false);
 
     this.buildCards();
-    this.selectEntry(getSpriteDebugCatalog()[0] ?? null);
+    this.selectEntry(RANGER_ENTRY);
     this.rebuildSandbox();
     this.setMode(initialDebugTab());
     this.updateScroll(0);
@@ -282,7 +298,7 @@ export class DebugGalleryScene extends Phaser.Scene {
   }
 
   private buildCards() {
-    const entries = getSpriteDebugCatalog();
+    const entries = [RANGER_ENTRY, ...getSpriteDebugCatalog()];
     const W = this.layoutW;
     const cardW = 284;
     const cardH = 116;
@@ -694,8 +710,8 @@ export class DebugGalleryScene extends Phaser.Scene {
     const treeKey = TREE_CLUSTER_CONFIG.pngKey(0) ?? 'tree_cluster_0';
     const plantKey = INFECTED_PLANT_CLUSTER_CONFIG.pngKey(0) ?? 'infected_plant_0';
     const items = [
-      { label: 'player', key: 'p_idle_0', anim: 'player-idle', scale: 0.5 },
-      { label: entry.folder, key: this.firstTextureFor(animKey), anim: animKey, selected: true },
+      { label: 'player', key: RANGER_GALLERY_IDLE_FRAME, anim: RANGER_GALLERY_ANIMS[0].animKey, scale: RANGER_SCALE, ranger: true },
+      { label: entry.folder, key: this.firstTextureFor(animKey), anim: animKey, selected: true, ranger: entry.kind === 'player' },
       { label: 'arrow tower', key: 't_base', scale: 0.5 },
       { label: 'cannon', key: 'c_base', scale: 0.5 },
       { label: 'tree', key: treeKey, scale: this.worldHeightScale(treeKey, TREE_CLUSTER_CONFIG.targetWorldHeight) },
@@ -724,7 +740,8 @@ export class DebugGalleryScene extends Phaser.Scene {
       const item = items[i];
       if (!this.textures.exists(item.key)) continue;
       const itemX = startX + step * i;
-      const sprite = this.add.sprite(itemX, baseY, item.key).setOrigin(0.5, 1);
+      const sprite = this.add.sprite(itemX, baseY, item.key)
+        .setOrigin(0.5, item.ranger ? RANGER_TEXTURE_FEET / RANGER_TEXTURE_HEIGHT : 1);
       if (item.anim && this.anims.exists(item.anim)) sprite.play(item.anim);
       if (item.selected) {
         this.sandboxLineupSprite = sprite;
@@ -750,12 +767,12 @@ export class DebugGalleryScene extends Phaser.Scene {
   private updateSandboxLineupScale() {
     if (!this.sandboxLineupSprite || !this.selected) return;
     const baseScale = this.selected.kind === 'player'
-      ? 0.5
+      ? RANGER_SCALE
       : getEntityVisualScale(this, this.selected.folder, 'move', ENTITY_PROC_SCALES[this.selected.folder] ?? 0.5);
     this.sandboxLineupSprite.setScale(baseScale * this.previewScale);
     this.sandboxLineupSprite.y = Math.max(
       this.sandboxLineupBaseY,
-      this.sandboxLineupTopY + this.sandboxLineupSprite.displayHeight,
+      this.sandboxLineupTopY + this.sandboxLineupSprite.displayOriginY * this.sandboxLineupSprite.scaleY,
     );
     this.sandboxLineupSprite.anims.timeScale = this.playbackSpeed;
     if (this.paused) this.sandboxLineupSprite.anims.pause();

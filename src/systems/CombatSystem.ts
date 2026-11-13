@@ -271,11 +271,11 @@ export class CombatSystem {
     return best;
   }
 
-  spawnProjectile(x: number, y: number, tx: number, ty: number, speed: number, dmg: number, splashRadius = 0, scale = 0.5, tint = 0, homingTarget: Phaser.Physics.Arcade.Sprite | null = null) {
+  spawnProjectile(x: number, y: number, tx: number, ty: number, speed: number, dmg: number, splashRadius = 0, scale = 0.5, tint = 0, homingTarget: Phaser.Physics.Arcade.Sprite | null = null, arrowTexture?: string) {
     const scene = this.scene;
     const pr = new Projectile(scene, x, y);
     scene.projectiles.add(pr);
-    pr.fire(tx, ty, speed, dmg, splashRadius, scale, tint, homingTarget);
+    pr.fire(tx, ty, speed, dmg, splashRadius, scale, tint, homingTarget, arrowTexture);
   }
 
   updateProjectiles(time: number) {

@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ranger · Ranger Danger</title>
+<style>
+  :root {
+    color-scheme: light;
+    --paper: #f3ebda;
+    --ink: #26312a;
+    --muted: #555d4e;
+    --rule: #cfc5af;
+    --mono: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
+    --serif: "Instrument Serif", Georgia, serif;
+    font: 14px/1.5 Inter, "Helvetica Neue", Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; color: var(--ink); background: radial-gradient(ellipse at 20% 0%, #fbf5e8, transparent 50%), var(--paper); }
+  main { max-width: 1280px; margin: auto; padding: 32px 42px; }
+  header { border-bottom: 1px solid var(--rule); padding-bottom: 12px; }
+  header, .eyebrow { font: 600 11px/1.5 var(--mono); letter-spacing: .12em; text-transform: uppercase; }
+  h1, h2, p { margin: 0; }
+  h1 { font: 400 clamp(60px, 8vw, 105px)/.98 var(--serif); letter-spacing: -.065em; margin-top: 20px; }
+  .lede { color: var(--muted); margin: 10px 0 21px; }
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) 237px; gap: 19px; }
+  .stage { min-width: 0; }
+  .stage canvas { display: block; width: 100%; height: auto; border: 1px solid #20382c; background: #304a37; cursor: crosshair; touch-action: none; }
+  .sidebar { display: grid; align-content: start; gap: 15px; }
+  .panel { border: 1px solid var(--rule); padding: 12px; min-width: 0; }
+  .panel h2 { margin-bottom: 8px; }
+  .panel canvas { display: block; background: #324737; max-width: 100%; }
+  #native { width: 100%; height: 93px; }
+  #views { width: 100%; height: 107px; }
+  .view-labels { display: grid; grid-template-columns: repeat(4, 1fr); text-align: center; margin-top: 5px; font: 600 10px/1.4 var(--mono); color: var(--muted); }
+  .readout { display: flex; justify-content: space-between; gap: 8px; margin-top: 8px; font: 600 11px/1.5 var(--mono); color: var(--muted); }
+  .toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  button, select { padding: 7px 10px; min-height: 35px; border: 1px solid var(--rule); color: var(--ink); background: #f8f2e5; font-family: inherit; font-size: 12px; font-weight: 600; cursor: pointer; border-radius: 3px; }
+  button[aria-pressed="true"] { color: var(--paper); background: var(--ink); border-color: var(--ink); }
+  button:hover, select:hover { border-color: #6d775a; }
+  button:focus-visible, select:focus-visible, canvas:focus-visible { outline: 2px solid #ad663e; outline-offset: 3px; }
+  .speed { display: flex; gap: 6px; align-items: center; color: var(--muted); font-size: 12px; }
+  .controls { color: var(--muted); margin-top: 9px; font-size: 12px; }
+  @media (max-width: 960px) {
+    .layout { grid-template-columns: minmax(0, 1fr); }
+    .sidebar { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (max-width: 560px) {
+    main { padding: 18px 12px; }
+    h1 { margin-top: 14px; }
+    .lede { margin-bottom: 13px; }
+    .layout, .sidebar { gap: 8px; }
+    .panel { padding: 7px; }
+    .eyebrow { letter-spacing: .06em; }
+    .readout { font-size: 9px; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <header>Ranger Danger · Character study</header>
+  <h1>The Ranger</h1>
+  <p class="lede">Four hand-drawn views with continuous bow aim.</p>
+  <div class="layout">
+    <section class="stage" aria-label="Interactive archery range">
+      <canvas id="range" width="840" height="530" tabindex="0" aria-label="Archery range. Aim with the mouse, move with W A S D or arrow keys, and hold and release the mouse or Space to fire."></canvas>
+      <div class="toolbar" aria-label="Preview controls">
+        <button type="button" id="demo" aria-pressed="true">Auto demo</button>
+        <button type="button" id="pause" aria-pressed="false">Pause</button>
+        <button type="button" id="reset">Reset</button>
+        <label class="speed">Speed <select id="speed"><option value=".25">¼×</option><option value=".5">½×</option><option value="1" selected>1×</option></select></label>
+      </div>
+      <p class="controls">Aim with the mouse · Move with WASD or arrow keys · Hold and release click or Space to shoot</p>
+    </section>
+    <aside class="sidebar" aria-label="Animation views">
+      <section class="panel">
+        <h2 class="eyebrow">Game size</h2>
+        <canvas id="native" role="img" aria-label="Ranger animation at approximately 32 pixels tall"></canvas>
+        <div class="readout"><span id="direction">East · 000°</span><span id="action">Ready</span></div>
+      </section>
+      <section class="panel">
+        <h2 class="eyebrow">Upper body views</h2>
+        <canvas id="views" role="img" aria-label="East, South, West and North Ranger views"></canvas>
+        <div class="view-labels" aria-hidden="true"><span>E</span><span>S</span><span>W</span><span>N</span></div>
+      </section>
+    </aside>
+  </div>
+</main>
+<script type="module" src="./viewer.js"></script>
+</body>
+</html>

@@ -3,10 +3,6 @@ import { Biome, Difficulty } from '../levels';
 import { measureOpaqueBounds } from '../entities/spriteBounds';
 import { CFG } from '../config';
 
-/** Folders whose sheets are needed in every level — Player is always rendered;
- *  endless mode loads everything else on top. */
-const UNIVERSAL_FOLDERS = ['player'];
-
 /** Campaign-mode roster per biome. Endless ignores this and loads every
  *  folder. Keys in the inner arrays match the `folder` field in BUILTIN /
  *  the on-disk src/assets/sprites/<folder>/ directories. */
@@ -30,7 +26,7 @@ export function biomeFolderFilter(biome: Biome, difficulty: Difficulty): Set<str
   if (difficulty === 'endless') return null;
   const biomeFolders = CAMPAIGN_BIOME_FOLDERS[biome];
   if (!biomeFolders || biomeFolders.length === 0) return null;
-  return new Set([...UNIVERSAL_FOLDERS, ...biomeFolders]);
+  return new Set(biomeFolders);
 }
 
 // ============================================================================
@@ -38,7 +34,7 @@ export function biomeFolderFilter(biome: Biome, difficulty: Difficulty): Set<str
 // ============================================================================
 //
 // Drop a horizontal sprite sheet at src/assets/sprites/<name>/<anim>.png
-// where <name> is the enemy/character folder name (e.g. 'rat', 'wolf', 'player')
+// where <name> is the enemy/character folder name (e.g. 'rat' or 'wolf')
 // and <anim> is the animation suffix (move, atk, shoot, hit, die, birth).
 // Frames are auto-sliced from the sheet by assuming square frames.
 //
@@ -67,7 +63,7 @@ export function biomeFolderFilter(biome: Biome, difficulty: Difficulty): Set<str
 // snake, rat, deer, wolf, bear, spider, infected_basic, infected_heavy, crow,
 // bat, dragonfly, mosquito, skeleton, warlock, golem, shadow_imp,
 // toad, scorpion, boss_scorpion, scarab, sand_mite, cactus_hopper, dune_strider,
-// sand_wraith, temple_guardian, sun_mote, player, plus the bosses (boss_grasslands, boss_meadow,
+// sand_wraith, temple_guardian, sun_mote, plus the bosses (boss_grasslands, boss_meadow,
 // boss_infected, boss_forest, boss_river, boss_castle_q, boss_castle_d).
 // Bosses only need move.png + atk.png — hit flash and death pop are programmatic.
 //
@@ -218,13 +214,6 @@ const BUILTIN: CharacterSpec[] = [
     { suffix: 'move', indexed: true,  indexSep: '', animKey: 'etd-hop'  },
     { suffix: 'atk',  indexed: true,  indexSep: '', animKey: 'etd-atk'  },
     { suffix: 'idle', indexed: true,  indexSep: '', animKey: 'etd-idle', derivedFrom: 'move' },
-  ]},
-  // Player — keys use an underscore separator before the index (p_move_0, p_idle_0, etc.).
-  { folder: 'player', texPrefix: 'p', anims: [
-    { suffix: 'move',  indexed: true, indexSep: '_', animKey: 'player-move'  },
-    { suffix: 'shoot', indexed: true, indexSep: '_', animKey: 'player-shoot' },
-    { suffix: 'hit',   indexed: true, indexSep: '_', animKey: 'player-hit'   },
-    { suffix: 'idle',  indexed: true, indexSep: '_', animKey: 'player-idle', derivedFrom: 'move' },
   ]},
   // Bosses — chargeWind isn't overridable (its anim alternates with idle0).
   // Hit flash and death pop are programmatic, so bosses only need move.png + atk.png.
@@ -462,7 +451,7 @@ export function getSpriteDebugCatalog(): SpriteDebugEntry[] {
   return CHARACTERS.map(c => ({
     folder: c.folder,
     texPrefix: c.texPrefix,
-    kind: c.folder === 'player' ? 'player' : c.folder.startsWith('boss_') ? 'boss' : 'enemy',
+    kind: c.folder.startsWith('boss_') ? 'boss' : 'enemy',
     anims: c.anims.map(a => ({ suffix: a.suffix, animKey: a.animKey })),
   }));
 }
