@@ -11,7 +11,7 @@ async function main() {
   const { STYLES } = (await runnerImport('/scripts/meadow-studies/styles.ts', config)).module;
   const out = path.join(__dirname, 'out', 'meadow-studies');
   const W = 90 * 64, H = 60 * 64, S = 3;
-  for (const id of ['B', 'B2']) {
+  for (const id of (process.argv.length > 2 ? process.argv.slice(2) : ['B', 'B2'])) {
     const t0 = Date.now();
     const raster = STYLES[id].render(0, 0, W, H);
     const full = createCanvas(W, H);

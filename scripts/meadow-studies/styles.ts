@@ -16,7 +16,7 @@ import { Raster, Rgb, hex, fbm, hash2, distanceField, valueNoise, line, ellipse,
 import { PropPalette, tuft, flowers, rock, pebbles, bush, log, clover, mushrooms } from './stamps';
 
 export const TILE = 64;
-export type StyleId = 'A' | 'B' | 'B2' | 'C';
+export type StyleId = 'A' | 'B' | 'B2' | 'C' | 'K1' | 'K2';
 
 type Ground = { dist: (x: number, y: number) => number };
 
@@ -224,9 +224,108 @@ function renderC(x0: number, y0: number, w: number, h: number): Raster {
   return r;
 }
 
+// ---------------------------------------------------------------------------
+//  K — the shipped Wild Field layout (large tone regions, same dirt, same
+//  prop mix) re-treated for a Kingdom Rush / Bounty of One look: brighter,
+//  more saturated greens, painted highlight dabs instead of fine blade
+//  strokes, dirt as flat warm tan with a cel edge (dark outline + pale lip)
+//  on a smoother contour, and outlined props.
+//    K1  Kingdom Rush lean — three grass tones, light sun dapple, a few
+//        soft paint dabs, warm mid-tan dirt
+//    K2  Bounty of One lean — two flatter grass tones, no dapple, lighter
+//        dirt, heavier outline, bigger props
+// ---------------------------------------------------------------------------
+const K1 = {
+  grass: [hex('#4a8e39'), hex('#56a043'), hex('#63b04d')],
+  grassShadow: hex('#2f6a2a'),
+  dab: hex('#74bf5a'),
+  edge: hex('#4e3524'),
+  lip: hex('#d6b687'),
+  dirt: [hex('#a98657'), hex('#b5925f'), hex('#c09d6a')],
+  dirtSpot: hex('#97754c'),
+};
+const K1_PROPS: PropPalette = {
+  outline: hex('#24401f'),
+  tuftDark: hex('#2f6c2a'), tuftMid: hex('#55a344'), tuftLight: hex('#9ddc68'),
+  leaf: hex('#2f6c2a'), stem: hex('#3a7a31'),
+  rockDark: hex('#5c606b'), rockMid: hex('#8c909a'), rockLight: hex('#c0c4cc'), rockOutline: hex('#2a2d36'),
+  bushDark: hex('#2b6130'), bushMid: hex('#3f8a3c'), bushLight: hex('#71bd55'),
+  wood: hex('#8b5a2b'), woodDark: hex('#5a3618'), woodLight: hex('#c08850'),
+  shadowAlpha: 0.25,
+};
+const K2 = {
+  grass: [hex('#5aa548'), hex('#68b454')],
+  grassShadow: hex('#3f8438'),
+  edge: hex('#533823'),
+  lip: hex('#e7cc9c'),
+  dirt: [hex('#c9a775'), hex('#d4b483')],
+};
+const K2_PROPS: PropPalette = {
+  outline: hex('#1f3a22'),
+  tuftDark: hex('#3b8236'), tuftMid: hex('#63b650'), tuftLight: hex('#a9e472'),
+  leaf: hex('#3b8236'), stem: hex('#3b8236'),
+  rockDark: hex('#6d7078'), rockMid: hex('#989ba4'), rockLight: hex('#cdd0d6'), rockOutline: hex('#3a3d47'),
+  bushDark: hex('#3c7e3a'), bushMid: hex('#4e9c47'), bushLight: hex('#86cf63'),
+  wood: hex('#a0693a'), woodDark: hex('#6a4120'), woodLight: hex('#d6a16a'),
+  shadowAlpha: 0.22,
+};
+
+function renderK(x0: number, y0: number, w: number, h: number, variant: 1 | 2): Raster {
+  const r = new Raster(x0, y0, w, h);
+  const put: Put = (x, y, c, a) => r.put(x, y, c, a);
+  const props = variant === 1 ? K1_PROPS : K2_PROPS;
+  const dist = distanceField(x0, y0, w, h, 520, 11, 0.60, 2);
+  for (let y = y0; y < y0 + h; y++)
+    for (let x = x0; x < x0 + w; x++) {
+      // same large tone regions as the shipped meadow; a gentler contour wobble than Wild Field
+      const d = dist(x, y) + (fbm(x, y, 20, 61, 2) - 0.5) * (variant === 1 ? 4 : 2);
+      const tone = fbm(x, y, 900, 23, 1) + (fbm(x, y, 34, 25, 2) - 0.5) * 0.04;
+      if (variant === 1) {
+        if (d < -3) put(x, y, tone < 0.45 ? K1.grass[0] : tone < 0.6 ? K1.grass[1] : K1.grass[2]);
+        else if (d < 0) put(x, y, K1.grassShadow);
+        else if (d < 2.5) put(x, y, K1.edge);
+        else if (d < 5) put(x, y, K1.lip);
+        else {
+          const t = fbm(x, y, 150, 31, 1);
+          put(x, y, t < 0.42 ? K1.dirt[0] : t < 0.6 ? K1.dirt[1] : K1.dirt[2]);
+          if (d > 8 && valueNoise(x, y, 13, 41) > 0.88) put(x, y, K1.dirtSpot);
+        }
+        r.mul(x, y, 0.96 + fbm(x, y, 700, 51, 1) * 0.08);
+      } else {
+        if (d < -2.5) put(x, y, tone < 0.52 ? K2.grass[0] : K2.grass[1]);
+        else if (d < 0) put(x, y, K2.grassShadow);
+        else if (d < 3) put(x, y, K2.edge);
+        else if (d < 5) put(x, y, K2.lip);
+        else put(x, y, fbm(x, y, 140, 34, 1) < 0.5 ? K2.dirt[0] : K2.dirt[1]);
+      }
+    }
+  if (variant === 1) {
+    // painted highlight dabs: short soft strokes of the lighter green, in drifts, replacing Wild Field's fine blades
+    propGrid(x0, y0, w, h, 26, 202, (x, y, rr) => {
+      if (dist(x, y) > -10 || rr > 0.12 + tuftDrift(x, y) * 0.3) return;
+      line(put, x, y, x + 7, y - 2, K1.dab, 0.55);
+      line(put, x + 1, y + 1, x + 6, y, K1.dab, 0.35);
+    });
+  }
+  propGrid(x0, y0, w, h, 40, 102, (x, y, rr, i) => {
+    const d = dist(x, y);
+    const flowery = flowerDrift(x, y) > 0.6, tufty = tuftDrift(x, y) > 0.42;
+    const big = variant === 2 ? 1.25 : 1;
+    if (d > 6) return;
+    if (d > -16) { if (rr < 0.7) tuft(put, x, y - 1, (11 + rr * 7) * big, props, i); return; }
+    if (rr < 0.4) { if (tufty) tuft(put, x, y, (9 + rr * 14) * big, props, i); }
+    else if (rr < 0.46) clover(put, x, y, props, i);
+    else if (rr < 0.62) { if (flowery) { const f = FLOWERS[(i + 2) % FLOWERS.length]; flowers(put, x, y, f[0], f[1], props, i, true); } }
+    else if (rr >= 0.725 && rr < 0.74) mushrooms(put, x, y, hex('#d2563a'), hex('#f3b48e'), hex('#f4e8d0'), props, i);
+  });
+  return r;
+}
+
 export const STYLES: Record<StyleId, { title: string; lean: string; render: (x0: number, y0: number, w: number, h: number) => Raster }> = {
   A: { title: 'Painted Meadow', lean: 'Kingdom Rush lean', render: renderA },
   B: { title: 'Wild Field', lean: 'Warcraft 3 lean', render: (x0, y0, w, h) => renderB(x0, y0, w, h, 520) },
   B2: { title: 'Wild Field, broader tones', lean: 'Warcraft 3 lean', render: (x0, y0, w, h) => renderB(x0, y0, w, h, 900) },
   C: { title: 'Clean Field', lean: 'Bounty of One lean', render: renderC },
+  K1: { title: 'Meadow, Kingdom Rush pass', lean: 'painted', render: (x0, y0, w, h) => renderK(x0, y0, w, h, 1) },
+  K2: { title: 'Meadow, Bounty of One pass', lean: 'flat', render: (x0, y0, w, h) => renderK(x0, y0, w, h, 2) },
 };

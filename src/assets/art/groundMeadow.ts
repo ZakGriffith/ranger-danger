@@ -2,23 +2,24 @@
 // world tile, the same pixel density as the HD sprites (hd.ts). ChunkSystem
 // displays the chunk texture at half size so world geometry is unchanged.
 //
-// The look ("Wild Field", picked from the scripts/meadow-studies renders):
-//   grass   three deep greens in large regions from one smooth noise octave,
-//           with a faint wobble so the thin band between shades stays
-//           irregular; short diagonal blade strokes in drifts
-//   dirt    domain-warped patches; a dark overhang on the grass side, two
-//           ambient-occlusion bands on the dirt side, ragged "grass fingers"
-//           along the contour, a sparse dry crust of flecks and pits inside
-//   props   grass tufts, flower drifts, clover, mushrooms — placed on a
-//           jittered cell grid and gated by slow drift fields so they group
+// The look (the "Bounty of One" pass from scripts/meadow-studies):
+//   grass   two flat greens in large regions from one smooth noise octave,
+//           with a faint wobble so the thin band between them stays
+//           irregular; no texture on the open field
+//   dirt    domain-warped patches of light tan in two flat tones, with a
+//           cel edge: a thin grass-shadow on the grass side, then a dark
+//           outline and a pale lip on the dirt side
+//   props   outlined grass tufts, flower drifts, clover, mushrooms — placed
+//           on a jittered cell grid and gated by slow drift fields so they
+//           group instead of sprinkling evenly
 //
 // Everything is a pure function of world position, so chunks tile seamlessly
 // and a revisited chunk regenerates identically. A 1024² chunk is a million
 // pixels, so the base pass is budgeted: every noise field is evaluated on a
 // coarse grid per chunk and expanded row by row with incremental
-// interpolation, the sun dapple is quantised into a precomputed lit palette,
-// and the only per-pixel noise (the ragged edge) runs in a narrow band
-// around the dirt contour.
+// interpolation, pixels are written as packed 32-bit words, and the only
+// per-pixel noise (the contour wobble) runs in a narrow band around the
+// dirt edge.
 
 export const MEADOW_TILE_PX = 64;
 
@@ -124,16 +125,16 @@ const DIRT_THRESHOLD = 0.60;
 const GRASS_TONE_SCALE = 900;
 const PROP_MARGIN = 48;
 
-const GRASS: readonly Rgb[] = [hex('#365f2d'), hex('#3e6d33'), hex('#477a3a')];
-const GRASS_SHADOW = hex('#26481f');
-const BLADE = hex('#578f44'), BLADE_DARK = hex('#2f5527');
-const AO: readonly Rgb[] = [hex('#3b2a1b'), hex('#55402b')];
-const DIRT: readonly Rgb[] = [hex('#6a5038'), hex('#775b41'), hex('#846749')];
-const DIRT_LIGHT = hex('#95785a'), DIRT_DARK = hex('#574029');
+const GRASS: readonly Rgb[] = [hex('#5aa548'), hex('#68b454')];
+const GRASS_SHADOW = hex('#3f8438');
+const EDGE = hex('#533823');
+const LIP = hex('#e7cc9c');
+const DIRT: readonly Rgb[] = [hex('#c9a775'), hex('#d4b483')];
 
-const TUFT_DARK = hex('#2a4f24'), TUFT_MID = hex('#4a8239'), TUFT_LIGHT = hex('#7fb757');
-const STEM = hex('#315b2a');
-const MUSH_CAP = hex('#b8522f'), MUSH_CAP_LIGHT = hex('#e6a07a'), MUSH_STALK = hex('#e8d8bc'), MUSH_SHADE = hex('#4d2f14');
+const OUTLINE = hex('#1f3a22');
+const TUFT_DARK = hex('#3b8236'), TUFT_MID = hex('#63b650'), TUFT_LIGHT = hex('#a9e472');
+const STEM = hex('#3b8236');
+const MUSH_CAP = hex('#d2563a'), MUSH_CAP_LIGHT = hex('#f3b48e'), MUSH_STALK = hex('#f4e8d0');
 
 const FLOWERS: ReadonlyArray<readonly [Rgb, Rgb]> = [
   [hex('#e2463b'), hex('#f7c84a')],
@@ -143,18 +144,10 @@ const FLOWERS: ReadonlyArray<readonly [Rgb, Rgb]> = [
   [hex('#6f9cea'), hex('#f5f1e8')],
 ];
 
-// Base-pass colours, indexed by BASE_*, each pre-lit at LIGHT_LEVELS dapple
-// intensities and packed as little-endian ABGR for a Uint32 write per pixel.
-const BASE_COLORS: readonly Rgb[] = [...GRASS, GRASS_SHADOW, ...AO, ...DIRT];
-const BASE_GRASS = 0, BASE_SHADOW = 3, BASE_AO = 4, BASE_DIRT = 6;
-const LIGHT_MIN = 0.94, LIGHT_MAX = 1.06, LIGHT_LEVELS = 16;
-const LIT = new Uint32Array(BASE_COLORS.length * LIGHT_LEVELS);
-for (let ci = 0; ci < BASE_COLORS.length; ci++)
-  for (let li = 0; li < LIGHT_LEVELS; li++) {
-    const l = LIGHT_MIN + (LIGHT_MAX - LIGHT_MIN) * (li / (LIGHT_LEVELS - 1));
-    const [r, g, b] = BASE_COLORS[ci].map(c => Math.min(255, Math.round(c * l)));
-    LIT[ci * LIGHT_LEVELS + li] = (0xff << 24 | b << 16 | g << 8 | r) >>> 0;
-  }
+// Base-pass colours packed as little-endian ABGR for a Uint32 write per pixel.
+const pack = ([r, g, b]: Rgb) => (0xff << 24 | b << 16 | g << 8 | r) >>> 0;
+const BASE = new Uint32Array([...GRASS, GRASS_SHADOW, EDGE, LIP, ...DIRT].map(pack));
+const BASE_GRASS = 0, BASE_SHADOW = 2, BASE_EDGE = 3, BASE_LIP = 4, BASE_DIRT = 5;
 
 // ---------------------------------------------------------------- props ----
 
@@ -171,7 +164,7 @@ function ellipse(put: Put, cx: number, cy: number, rx: number, ry: number, c: Rg
       if (((x + 0.5 - cx) / rx) ** 2 + ((y + 0.5 - cy) / ry) ** 2 <= 1) put(x, y, c);
 }
 
-/** A clump of 3–5 grass blades lit from the top-left, 2 px wide for their lower two thirds. */
+/** A clump of 3–5 grass blades lit from the top-left, 2 px wide for their lower two thirds, grounded by a short outline. */
 function tuft(put: Put, x: number, y: number, size: number, seed: number): void {
   const blades = 3 + Math.floor(hash2(x, y, seed) * 3);
   const spread = size * 0.55;
@@ -186,9 +179,10 @@ function tuft(put: Put, x: number, y: number, size: number, seed: number): void 
     line(put, bx + 1, y, Math.round(mx) + 1, Math.round(my), t < 0.4 ? TUFT_MID : TUFT_DARK);
   }
   for (let dx = -1; dx <= 1; dx++) put(x + dx, y + 1, TUFT_DARK, 0.6);
+  for (let dx = -2; dx <= 2; dx++) put(x + dx, y + 2, OUTLINE, 0.35);
 }
 
-/** 3–6 five-pixel flower heads of one colour on short stems with a leaf. */
+/** 3–6 outlined flower heads of one colour on short stems with a leaf. */
 function flowers(put: Put, x: number, y: number, petal: Rgb, center: Rgb, seed: number): void {
   const count = 3 + Math.floor(hash2(x, y, seed) * 4);
   for (let i = 0; i < count; i++) {
@@ -199,6 +193,7 @@ function flowers(put: Put, x: number, y: number, petal: Rgb, center: Rgb, seed: 
     put(fx + (i % 2 ? 1 : -1), fy + 4, TUFT_DARK);
     for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) put(fx + dx, fy + dy, petal);
     put(fx, fy, center);
+    put(fx, fy - 2, OUTLINE, 0.5); put(fx - 2, fy, OUTLINE, 0.5); put(fx + 2, fy, OUTLINE, 0.5); put(fx, fy + 2, OUTLINE, 0.5);
   }
 }
 
@@ -216,10 +211,11 @@ function mushrooms(put: Put, x: number, y: number, seed: number): void {
   const n = 2 + Math.floor(hash2(x, y, seed) * 2);
   for (let i = 0; i < n; i++) {
     const px = Math.round(x + (i - (n - 1) / 2) * 6 + (hash2(i, x, seed) - 0.5) * 2), py = y + (i % 2);
-    const r = 2 + Math.floor(hash2(i, y, seed) * 2);
+    const r = 2 + Math.floor(hash2(i, y, seed) * 2), ry = Math.max(1.5, r * 0.6);
     line(put, px, py, px, py + 3, MUSH_STALK);
-    line(put, px + 1, py + 1, px + 1, py + 3, MUSH_SHADE, 0.6);
-    ellipse(put, px, py, r, Math.max(1.5, r * 0.6), MUSH_CAP);
+    line(put, px + 1, py + 1, px + 1, py + 3, OUTLINE, 0.6);
+    ellipse(put, px, py, r + 1, ry + 1, OUTLINE);
+    ellipse(put, px, py, r, ry, MUSH_CAP);
     put(px - 1, py - 1, MUSH_CAP_LIGHT);
   }
 }
@@ -251,35 +247,25 @@ export function drawMeadowChunk(buf: Uint8ClampedArray, size: number, x0: number
   const dist = dirtDistance(x0, y0, w, h, warpX, warpY);
   const toneBase = new Grid(x0, y0, w, h, 16, 1, (x, y) => fbm(warpX.sample(x, y), warpY.sample(x, y), GRASS_TONE_SCALE, 23, 1));
   const toneWobble = new Grid(x0, y0, w, h, 8, 1, (x, y) => (fbm(x, y, 34, 25, 2) - 0.5) * 0.04);
-  const dirtTone = new Grid(x0, y0, w, h, 8, 1, (x, y) => fbm(x, y, 130, 33, 1));
-  const dapple = new Grid(x0, y0, w, h, 16, 1, (x, y) => fbm(x, y, 650, 52, 1));
+  const dirtTone = new Grid(x0, y0, w, h, 8, 1, (x, y) => fbm(x, y, 140, 34, 1));
 
   const px32 = new Uint32Array(buf.buffer, buf.byteOffset, w * h);
-  const dRow = new Float32Array(w), tRow = new Float32Array(w), wRow = new Float32Array(w), kRow = new Float32Array(w), lRow = new Float32Array(w);
-  const lightScale = LIGHT_LEVELS - 1;
+  const dRow = new Float32Array(w), tRow = new Float32Array(w), wRow = new Float32Array(w), kRow = new Float32Array(w);
   let i = 0;
   for (let ly = 0; ly < h; ly++) {
     const y = y0 + ly;
-    dist.fillRow(y, dRow, w); toneBase.fillRow(y, tRow, w); toneWobble.fillRow(y, wRow, w);
-    dirtTone.fillRow(y, kRow, w); dapple.fillRow(y, lRow, w);
+    dist.fillRow(y, dRow, w); toneBase.fillRow(y, tRow, w); toneWobble.fillRow(y, wRow, w); dirtTone.fillRow(y, kRow, w);
     for (let lx = 0; lx < w; lx++, i++) {
       let d = dRow[lx];
-      // ragged grass fingers: wobble the contour only where it can change the band
-      if (d > -9 && d < 11) d += (fbm(x0 + lx, y, 14, 61, 2) - 0.5) * 9;
+      // a gentle contour wobble, only where it can change the band
+      if (d > -3.5 && d < 6) d += (fbm(x0 + lx, y, 20, 61, 2) - 0.5) * 2;
       let ci: number;
-      if (d < -4) {
-        const t = tRow[lx] + wRow[lx];
-        ci = BASE_GRASS + (t < 0.45 ? 0 : t < 0.6 ? 1 : 2);
-      } else if (d < 0) ci = BASE_SHADOW;
-      else if (d < 3) ci = BASE_AO;
-      else if (d < 6) ci = BASE_AO + 1;
-      else {
-        const t = kRow[lx];
-        ci = BASE_DIRT + (t < 0.42 ? 0 : t < 0.6 ? 1 : 2);
-      }
-      const l = lRow[lx];
-      const li = l <= 0 ? 0 : l >= 1 ? lightScale : (l * lightScale + 0.5) | 0;
-      px32[i] = LIT[ci * LIGHT_LEVELS + li];
+      if (d < -2.5) ci = BASE_GRASS + (tRow[lx] + wRow[lx] < 0.52 ? 0 : 1);
+      else if (d < 0) ci = BASE_SHADOW;
+      else if (d < 3) ci = BASE_EDGE;
+      else if (d < 5) ci = BASE_LIP;
+      else ci = BASE_DIRT + (kRow[lx] < 0.5 ? 0 : 1);
+      px32[i] = BASE[ci];
     }
   }
 
@@ -292,31 +278,15 @@ export function drawMeadowChunk(buf: Uint8ClampedArray, size: number, x0: number
     buf[j + 1] += (c[1] - buf[j + 1]) * alpha;
     buf[j + 2] += (c[2] - buf[j + 2]) * alpha;
   };
-  const distAt = (x: number, y: number) => dist.sample(x, y);
-
-  // dry crust: a few 2-px light flecks and dark pits per 12-px cell, deep inside the dirt
-  propGrid(x0, y0, w, h, 12, 43, 4, (x, y, roll) => {
-    if (roll > 0.17) return;
-    const d = distAt(x, y);
-    if (d < 7 || (roll > 0.1 && d < 10)) return;
-    const c = roll <= 0.1 ? DIRT_LIGHT : DIRT_DARK;
-    put(x, y, c); put(x + 1, y, c); put(x, y + 1, c); put(x + 1, y + 1, c);
-  });
 
   const tuftDrift = new Grid(x0, y0, w, h, 16, 4, (x, y) => fbm(x, y, 260, 73, 1));
   const flowerDrift = new Grid(x0, y0, w, h, 16, 4, (x, y) => fbm(x, y, 340, 71, 1));
 
-  // directional blade strokes over open grass, denser in drifts
-  propGrid(x0, y0, w, h, 9, 201, 8, (x, y, roll) => {
-    if (roll > 0.3 + tuftDrift.sample(x, y) * 0.6 || distAt(x, y) > -8) return;
-    line(put, x, y, x + 2, y - 4, roll < 0.25 ? BLADE : BLADE_DARK, 0.5);
-  });
-
   propGrid(x0, y0, w, h, 40, 102, PROP_MARGIN, (x, y, roll, id) => {
-    const d = distAt(x, y);
+    const d = dist.sample(x, y);
     if (d > 6) return;
-    if (d > -16) { if (roll < 0.75) tuft(put, x, y - 1, 11 + roll * 7, id); return; }
-    if (roll < 0.4) { if (tuftDrift.sample(x, y) > 0.42) tuft(put, x, y, 9 + roll * 14, id); }
+    if (d > -16) { if (roll < 0.7) tuft(put, x, y - 1, (11 + roll * 7) * 1.25, id); return; }
+    if (roll < 0.4) { if (tuftDrift.sample(x, y) > 0.42) tuft(put, x, y, (9 + roll * 14) * 1.25, id); }
     else if (roll < 0.46) clover(put, x, y, id);
     else if (roll < 0.62) { if (flowerDrift.sample(x, y) > 0.6) { const f = FLOWERS[(id + 2) % FLOWERS.length]; flowers(put, x, y, f[0], f[1], id); } }
     else if (roll >= 0.725 && roll < 0.74) mushrooms(put, x, y, id);
