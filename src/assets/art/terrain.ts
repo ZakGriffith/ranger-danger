@@ -9,6 +9,8 @@ import {
   rect, disc, ring, line, hexToRgb, add,
 } from './canvas';
 import { MEADOW_TILE_PX, drawMeadowChunk } from './groundMeadow';
+import { FOREST_TILE_PX, drawForestChunk } from './groundForest';
+import { drawTreeClusterCanvasHD } from './forestTrees';
 
 // ==================================================================
 //  GROUND TILE (32x32) — noise speckle
@@ -659,157 +661,6 @@ function drawWorldFissures(ctx: CanvasRenderingContext2D, chunkX: number, chunkY
   }
 }
 
-// Forest ground — darker greens with brown dirt patches, leaf litter, mushrooms, moss
-function drawGroundForest(tileX: number, tileY: number) {
-  return (put: Put) => {
-    // Forest green shades — tighter range so transitions are subtle
-    const greenHex = ['#2a4626', '#2e4c2c', '#324f30', '#365434'];
-
-    // Dirt shades — earthy browns
-    const dirtHex = ['#4a3828', '#3e2e20', '#32261a'];
-
-    let s = ((tileX * 73856093 + tileY * 19349669) >>> 0) % 2147483647;
-    const rnd = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
-
-    // Per-pixel hash for dithering — use two rounds to break diagonal patterns
-    const pxHash = (x: number, y: number) => {
-      let h = ((x * 374761393 + y * 668265263 + 1274126177) >>> 0);
-      h = ((h ^ (h >> 13)) * 1103515245 + 12345) >>> 0;
-      return (h & 0xffff) / 0xffff;
-    };
-
-    // Dither zone width (fraction of shade range where mixing occurs)
-    const ditherW = 0.06;
-
-    // Precompute both noise layers at 1/4 resolution
-    const sampleN = precomputeNoise(tileX, tileY, 8000, 1000, 400);
-    const sampleDirt = precomputeNoise(tileX, tileY, 5000, 2000, 300);
-
-    for (let py = 0; py < 32; py++) {
-      for (let px = 0; px < 32; px++) {
-        const wx = tileX * 32 + px;
-        const wy = tileY * 32 + py;
-
-        const n = sampleN(px, py);
-        const dirtN = sampleDirt(px, py);
-        const h = pxHash(wx, wy); // 0..1 random per pixel
-
-        // Jitter the dirt threshold per-pixel for ragged edges
-        const dirtThresh = 0.62 + (h - 0.5) * 0.03;
-
-        if (dirtN > dirtThresh) {
-          // Green-to-dirt edge dithering
-          const edgeDither = 0.025;
-          if (dirtN < dirtThresh + edgeDither) {
-            // Mix green and dirt pixels randomly at the border
-            const mixChance = (dirtN - dirtThresh) / edgeDither;
-            if (h > mixChance) {
-              // Green pixel
-              const gPos = Math.min(3.999, n * 4);
-              put(px, py, greenHex[Math.floor(gPos)]);
-            } else {
-              put(px, py, dirtHex[0]); // lightest dirt
-            }
-          } else {
-            // Inner dirt — dithered shade transitions
-            const inner = (dirtN - dirtThresh - edgeDither) / (1.0 - dirtThresh - edgeDither);
-            const dPos = Math.min(2.999, Math.max(0, inner * 3));
-            const dIdx = Math.floor(dPos);
-            const dFrac = dPos - dIdx;
-            // Dither near boundaries
-            if (dIdx < 2 && dFrac > (1 - ditherW) && h > (dFrac - (1 - ditherW)) / ditherW) {
-              put(px, py, dirtHex[dIdx]);
-            } else if (dIdx < 2 && dFrac > (1 - ditherW)) {
-              put(px, py, dirtHex[dIdx + 1]);
-            } else {
-              put(px, py, dirtHex[dIdx]);
-            }
-          }
-        } else {
-          // Green shades — dithered transitions
-          const gPos = Math.min(3.999, n * 4);
-          const gIdx = Math.floor(gPos);
-          const gFrac = gPos - gIdx;
-          // Dither near shade boundaries
-          if (gIdx < 3 && gFrac > (1 - ditherW) && h > (gFrac - (1 - ditherW)) / ditherW) {
-            put(px, py, greenHex[gIdx]);
-          } else if (gIdx < 3 && gFrac > (1 - ditherW)) {
-            put(px, py, greenHex[gIdx + 1]);
-          } else {
-            put(px, py, greenHex[gIdx]);
-          }
-        }
-      }
-    }
-
-    // Scattered leaf litter (~12% of tiles, 1-2 leaves)
-    if (rnd() < 0.12) {
-      const leafColors = ['#c07030', '#8a5020', '#b09040', '#a06828', '#7a4018'];
-      const count = 1 + Math.floor(rnd() * 2);
-      for (let i = 0; i < count; i++) {
-        const lx = 1 + Math.floor(rnd() * 30);
-        const ly = 1 + Math.floor(rnd() * 30);
-        put(lx, ly, leafColors[Math.floor(rnd() * leafColors.length)]);
-      }
-    }
-
-    // Scattered mushrooms (~2.5% of tiles)
-    if (rnd() < 0.025) {
-      const mx = 2 + Math.floor(rnd() * 28);
-      const my = 2 + Math.floor(rnd() * 28);
-      put(mx, my - 1, '#d04040');    // red cap
-      put(mx + 1, my - 1, '#b03030');
-      put(mx, my, '#e8e0d0');        // white stem
-    }
-
-    // Moss patches (~6% of tiles)
-    if (rnd() < 0.06) {
-      const mx = 3 + Math.floor(rnd() * 26);
-      const my = 3 + Math.floor(rnd() * 26);
-      put(mx, my, '#4a8a30');
-      put(mx + 1, my, '#3a7a28');
-      put(mx, my + 1, '#4a8a30');
-    }
-
-    // Rare rock (~4%) on any ground
-    if (rnd() < 0.04) {
-      const rx = 2 + Math.floor(rnd() * 28);
-      const ry = 2 + Math.floor(rnd() * 28);
-      put(rx, ry, '#5a6270');
-      put(rx + 1, ry, '#4a5260');
-      put(rx, ry + 1, '#3e4654');
-    }
-
-    // Small rocks/pebbles in dirt patches (~30% of tiles, placed only if in dirt)
-    if (rnd() < 0.30) {
-      const rockColors = ['#6a6260', '#5a5450', '#7a7068', '#4e4844'];
-      const count = 1 + Math.floor(rnd() * 3);
-      for (let i = 0; i < count; i++) {
-        const rx = 2 + Math.floor(rnd() * 28);
-        const ry = 2 + Math.floor(rnd() * 28);
-        // Only place if this pixel is in a dirt region
-        const wx = tileX * 32 + rx;
-        const wy = tileY * 32 + ry;
-        const dn = wnoise(wx + 5000, wy + 2000, 300);
-        if (dn > 0.68) {
-          const col = rockColors[Math.floor(rnd() * rockColors.length)];
-          put(rx, ry, col);
-          if (rnd() > 0.5) put(rx + 1, ry, col); // sometimes 2px wide
-        }
-      }
-    }
-
-    // Rare grass tuft (~8%)
-    if (rnd() < 0.08) {
-      const tx = 3 + Math.floor(rnd() * 26);
-      const ty = 3 + Math.floor(rnd() * 26);
-      put(tx, ty, '#2a5a20');
-      put(tx + 1, ty, '#2a5a20');
-      put(tx, ty - 1, '#3a6a28');
-    }
-  };
-}
-
 // Infected riverside ground — dark purples with toxic green patches, sickly vegetation
 function drawGroundInfected(tileX: number, tileY: number) {
   return (put: Put) => {
@@ -1104,150 +955,10 @@ export function drawTempleBlockCanvas(variantIdx: number): HTMLCanvasElement {
   return canvas;
 }
 
-// Draw a WC2-style conifer tree cluster — triangular tiered pine trees packed tightly
+// Forest tree cluster — HD "Layered Pine" conifers (forestTrees.ts). The
+// canvas is at 64 px per tile; ChunkSystem shows it at half scale.
 export function drawTreeClusterCanvas(patternIdx: number): HTMLCanvasElement {
-  const pattern = TREE_PATTERNS[patternIdx];
-  const T = 32; // tile size in pixels (world space)
-  // Large padding — trees are much taller than a single tile
-  const pad = 40;
-  const cw = pattern.w * T + pad * 2;
-  const ch = pattern.h * T + pad * 2;
-
-  const canvas = document.createElement('canvas');
-  canvas.width = cw;
-  canvas.height = ch;
-  const ctx = canvas.getContext('2d')!;
-  ctx.imageSmoothingEnabled = false;
-
-  // Seeded RNG per pattern
-  let seed = (patternIdx * 73856093 + 54321) >>> 0;
-  const rnd = () => { seed = (seed * 16807 + 1) % 2147483647; return seed / 2147483647; };
-
-  // Place 2-3 trees per tile, tightly packed with jitter for dense clumps
-  type TreeDef = { cx: number; cy: number; h: number; baseW: number; shade: number };
-  const trees: TreeDef[] = [];
-
-  for (const t of pattern.tiles) {
-    const tileCx = t.dx * T + T / 2 + pad;
-    const tileCy = t.dy * T + T * 0.85 + pad;
-    const treesPerTile = 2 + (rnd() > 0.5 ? 1 : 0); // 2-3 trees per tile
-    for (let i = 0; i < treesPerTile; i++) {
-      const cx = tileCx + (rnd() - 0.5) * T * 0.7;
-      const cy = tileCy + (rnd() - 0.5) * T * 0.4;
-      const treeH = 48 + Math.floor(rnd() * 14); // much taller: 48-62px
-      trees.push({
-        cx, cy, h: treeH,
-        baseW: 26 + Math.floor(rnd() * 8), // wider: 26-34px
-        shade: Math.floor(rnd() * 3)
-      });
-    }
-  }
-
-  // Sort back-to-front (higher cy = closer to camera = drawn later)
-  trees.sort((a, b) => a.cy - b.cy);
-
-  // Color palettes — 3 shade variants
-  const palettes = [
-    { dark: '#0e2408', mid: '#1a3a12', light: '#28521e', highlight: '#38682c', bright: '#4a7e3a' },
-    { dark: '#102608', mid: '#1c3e14', light: '#2a5420', highlight: '#3a6a2e', bright: '#4c823c' },
-    { dark: '#0c2206', mid: '#183810', light: '#26501c', highlight: '#36642a', bright: '#488038' },
-  ];
-
-  for (const tree of trees) {
-    const p = palettes[tree.shade];
-    const { cx, cy, h, baseW } = tree;
-    const topY = cy - h;
-
-    // Trunk — short, visible below the lowest branches
-    const trunkW = 4;
-    const trunkH = 7;
-    ctx.fillStyle = '#2a1808';
-    ctx.fillRect(Math.floor(cx - trunkW / 2) - 1, Math.floor(cy - trunkH), trunkW + 2, trunkH + 1);
-    ctx.fillStyle = '#4a2e14';
-    ctx.fillRect(Math.floor(cx - trunkW / 2), Math.floor(cy - trunkH), trunkW, trunkH);
-
-    // 3 tiers of triangular branch layers, bottom to top
-    const tiers = 3;
-    for (let tier = 0; tier < tiers; tier++) {
-      const t0 = tier / tiers;
-      const t1 = (tier + 1) / tiers;
-      const tierBot = cy - h * t0 * 0.75 - 3;
-      const tierTop = cy - h * (t0 + (t1 - t0) * 0.85) - 3;
-      const tierMid = (tierBot + tierTop) / 2;
-      const tierW = baseW * (1 - t0 * 0.55);
-
-      // Dark shadow triangle (slightly offset)
-      ctx.fillStyle = p.dark;
-      ctx.beginPath();
-      ctx.moveTo(cx, tierTop - 1);
-      ctx.lineTo(cx - tierW / 2 - 1, tierBot + 1);
-      ctx.lineTo(cx + tierW / 2 + 1, tierBot + 1);
-      ctx.closePath();
-      ctx.fill();
-
-      // Main body triangle
-      ctx.fillStyle = p.mid;
-      ctx.beginPath();
-      ctx.moveTo(cx, tierTop);
-      ctx.lineTo(cx - tierW / 2, tierBot);
-      ctx.lineTo(cx + tierW / 2, tierBot);
-      ctx.closePath();
-      ctx.fill();
-
-      // Left-side highlight (light from top-left)
-      ctx.fillStyle = p.light;
-      ctx.beginPath();
-      ctx.moveTo(cx - 1, tierTop + 1);
-      ctx.lineTo(cx - tierW / 2 + 1, tierBot);
-      ctx.lineTo(cx - tierW * 0.15, tierBot);
-      ctx.lineTo(cx - 1, tierMid);
-      ctx.closePath();
-      ctx.fill();
-
-      // Bright highlight near top-left
-      ctx.fillStyle = p.highlight;
-      ctx.beginPath();
-      ctx.moveTo(cx - 1, tierTop + 2);
-      ctx.lineTo(cx - tierW * 0.3, tierMid + 1);
-      ctx.lineTo(cx - 1, tierMid - 1);
-      ctx.closePath();
-      ctx.fill();
-
-      // Branch edge detail — jagged pixels along edges
-      const steps = Math.floor(tierBot - tierTop);
-      for (let i = 0; i < steps; i += 2) {
-        const fy = tierTop + i;
-        const frac = i / steps;
-        const edgeW = tierW / 2 * frac;
-        if (rnd() > 0.3) {
-          const jx = cx - edgeW - 1 + rnd() * 2;
-          ctx.fillStyle = rnd() > 0.5 ? p.dark : p.mid;
-          ctx.fillRect(Math.floor(jx), Math.floor(fy), 1, 1);
-        }
-        if (rnd() > 0.3) {
-          const jx = cx + edgeW - 1 + rnd() * 2;
-          ctx.fillStyle = rnd() > 0.5 ? p.dark : p.mid;
-          ctx.fillRect(Math.floor(jx), Math.floor(fy), 1, 1);
-        }
-      }
-    }
-
-    // Pointed tip
-    ctx.fillStyle = p.bright;
-    ctx.fillRect(Math.floor(cx), Math.floor(topY - 2), 1, 3);
-    ctx.fillStyle = p.highlight;
-    ctx.fillRect(Math.floor(cx - 1), Math.floor(topY - 1), 1, 1);
-
-    // Scattered bright needle highlights
-    for (let i = 0; i < 10; i++) {
-      const hx = cx + (rnd() - 0.5) * baseW * 0.6;
-      const hy = cy - rnd() * h * 0.8 - 3;
-      ctx.fillStyle = rnd() > 0.5 ? p.bright : p.highlight;
-      ctx.fillRect(Math.floor(hx), Math.floor(hy), 1, 1);
-    }
-  }
-
-  return canvas;
+  return drawTreeClusterCanvasHD(TREE_PATTERNS[patternIdx], patternIdx);
 }
 
 // Draw infected plant cluster — bulbous, sickly purple/green growths
@@ -1436,13 +1147,17 @@ export function createGroundChunk(scene: Phaser.Scene, chunkX: number, chunkY: n
   const terrainKey = biome === 'desert' ? `${biome}_${sceneLevelId}` : biome;
   const key = `gnd_chunk_${terrainKey}_${chunkX}_${chunkY}`;
   if (scene.textures.exists(key)) return key;
-  if (biome === 'grasslands') {
-    const pxSize = chunkSize * MEADOW_TILE_PX;
+  // HD biomes: 64 texture px per tile, drawn straight into an RGBA buffer
+  const hd = biome === 'grasslands' ? { tilePx: MEADOW_TILE_PX, draw: drawMeadowChunk }
+           : biome === 'forest' ? { tilePx: FOREST_TILE_PX, draw: drawForestChunk }
+           : null;
+  if (hd) {
+    const pxSize = chunkSize * hd.tilePx;
     const canvas = document.createElement('canvas');
     canvas.width = pxSize; canvas.height = pxSize;
     const ctx = canvas.getContext('2d')!;
     const imageData = ctx.createImageData(pxSize, pxSize);
-    drawMeadowChunk(imageData.data, pxSize, chunkX * pxSize, chunkY * pxSize);
+    hd.draw(imageData.data, pxSize, chunkX * pxSize, chunkY * pxSize);
     ctx.putImageData(imageData, 0, 0);
     scene.textures.addCanvas(key, canvas);
     return key;
@@ -1460,8 +1175,7 @@ export function createGroundChunk(scene: Phaser.Scene, chunkX: number, chunkY: n
     for (let tx = 0; tx < chunkSize; tx++) {
       const worldTX = startTX + tx;
       const worldTY = startTY + ty;
-      const draw = biome === 'forest' ? drawGroundForest(worldTX, worldTY)
-                 : biome === 'infected' ? drawGroundInfected(worldTX, worldTY)
+      const draw = biome === 'infected' ? drawGroundInfected(worldTX, worldTY)
                  : biome === 'river' ? drawGroundRiver(worldTX, worldTY)
                  : biome === 'castle' ? drawGroundCastle(worldTX, worldTY)
                  : drawGroundDesert(worldTX, worldTY, sceneLevelId);

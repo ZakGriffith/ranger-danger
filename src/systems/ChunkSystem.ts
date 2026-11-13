@@ -332,7 +332,8 @@ export class ChunkSystem {
         this.placePngCluster(pattern, ox, oy, t, rng, cfg);
       } else {
         const texKey = scene.biome === 'infected' ? `infected_plant_${patIdx}` : `tree_cluster_${patIdx}`;
-        const spr = scene.add.image(sprX, sprY, texKey).setDepth(100 + bottomY * 0.1);
+        // forest clusters are HD (64 px per tile) and display at half scale
+        const spr = scene.add.image(sprX, sprY, texKey).setScale(scene.biome === 'infected' ? 1 : 0.5).setDepth(100 + bottomY * 0.1);
         scene.treeSprites.push(spr);
       }
 

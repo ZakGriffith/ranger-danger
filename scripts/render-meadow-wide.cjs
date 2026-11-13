@@ -8,7 +8,9 @@ async function main() {
   const { runnerImport } = await import('vite');
   const root = path.resolve(__dirname, '..');
   const config = { root, logLevel: 'error', plugins: [{ name: 'phaser-stub', resolveId: id => id === 'phaser' ? '\0phaser-stub' : null, load: id => id === '\0phaser-stub' ? 'export default {};' : null }] };
-  const { STYLES } = (await runnerImport('/scripts/meadow-studies/styles.ts', config)).module;
+  const { STYLES: MEADOW } = (await runnerImport('/scripts/meadow-studies/styles.ts', config)).module;
+  const { FOREST_STYLES } = (await runnerImport('/scripts/meadow-studies/forest.ts', config)).module;
+  const STYLES = { ...MEADOW, ...FOREST_STYLES };
   const out = path.join(__dirname, 'out', 'meadow-studies');
   const W = 90 * 64, H = 60 * 64, S = 3;
   for (const id of (process.argv.length > 2 ? process.argv.slice(2) : ['B', 'B2'])) {
