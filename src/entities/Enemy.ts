@@ -189,7 +189,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
         this.flying = true;
         break;
       case 'castle_rat':
-        applyEntityVisual(this, 'castle_rat', 'move', 0.45, 38, 16, 18, 35);
+        applyEntityVisual(this, 'rat', 'move', 0.45, 38, 16, 18, 35);
         this.play(`${texPrefix}-move`);
         break;
       case 'scorpion':

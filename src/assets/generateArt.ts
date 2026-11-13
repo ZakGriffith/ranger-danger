@@ -478,8 +478,6 @@ export function registerAnimations(scene: Phaser.Scene) {
   mk('eh-hit',  ['eh_hit'], 8, 0);
   mk('eh-die',  ['eh_die0','eh_die1','eh_die2','eh_die3'], 8, 0);
 
-  // Meadow enemies (HD): 8-frame move loops, 5-frame attacks. Hit flash and
-  // death are programmatic (Enemy.hurt), so there are no hit/die anims.
   const mv = (p: string) => MEADOW_MOVE_FRAMES.map(f => `${p}_${f}`);
   const ak = (p: string) => MEADOW_ATK_FRAMES.map(f => `${p}_${f}`);
   // Snake move loop spans 4 slither cycles with the tongue-flick variant
