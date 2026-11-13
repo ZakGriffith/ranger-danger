@@ -273,7 +273,8 @@ function drawHead(ctx: CanvasRenderingContext2D, x: number, y: number, tilt: num
 }
 
 function stride(phase: number, offset: number, reach: number, height: number) {
-  const angle = (phase + offset) * Math.PI * 2;
+  // The lifted paw swings toward the nose; the planted paw pushes back.
+  const angle = (offset - phase) * Math.PI * 2;
   return [Math.cos(angle) * reach, -Math.max(0, Math.sin(angle)) * height];
 }
 
