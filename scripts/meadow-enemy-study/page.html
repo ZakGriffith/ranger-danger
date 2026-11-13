@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Meadow Enemies · Ranger Danger</title>
+<style>
+  :root {
+    color-scheme: light;
+    --paper: #f3ebda;
+    --ink: #273128;
+    --muted: #555d4e;
+    --line: #cfc5af;
+    --mono: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
+    font: 14px/1.5 Inter, "Helvetica Neue", Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; color: var(--ink); background: radial-gradient(ellipse at 12% 0%, #fbf5e8, transparent 60%), var(--paper); }
+  main { max-width: 1320px; margin: auto; padding: 28px 40px; }
+  header, .size-label { font: 600 11px/1.5 var(--mono); text-transform: uppercase; letter-spacing: .12em; }
+  header { border-bottom: 1px solid var(--line); padding-bottom: 12px; }
+  h1, h2, p { margin: 0; }
+  h1 { margin-top: 20px; font: 400 clamp(48px, 8vw, 104px)/.98 "Instrument Serif", Georgia, serif; letter-spacing: -.063em; }
+  .intro { margin: 10px 0 20px; color: var(--muted); }
+  .toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 10px 0; border-block: 1px solid var(--line); }
+  button, select { min-height: 34px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 3px; background: #f9f3e6; color: var(--ink); font: 600 12px Inter, sans-serif; cursor: pointer; }
+  button[aria-pressed="true"] { border-color: var(--ink); color: var(--paper); background: var(--ink); }
+  button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid #956044; outline-offset: 2px; }
+  label { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 12px; }
+  .timeline { flex: 1 1 170px; }
+  input { min-width: 70px; flex: 1; accent-color: #536c4c; }
+  .grid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 14px; margin-top: 15px; }
+  article { min-width: 0; }
+  .art { display: block; width: 100%; aspect-ratio: 1.21; border: 1px solid #273a31; background: radial-gradient(ellipse at 51% 44%, #526348, #263831 78%); }
+  article:nth-child(2) .art { background: radial-gradient(ellipse at 51% 44%, #5c5554, #323132 78%); }
+  article:nth-child(3) .art { background: radial-gradient(ellipse at 51% 44%, #655840, #373a30 78%); }
+  article:nth-child(4) .art { background: radial-gradient(ellipse at 51% 44%, #63574c, #3c3637 78%); }
+  h2 { margin-top: 10px; font: 400 clamp(25px, 3vw, 39px)/1.08 "Instrument Serif", Georgia, serif; letter-spacing: -.05em; }
+  .actions { margin: 3px 0 10px; color: var(--muted); font-size: 12px; }
+  .scale { display: flex; align-items: center; gap: 8px; padding: 6px; border: 1px solid var(--line); }
+  .field { display: block; width: 108px; height: auto; max-width: 100%; }
+  .size-label { color: var(--muted); font-size: 9px; }
+  @media (max-width: 920px) { .grid { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+  @media (max-width: 560px) {
+    main { padding: 16px; }
+    .grid { gap: 15px 8px; }
+    .scale { display: block; }
+    .size-label { display: block; margin-top: 4px; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <header>Ranger Danger · Art study</header>
+  <h1>Meadow enemies</h1>
+  <p class="intro">Four hand-drawn enemies in the Ranger’s illustrated style.</p>
+  <div class="toolbar" role="group" aria-label="Animation controls">
+    <button id="move" type="button" aria-pressed="true">Move</button>
+    <button id="attack" type="button" aria-pressed="false">Attack</button>
+    <button id="play" type="button">Pause</button>
+    <label>Speed <select id="speed"><option value=".25">¼×</option><option value=".5">½×</option><option value="1" selected>1×</option></select></label>
+    <label class="timeline">Pose <input type="range" id="phase" min="0" max="100" value="0" step="1"></label>
+  </div>
+  <section class="grid" id="enemies" aria-label="Meadow enemy animations"></section>
+</main>
+<template id="card">
+  <article>
+    <canvas class="art" role="img"></canvas>
+    <h2></h2>
+    <p class="actions"></p>
+    <div class="scale"><canvas class="field" width="108" height="80" role="img"></canvas><span class="size-label">Game scale</span></div>
+  </article>
+</template>
+<script type="module" src="./viewer.js"></script>
+</body>
+</html>

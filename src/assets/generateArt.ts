@@ -18,8 +18,8 @@ import {
   drawWarlockBolt,
   drawEnemyDesert, drawSunBolt,
 } from './art/enemies';
-import { MEADOW_FRAMES, MEADOW_MOVE_FRAMES, MEADOW_ATK_FRAMES, drawSnake } from './art/meadow';
-import { drawDeer } from './art/deer';
+import { MEADOW_FRAMES, MEADOW_MOVE_FRAMES, MEADOW_ATK_FRAMES } from './art/meadow';
+import { generateMeadowEnemyTextures } from './art/meadowEnemies/textures';
 import { SPIDER_SMOKE_FRAMES, drawSpiderSmoke } from './art/spiderPoison';
 import { INFECTED_SPIDER_FRAMES, INFECTED_SPIDER_MOVE_FRAMES, INFECTED_SPIDER_ATTACK_FRAMES, INFECTED_SPIDER_MOVE_FPS, INFECTED_SPIDER_ATTACK_FPS, drawInfectedSpider } from './art/infectedSpider';
 import { SPIDER_FRAMES, SPIDER_MOVE_FRAMES, SPIDER_ATK_FRAMES, drawSpider } from './art/spider';
@@ -38,10 +38,11 @@ import { WOLF_FRAMES, WOLF_MOVE_FRAMES, WOLF_ATK_FRAMES, WOLF_MOVE_FPS, WOLF_ATK
 import {
   BossFrame, RamFrame, ForestBossFrame, forestBossFrames, riverBossFrames, infectedBossFrames,
   phantomQueenFrames, castleDragonFrames,
-  drawFogPhantom, drawBoss, drawRam, drawInfectedBoss, drawForestBoss,
+  drawFogPhantom, drawBoss, drawInfectedBoss, drawForestBoss,
   drawPhantomQueen, drawCastleDragon, drawDesertBoss,
   drawQueenOrb, drawDragonFireball, drawDragonFireExplosion,
 } from './art/bosses';
+import { createMeadowRamFrame } from './art/meadowRam';
 import {
   drawTowerBase, drawBallistaStand,
 } from './art/towers';
@@ -93,12 +94,10 @@ export function generateAllArt(scene: Phaser.Scene) {
   for (const f of eFrames) add(scene, `eh_${f}`, makeCanvas(32, drawEnemyHeavy(f)));
   // Extended frame set (6-frame move, 4-frame atk) shared by the biome enemies below
   const e6Frames: EFrame6[] = ['move0','move1','move2','move3','move4','move5','atk0','atk1','atk2','atk3','hit','die0','die1','die2','die3'];
-  // Meadow enemies are HD (art/meadow.ts, art/deer.ts, art/rat.ts): 8-frame move cycle, 5-frame attack
-  for (const f of MEADOW_FRAMES) add(scene, `esnk_${f}`, makeHD(64, drawSnake(f)));
-  // Tongue-flick variant of move0 — scheduled sparsely by the esnk-move loop
-  add(scene, 'esnk_move0t', makeHD(64, drawSnake('move0', true)));
-  for (let v = 0; v < RAT_VARIANTS; v++) for (const f of MEADOW_FRAMES) add(scene, `erat${v}_${f}`, makeHD(64, drawRat(f, v)));
-  for (const f of MEADOW_FRAMES) add(scene, `eder_${f}`, makeHD(64, drawDeer(f)));
+  generateMeadowEnemyTextures(scene);
+  for (let v = 0; v < RAT_VARIANTS; v++) {
+    for (const frame of MEADOW_FRAMES) add(scene, `ecrat${v}_${frame}`, makeHD(64, drawRat(frame, v)));
+  }
   for (const frame of INFECTED_SPIDER_FRAMES) {
     add(scene, `eir_${frame}`, makeHD(64, drawInfectedSpider(frame), { outline: false }));
   }
@@ -413,7 +412,7 @@ export function generateAllArt(scene: Phaser.Scene) {
   for (const f of bossFrames) add(scene, `boss_${f}`, makeCanvas(64, drawBoss(f)));
   // Ram gets extra in-between frames on top of the shared boss set
   const ramFrames: RamFrame[] = [...bossFrames, 'idle2', 'idle3', 'move4', 'move5', 'atk2', 'atk3'];
-  for (const f of ramFrames) add(scene, `ram_${f}`, makeCanvas(64, drawRam(f)));
+  for (const f of ramFrames) add(scene, `ram_${f}`, createMeadowRamFrame(f));
   // Infected boss gets extra idle + windup frames on top of the shared set
   for (const f of infectedBossFrames) add(scene, `iboss_${f}`, makeCanvas(64, drawInfectedBoss(f)));
 
@@ -491,9 +490,11 @@ export function registerAnimations(scene: Phaser.Scene) {
   mk('esnk-move', snkLoop, 18, -1);
   mk('esnk-atk',  ak('esnk'), 10, -1);
 
+  mk('erat-move', mv('erat'), 20, -1);
+  mk('erat-atk',  ak('erat'), 12, -1);
   for (let v = 0; v < RAT_VARIANTS; v++) {
-    mk(`erat${v}-move`, mv(`erat${v}`), 20, -1);
-    mk(`erat${v}-atk`,  ak(`erat${v}`), 12, -1);
+    mk(`ecrat${v}-move`, mv(`ecrat${v}`), 20, -1);
+    mk(`ecrat${v}-atk`,  ak(`ecrat${v}`), 12, -1);
   }
 
   mk('eder-move', mv('eder'), 12, -1);

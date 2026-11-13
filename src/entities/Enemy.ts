@@ -189,8 +189,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
         this.flying = true;
         break;
       case 'castle_rat':
-        // castle_rat reuses the rat character wholesale (own stats, same art)
-        applyEntityVisual(this, 'rat', 'move', 0.45, 38, 16, 18, 35);
+        applyEntityVisual(this, 'castle_rat', 'move', 0.45, 38, 16, 18, 35);
         this.play(`${texPrefix}-move`);
         break;
       case 'scorpion':
@@ -254,14 +253,14 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
   /** Kinds with several palette variants pick one per enemy; the variant selects the texture set. */
   static pickVariant(kind: EnemyKind): number {
     if (kind === 'infected_basic') return Phaser.Math.Between(0, BLOB_VARIANTS - 1);
-    return kind === 'rat' || kind === 'castle_rat' ? Phaser.Math.Between(0, RAT_VARIANTS - 1) : 0;
+    return kind === 'castle_rat' ? Phaser.Math.Between(0, RAT_VARIANTS - 1) : 0;
   }
 
   static texPrefix(kind: EnemyKind, variant = 0): string {
     switch (kind) {
       case 'heavy': return 'eh';
       case 'snake': return 'esnk';
-      case 'rat': return `erat${variant}`;
+      case 'rat': return 'erat';
       case 'deer': return 'eder';
       case 'infected_basic': return `eiblob${variant}`;
       case 'infected_heavy': return 'eih';
@@ -279,7 +278,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
       case 'golem': return 'ego';
       case 'shadow_imp': return 'esi';
       case 'castle_bat': return 'ebt'; // shares the bat's textures/anims
-      case 'castle_rat': return `erat${variant}`; // shares the rat's textures/anims
+      case 'castle_rat': return `ecrat${variant}`;
       case 'scorpion': return 'escp';
       case 'boss_scorpion': return 'ebsc';
       case 'scarab': return 'esrb';
