@@ -209,8 +209,9 @@ export class PathingSystem {
   }
 
   /**
-   * Place invisible physics rectangles at diagonal gaps between walls and
-   * towers so the player can't squeeze through. Rebuilds from scratch each
+   * Place invisible physics rectangles where the player could otherwise
+   * squeeze through: diagonal gaps between walls and towers, and the seam
+   * between two towers that sit edge to edge. Rebuilds from scratch each
    * call.
    */
   rebuildGapBlockers() {
@@ -219,6 +220,36 @@ export class PathingSystem {
     scene.gapBlockers.clear(true, true);
     const t = CFG.tile;
     const checked = new Set<string>();
+    const addBlocker = (cx: number, cy: number, w: number, h: number) => {
+      const blocker = scene.add.zone(cx, cy, w, h);
+      scene.physics.add.existing(blocker, true);
+      (blocker.body as Phaser.Physics.Arcade.StaticBody).setSize(w, h);
+      (blocker.body as Phaser.Physics.Arcade.StaticBody).position.set(cx - w / 2, cy - h / 2);
+      scene.gapBlockers!.add(blocker);
+    };
+
+    // Tower bodies are circles smaller than their footprint so the player
+    // can stand on the ground pixels at the corners, which leaves a channel
+    // where two towers touch. Enemies path on the grid and never use it, so
+    // close it for the player too: a thin blocker along the whole shared
+    // edge, so they stop at the seam instead of slipping through.
+    const seam = 12;
+    const towers = scene.towers;
+    for (let a = 0; a < towers.length; a++)
+      for (let b = a + 1; b < towers.length; b++) {
+        const A = towers[a], B = towers[b];
+        const ax0 = A.tileX, ax1 = A.tileX + A.size, ay0 = A.tileY, ay1 = A.tileY + A.size;
+        const bx0 = B.tileX, bx1 = B.tileX + B.size, by0 = B.tileY, by1 = B.tileY + B.size;
+        if (ax1 === bx0 || bx1 === ax0) {
+          // side by side: a vertical seam over the rows they share
+          const y0 = Math.max(ay0, by0), y1 = Math.min(ay1, by1);
+          if (y1 > y0) addBlocker((ax1 === bx0 ? ax1 : bx1) * t, (y0 + y1) / 2 * t, seam, (y1 - y0) * t);
+        } else if (ay1 === by0 || by1 === ay0) {
+          // one above the other: a horizontal seam over the columns they share
+          const x0 = Math.max(ax0, bx0), x1 = Math.min(ax1, bx1);
+          if (x1 > x0) addBlocker((x0 + x1) / 2 * t, (ay1 === by0 ? ay1 : by1) * t, (x1 - x0) * t, seam);
+        }
+      }
 
     // Scan all blocked tiles and check their corners
     for (const [key] of scene.grid) {
@@ -245,13 +276,7 @@ export class PathingSystem {
         if (!tlbrNeedBlock && !trblNeedBlock) continue;
 
         // Place a small square blocker at this corner
-        const wx = cx * t, wy = cy * t;
-        const size = 18; // big enough to block the player's radius-14 circle
-        const blocker = scene.add.zone(wx, wy, size, size);
-        scene.physics.add.existing(blocker, true);
-        (blocker.body as Phaser.Physics.Arcade.StaticBody).setSize(size, size);
-        (blocker.body as Phaser.Physics.Arcade.StaticBody).position.set(wx - size/2, wy - size/2);
-        scene.gapBlockers!.add(blocker);
+        addBlocker(cx * t, cy * t, 18, 18); // big enough to block the player's radius-7 circle
       }
     }
   }

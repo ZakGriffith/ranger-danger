@@ -189,7 +189,7 @@ export class BuildSystem {
       scene.towerGroup.add(t);
       scene.depthSort.applyTowerDepth(t); // static — set once, skipped in updateDepthSort
       for (let j = 0; j < s; j++) for (let i = 0; i < s; i++) gridSet(scene.grid, ox + i, oy + j, 2);
-      scene.gridVersion++; scene._wallCheckCache.clear(); scene.pathing.rebuildGapBlockers(); scene.pathing.rebuildGapBlockers();
+      scene.gridVersion++; scene._wallCheckCache.clear(); scene.pathing.rebuildGapBlockers();
       scene.hud.pushHud();
       SFX.play('towerPlace');
       if (getRegistry(scene.game).get('tutorialActive')) getEvents(scene.game.events).emit('tutorial-tower-placed');
