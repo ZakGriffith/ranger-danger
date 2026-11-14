@@ -7,6 +7,7 @@ import { FOREST_BEAR_ART } from '../assets/art/forestEnemies/bear';
 import { registerForestAnimations } from '../assets/art/forestEnemies/textures';
 import { FOREST_WENDIGO_ART } from '../assets/art/forestEnemies/wendigo';
 import { CANNON_PIVOT_Y } from '../assets/art/cannon';
+import { ARROW_TOWER_PROJECTILE_TEXTURE, createArrowTowerArcher } from '../assets/art/arrowTower/rig';
 import {
   registerRangerGalleryArt,
   RANGER_GALLERY_ANIMS,
@@ -15,9 +16,6 @@ import {
   RANGER_TEXTURE_FEET,
   RANGER_TEXTURE_HEIGHT,
 } from '../assets/art/ranger/textures';
-import towerBaseImg from '../assets/sprites/tower_base.png';
-import arrowBase1Img from '../assets/sprites/arrow_base_1.png';
-import arrowBase2Img from '../assets/sprites/arrow_base_2.png';
 import cannonBaseImg from '../assets/sprites/cannon_base.png';
 import cannonBase1Img from '../assets/sprites/cannon_base_1.png';
 import cannonBase2Img from '../assets/sprites/cannon_base_2.png';
@@ -111,7 +109,8 @@ const STATIC_GROUPS: StaticDebugGroup[] = [
     subtitle: 'tower art',
     textures: [
       { key: 't_base', label: 'arrow base' },
-      { key: 'ta0_idle_0', label: 'archer' },
+      { key: 't_base_1', label: 'arrow base · level 2' },
+      { key: 't_base_2', label: 'arrow base · level 3' },
       { key: 'c_base', label: 'cannon base' },
       { key: 'c_top', label: 'cannon', frame: 0 },
     ],
@@ -120,7 +119,7 @@ const STATIC_GROUPS: StaticDebugGroup[] = [
     title: 'projectiles',
     subtitle: 'combat art',
     textures: [
-      { key: 'arrow_0', label: 'arrow' },
+      { key: ARROW_TOWER_PROJECTILE_TEXTURE, label: 'tower arrow' },
       { key: 'cball_0', label: 'cannonball' },
       { key: 'boulder_0', label: 'boulder' },
       { key: 'dfball_0', label: 'dragon fire' },
@@ -201,9 +200,6 @@ export class DebugGalleryScene extends Phaser.Scene {
   constructor() { super('DebugGallery'); }
 
   preload() {
-    if (!this.textures.exists('t_base_png')) this.load.image('t_base_png', towerBaseImg);
-    if (!this.textures.exists('t_base_1_png')) this.load.image('t_base_1_png', arrowBase1Img);
-    if (!this.textures.exists('t_base_2_png')) this.load.image('t_base_2_png', arrowBase2Img);
     if (!this.textures.exists('c_base_png')) this.load.image('c_base_png', cannonBaseImg);
     if (!this.textures.exists('c_base_1_png')) this.load.image('c_base_1_png', cannonBase1Img);
     if (!this.textures.exists('c_base_2_png')) this.load.image('c_base_2_png', cannonBase2Img);
@@ -799,10 +795,7 @@ export class DebugGalleryScene extends Phaser.Scene {
   }
 
   private addLineupTowerTop(x: number, baseY: number, baseH: number) {
-    const centerY = baseY - baseH / 2;
-    if (!this.textures.exists('ta0_idle_0')) return;
-    this.sandbox.add(this.add.sprite(x, centerY - 24, 'ta0_idle_0').setScale(0.5));
-    this.sandbox.add(this.add.sprite(x + 10, centerY - 22, 't_top0_0').setOrigin(0.25, 0.5).setScale(0.5));
+    this.sandbox.add(createArrowTowerArcher(this, x, baseY - baseH / 2));
   }
 
   private addLineupCannonTop(x: number, baseY: number, baseH: number) {

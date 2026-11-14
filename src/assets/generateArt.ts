@@ -4,8 +4,9 @@
 
 import Phaser from 'phaser';
 import { CFG } from '../config';
-import { PFrame, drawPlayer, drawBow, TOWER_ARCHER } from './art/player';
 import { generateRangerArrow } from './art/ranger/textures';
+import { generateArrowTowerProjectile } from './art/arrowTower/rig';
+import { generateArrowTowerBases } from './art/arrowTower/textures';
 import { makeHD } from './art/hd';
 import { POISON_SMOKE_VARIANTS, POISON_SMOKE_FRAME_MS } from './art/poisonSmoke';
 import {
@@ -85,6 +86,7 @@ export function generateAllArt(scene: Phaser.Scene) {
   if (artGenerated) return;
   artGenerated = true;
   generateRangerArrow(scene.textures);
+  generateArrowTowerProjectile(scene);
 
   // Enemies
   const eFrames: EFrame[] = ['move0','move1','move2','move3','atk0','atk1','hit','die0','die1','die2','die3'];
@@ -173,19 +175,7 @@ export function generateAllArt(scene: Phaser.Scene) {
     scene.textures.addCanvas(dst, c);
   };
 
-  // Tower — PNG base + procedural ballista top
-  if (scene.textures.exists('t_base_png')) {
-    copyTex('t_base_png', 't_base');
-  } else {
-    add(scene, 't_base',  makeCanvas(64, drawTowerBase));
-  }
-  // Arrow tower upgrade bases (level 1 = sprite #7, level 2 = sprite #0)
-  if (scene.textures.exists('t_base_1_png')) {
-    copyTex('t_base_1_png', 't_base_1');
-  }
-  if (scene.textures.exists('t_base_2_png')) {
-    copyTex('t_base_2_png', 't_base_2');
-  }
+  generateArrowTowerBases(scene);
   // Cannon tower — PNG base (sprite #29)
   if (scene.textures.exists('c_base_png')) {
     const cleanAndCopy = (src: string, dst: string) => {
@@ -219,15 +209,6 @@ export function generateAllArt(scene: Phaser.Scene) {
   if (scene.textures.exists('c_base_2_png')) {
     copyTex('c_base_2_png', 'c_base_2');
   }
-  // Arrow tower: the ranger figure in the tower archer's outfit, one palette per
-  // tower level (art/player.ts), with the same idle breathing and aim stances,
-  // plus its rotatable bow with matching sleeves
-  TOWER_ARCHER.forEach((outfit, t) => {
-    for (const [tag, pose] of [['', 'level'], ['up_', 'up'], ['down_', 'down']] as const)
-      for (let i = 0; i < 4; i++) add(scene, `ta${t}_idle_${tag}${i}`, makeHD(64, drawPlayer(`idle${i}` as PFrame, pose, outfit)));
-    add(scene, `t_top${t}_0`, makeHD(64, drawBow(false, outfit.tunic)));
-    add(scene, `t_top${t}_1`, makeHD(64, drawBow(true, outfit.tunic)));
-  });
   add(scene, 'c_mount', makeHD(CANNON_MOUNT_SIZE, drawCannonMount, { outline: false }));
   const cannonSheet = makeCannonSheet();
   add(scene, 'c_top', cannonSheet);
@@ -448,12 +429,6 @@ export function registerAnimations(scene: Phaser.Scene) {
     a.create({ key, frames: framesFromKeys(keys), frameRate, repeat });
   };
 
-  TOWER_ARCHER.forEach((_, t) => {
-    const aIdle = (tag: string) => [0, 1, 2, 3].map(i => `ta${t}_idle_${tag}${i}`);
-    mk(`archer${t}-idle`,      aIdle(''),      4, -1);
-    mk(`archer${t}-idle-up`,   aIdle('up_'),   4, -1);
-    mk(`archer${t}-idle-down`, aIdle('down_'), 4, -1);
-  });
   mk('eb-move', ['eb_move0','eb_move1','eb_move2','eb_move3'], 8, -1);
   mk('eb-atk',  ['eb_atk0','eb_atk1'], 8, -1);
   mk('eb-hit',  ['eb_hit'], 10, 0);
@@ -588,10 +563,6 @@ export function registerAnimations(scene: Phaser.Scene) {
   }
   mk('sunbolt-spin', ['sunbolt_0','sunbolt_1'], 10, -1);
 
-  TOWER_ARCHER.forEach((_, t) => {
-    mk(`tower-top${t}-idle`,  [`t_top${t}_0`], 1, 0);
-    mk(`tower-top${t}-shoot`, [`t_top${t}_1`, `t_top${t}_0`], 14, 0);
-  });
   if (a.exists('c-muzzle-flash')) a.remove('c-muzzle-flash');
   a.create({
     key: 'c-muzzle-flash', frames: [{ key: 'c_muzzle_flash' }], duration: 100,

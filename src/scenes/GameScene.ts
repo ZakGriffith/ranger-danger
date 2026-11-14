@@ -40,9 +40,6 @@ import { computeViewport, viewportWorldSize } from '../viewport';
 
 // Tower-base sprites used by generateAllArt() in create(). Kept out of
 // BootScene so they don't block PLAY → level-select.
-import towerBaseImg from '../assets/sprites/tower_base.png';
-import arrowBase1Img from '../assets/sprites/arrow_base_1.png';
-import arrowBase2Img from '../assets/sprites/arrow_base_2.png';
 import cannonBaseImg from '../assets/sprites/cannon_base.png';
 import cannonBase1Img from '../assets/sprites/cannon_base_1.png';
 import cannonBase2Img from '../assets/sprites/cannon_base_2.png';
@@ -393,9 +390,6 @@ export class GameScene extends Phaser.Scene {
     // BootScene so PLAY → level-select isn't gated on them. Phaser's
     // loader is idempotent on the texture key, so re-entering a level
     // is a no-op.
-    if (!this.textures.exists('t_base_png')) this.load.image('t_base_png', towerBaseImg);
-    if (!this.textures.exists('t_base_1_png')) this.load.image('t_base_1_png', arrowBase1Img);
-    if (!this.textures.exists('t_base_2_png')) this.load.image('t_base_2_png', arrowBase2Img);
     if (!this.textures.exists('c_base_png')) this.load.image('c_base_png', cannonBaseImg);
     if (!this.textures.exists('c_base_1_png')) this.load.image('c_base_1_png', cannonBase1Img);
     if (!this.textures.exists('c_base_2_png')) this.load.image('c_base_2_png', cannonBase2Img);

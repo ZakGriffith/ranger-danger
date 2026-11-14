@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { ARROW_TOWER_PROJECTILE_TEXTURE, getArrowTowerArcherIdleKey } from '../assets/art/arrowTower/rig';
 
 // Texture keys for all static (non-animated, non-particle) world art. Used by
 // the DEBUG_EXPORT_STATIC_SPRITES flag to dump the procedural art to disk so
@@ -11,12 +12,11 @@ const STATIC_TEXTURE_KEYS: string[] = [
   ...Array.from({ length: 16 }, (_, i) => `wall_${i}`),
   ...Array.from({ length: 16 }, (_, i) => `wall_${i}_dmg`),
   // Tower components
-  'ta0_idle_0', 'ta1_idle_0', 'ta2_idle_0',
-  't_top0_0', 't_top0_1',
+  ARROW_TOWER_PROJECTILE_TEXTURE,
   'c_mount',
   'c_top', 'c_muzzle_flash',
   'foundation',
-  // Tower bases (already PNG-backed)
+  // Tower bases
   't_base', 't_base_1', 't_base_2',
   'c_base', 'c_base_1', 'c_base_2',
   // Tree clusters
@@ -73,7 +73,8 @@ function downloadCanvas(canvas: HTMLCanvasElement, filename: string): Promise<vo
  */
 export async function exportStaticSprites(scene: Phaser.Scene): Promise<void> {
   let exported = 0, missing = 0;
-  for (const key of STATIC_TEXTURE_KEYS) {
+  const archers = ([0, 1, 2] as const).map(tier => getArrowTowerArcherIdleKey(scene, tier));
+  for (const key of [...STATIC_TEXTURE_KEYS, ...archers]) {
     const canvas = textureToCanvas(scene, key);
     if (!canvas) {
       console.warn(`[exportStaticSprites] missing texture: ${key}`);

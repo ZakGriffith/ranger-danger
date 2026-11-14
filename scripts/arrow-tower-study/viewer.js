@@ -1,8 +1,9 @@
-import { drawArrowTowerBase } from '../../src/assets/art/arrowTower/base';
+import { ARROW_TOWER_DECK_Y, drawArrowTowerBase } from '../../src/assets/art/arrowTower/base';
+import { ARROW_TOWER_ART_SCALE } from '../../src/assets/art/arrowTower/textures';
 import {
   ARROW_TOWER_ARCHER_SCALE, ARROW_TOWER_RELEASE, drawArrowTowerArcher, getArrowTowerShotOrigin,
 } from '../../src/assets/art/arrowTower/archer';
-import { drawFlyingArrow } from '../../src/assets/art/ranger';
+import { drawFlyingArrow, RANGER_AIM_HEIGHT } from '../../src/assets/art/ranger';
 import { drawMeadowChunk } from '../../src/assets/art/groundMeadow';
 import { makeCanvas } from '../../src/assets/art/canvas';
 import { makeHD } from '../../src/assets/art/hd';
@@ -13,9 +14,7 @@ import baseTwoUrl from '../../src/assets/sprites/arrow_base_1.png?inline';
 import baseThreeUrl from '../../src/assets/sprites/arrow_base_2.png?inline';
 
 const TAU = 2 * Math.PI;
-const GAME_SCALE = .45;
-const PLATFORM_Y = -92;
-const AIM_Y = PLATFORM_Y - 41 * ARROW_TOWER_ARCHER_SCALE;
+const AIM_Y = ARROW_TOWER_DECK_Y - RANGER_AIM_HEIGHT * ARROW_TOWER_ARCHER_SCALE;
 const SHOT_LENGTH = .9;
 const SHOT_INTERVAL = 1.55;
 const ARROW_SPEED = 430;
@@ -105,7 +104,7 @@ const cards = [baseOneUrl, baseTwoUrl, baseThreeUrl].map((source, tier) => {
   const label = 'Level ' + (tier + 1);
   card.querySelector('h2').textContent = label;
   art.setAttribute('aria-label', label + ' animated arrow tower');
-  field.setAttribute('aria-label', label + ' current and illustrated towers at approximate game scale on Meadow terrain');
+  field.setAttribute('aria-label', label + ' original and illustrated towers at approximate game scale on Meadow terrain');
   const item = {
     tier, art, field,
     base: makeTowerBase(tier),
@@ -141,13 +140,13 @@ function drawArt(ctx, card, x, y, scale, phase) {
   ctx.scale(scale, scale);
   ctx.drawImage(card.base, -BASE_CENTER_X, -BASE_GROUND_Y);
   ctx.save();
-  ctx.translate(0, PLATFORM_Y);
+  ctx.translate(0, ARROW_TOWER_DECK_Y);
   drawArrowTowerArcher(ctx, card.tier, angle, phase, clock);
   ctx.restore();
   if (releasedArrow && releasedArrow.age < .64) {
     const { x, y, heading: arrowHeading, age } = releasedArrow;
     const travel = age * ARROW_SPEED;
-    ctx.translate(x + Math.cos(arrowHeading) * travel, PLATFORM_Y + y + Math.sin(arrowHeading) * travel);
+    ctx.translate(x + Math.cos(arrowHeading) * travel, ARROW_TOWER_DECK_Y + y + Math.sin(arrowHeading) * travel);
     ctx.rotate(arrowHeading);
     ctx.scale(ARROW_TOWER_ARCHER_SCALE, ARROW_TOWER_ARCHER_SCALE);
     ctx.lineJoin = ctx.lineCap = 'round';
@@ -212,7 +211,7 @@ function paint() {
     field.ctx.beginPath();
     field.ctx.rect(field.width * .5 + 1, 0, field.width * .5 - 1, field.height);
     field.ctx.clip();
-    drawArt(field.ctx, card, field.width * .75, field.height * .9, GAME_SCALE, phase);
+    drawArt(field.ctx, card, field.width * .75, field.height * .9, ARROW_TOWER_ART_SCALE, phase);
     field.ctx.restore();
   }
 

@@ -7,7 +7,9 @@ import { Boss } from '../entities/Boss';
 import { Coin } from '../entities/Coin';
 import { Projectile } from '../entities/Projectile';
 import { SFX } from '../audio/sfx';
-import { playerFrameBob } from '../assets/art/player';
+import { ARROW_TOWER_RELEASE } from '../assets/art/arrowTower/archer';
+import { ARROW_TOWER_AIM_Y, ARROW_TOWER_PROJECTILE_TEXTURE, getArrowTowerArcherShot } from '../assets/art/arrowTower/rig';
+import { ARROW_TOWER_ART_SCALE } from '../assets/art/arrowTower/textures';
 import {
   CANNON_DIRECTION_COUNT, CANNON_GROUND_Y, CANNON_HEIGHT_Y,
   CANNON_BARREL_HEIGHT, CANNON_MUZZLE_DISTANCE,
@@ -50,43 +52,7 @@ export class CombatSystem {
           this.spawnProjectile(muzzle.x, muzzle.y, aim.x, aim.y, st.projectileSpeed, st.damage, st.splashRadius, cScale);
         }
       } else {
-        // Arrow: shoot at nearest enemy with lead targeting
-        const tgt = this.findNearestEnemy(tower.x, tower.y, st.range);
-        if (!tgt) {
-          // Hold the last aim; the archer keeps breathing and the bow rides the bob
-          this.aimArcher(tower, tower.top.rotation);
-          continue;
-        }
-        let aimX = tgt.x, aimY = tgt.y;
-        if (tgt.body) {
-          const dist = Math.hypot(tgt.x - tower.x, tgt.y - tower.y) || 1;
-          const travelTime = dist / st.projectileSpeed;
-          const tb = tgt.body as Phaser.Physics.Arcade.Body;
-          aimX = tgt.x + tb.velocity.x * travelTime;
-          aimY = tgt.y + tb.velocity.y * travelTime;
-        }
-        // Aim from the archer, not the base center
-        const archer = tower.stand ?? tower.top;
-        const angle = Math.atan2(aimY - archer.y, aimX - archer.x);
-        this.aimArcher(tower, angle);
-        if (time > tower.lastShot + st.fireRate) {
-          tower.lastShot = time;
-          SFX.play('arrowShoot');
-          const bow = tower.top, nock = tower.nockedArrow;
-          const shoot = `${tower.bowAnim}-shoot`;
-          bow.play(shoot, true);
-          nock?.setVisible(false);
-          bow.once(`animationcomplete-${shoot}`, () => {
-            bow.play(`${tower.bowAnim}-idle`);
-            nock?.setVisible(true);
-          });
-          const aScale = 0.5 + tower.level * 0.12;
-          const aTint = tower.level === 2 ? 0xffd67a : tower.level === 1 ? 0x9fd9ff : 0;
-          // Spawn at the nocked-arrow position so the shot emanates from the bow
-          const spawnX = bow.x + Math.cos(angle) * 15;
-          const spawnY = bow.y + Math.sin(angle) * 15;
-          this.spawnProjectile(spawnX, spawnY, aimX, aimY, st.projectileSpeed, st.damage, 0, aScale, aTint, tgt);
-        }
+        this.updateArrowTower(tower, time);
       }
     }
   }
@@ -110,39 +76,45 @@ export class CombatSystem {
     return muzzle;
   }
 
-  /**
-   * Pose the arrow tower's archer the way GameScene poses the ranger: the body
-   * faces and tilts toward the aim, the bow (which carries the arms) swings
-   * around the shoulders and rides the breathing bob, and aiming up-screen
-   * puts the bow behind the body. Mirrors GameScene's player bow offsets.
-   */
-  private aimArcher(tower: Tower, angle: number) {
-    const stand = tower.stand, bow = tower.top, nock = tower.nockedArrow;
-    if (!stand) return;
-    const facingLeft = Math.abs(angle) > Math.PI / 2;
-    const vert = Math.sin(angle); // negative = aiming up-screen
-    const pose = vert < -0.45 ? 'up' : vert > 0.45 ? 'down' : 'level';
-    const behind = vert < -0.3;
+  private updateArrowTower(tower: Tower, time: number) {
+    const { range, fireRate, projectileSpeed, damage } = tower.stats();
+    const target = this.findNearestEnemy(tower.x, tower.y, range);
+    const elapsed = time - tower.lastShot;
+    const recoveryMs = 120;
+    const drawMs = 145;
+    const recovery = tower.lastShot > 0 && elapsed < recoveryMs
+      ? ARROW_TOWER_RELEASE + (1 - ARROW_TOWER_RELEASE) * elapsed / recoveryMs : 0;
 
-    stand.setFlipX(facingLeft);
-    const anim = `${tower.archerAnim}-idle` + (pose === 'level' ? '' : `-${pose}`);
-    if (stand.anims.currentAnim?.key !== anim) stand.play(anim);
-
-    const bob = playerFrameBob(stand.anims.currentFrame?.textureKey ?? '');
-    const offset = 6 + Math.abs(Math.cos(angle)) * 5;
-    const anchorY = pose === 'up' ? 0 : pose === 'down' ? 4 : 2;
-    // Depths ride on the body's y-sorted depth (DepthSortSystem.applyTowerDepth
-    // puts it a tenth above the tower base): the bow tucks just behind the body
-    // when aiming up-screen and sits in front otherwise, but either way stays
-    // above the base so it never disappears behind the tower. The nocked arrow
-    // matches projectile depth so it reads as the arrow about to fly.
-    const d = stand.depth;
-    bow.setRotation(angle).setFlipY(facingLeft).setDepth(d + (behind ? -0.05 : 0.1));
-    bow.setPosition(stand.x + Math.cos(angle) * offset, stand.y + anchorY + bob + Math.sin(angle) * offset);
-    if (nock) {
-      nock.setRotation(angle).setDepth(behind ? d - 0.04 : d + 4.9);
-      nock.setPosition(bow.x + Math.cos(angle) * 15, bow.y + Math.sin(angle) * 15);
+    if (!target) {
+      tower.poseArcher(recovery);
+      return;
     }
+
+    const travelTime = Math.hypot(target.x - tower.x, target.y - tower.y) / projectileSpeed;
+    const body = target.body as Phaser.Physics.Arcade.Body | null;
+    const aimX = target.x + (body?.velocity.x ?? 0) * travelTime;
+    const aimY = target.y + (body?.velocity.y ?? 0) * travelTime;
+    const pivotY = tower.top.y + ARROW_TOWER_AIM_Y * tower.top.scaleY / ARROW_TOWER_ART_SCALE;
+    tower.archerAim = Math.atan2(aimY - pivotY, aimX - tower.top.x);
+
+    if (elapsed <= fireRate) {
+      const pull = Math.max(0, 1 - (fireRate - elapsed) / drawMs);
+      tower.poseArcher(recovery || ARROW_TOWER_RELEASE * Math.min(.999, pull));
+      return;
+    }
+
+    tower.lastShot = time;
+    tower.poseArcher(ARROW_TOWER_RELEASE);
+    const tip = getArrowTowerArcherShot(tower.top, tower.archerAim);
+    const muzzleDistance = Math.hypot(tip.x - tower.top.x, tip.y - pivotY);
+    const targetDistance = Math.hypot(target.x - tower.top.x, target.y - pivotY);
+    const ratio = muzzleDistance > 0 ? Math.min(1, Math.max(0, targetDistance - 7) / muzzleDistance) : 0;
+    const x = Phaser.Math.Linear(tower.top.x, tip.x, ratio);
+    const y = Phaser.Math.Linear(pivotY, tip.y, ratio);
+    const scale = .5 + tower.level * .12;
+    const tint = tower.level === 2 ? 0xffd67a : tower.level === 1 ? 0x9fd9ff : 0;
+    SFX.play('arrowShoot');
+    this.spawnProjectile(x, y, aimX, aimY, projectileSpeed, damage, 0, scale, tint, target, ARROW_TOWER_PROJECTILE_TEXTURE);
   }
 
   /**

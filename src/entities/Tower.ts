@@ -2,6 +2,8 @@ import Phaser from 'phaser';
 import { CFG } from '../config';
 import { DEBUG } from '../debug.config';
 import { CANNON_PIVOT_Y } from '../assets/art/cannon';
+import { ARROW_TOWER_ART_SCALE, ARROW_TOWER_BASE_SCALE } from '../assets/art/arrowTower/textures';
+import { createArrowTowerArcher, setArrowTowerArcherPose } from '../assets/art/arrowTower/rig';
 
 export type TowerKind = 'arrow' | 'cannon';
 
@@ -12,9 +14,9 @@ export class Tower extends Phaser.Physics.Arcade.Sprite {
   maxHp: number;
   totalSpent: number;
   lastShot = 0;
-  stand: Phaser.GameObjects.Sprite | null = null; // archer body (arrow) or cannon mount
+  stand: Phaser.GameObjects.Sprite | null = null; // cannon mount
   top: Phaser.GameObjects.Sprite;
-  nockedArrow: Phaser.GameObjects.Sprite | null = null; // real arrow resting on bow (arrow only)
+  archerAim = 0;
   muzzleFlash: Phaser.GameObjects.Sprite | null = null;
   cannonDirection = 0;
   hpBar: Phaser.GameObjects.Graphics;
@@ -34,7 +36,7 @@ export class Tower extends Phaser.Physics.Arcade.Sprite {
     const wy = (tileY + size / 2) * CFG.tile;
     const baseTex = kind === 'cannon' ? 'c_base' : 't_base';
     super(scene, wx, wy, baseTex);
-    this.setScale(0.5);
+    this.setScale(kind === 'arrow' ? ARROW_TOWER_BASE_SCALE : 0.5);
     scene.add.existing(this);
     scene.physics.add.existing(this, true); // static
     this.kind = kind;
@@ -56,27 +58,13 @@ export class Tower extends Phaser.Physics.Arcade.Sprite {
     body.setCircle(bodyRadius, offX, offY);
     body.updateFromGameObject();
 
-    const topOffY = kind === 'arrow' ? -24 : CANNON_PIVOT_Y;
-
     if (kind === 'arrow') {
-      // Archer standing on the tower: breathes, faces and tilts toward the aim
-      // (CombatSystem.aimArcher); outfit palette follows the tower level
-      this.stand = scene.add.sprite(wx, wy + topOffY, 'ta0_idle_0').setDepth(6.5).setScale(0.5);
-    } else if (kind === 'cannon') {
-      // Static cannon mount / carriage (doesn't rotate)
-      this.stand = scene.add.sprite(wx, wy + topOffY, 'c_mount').setDepth(6.5).setScale(0.5);
-    }
-
-    const topTex = kind === 'cannon' ? 'c_top' : 't_top0_0';
-    this.top = scene.add.sprite(wx, wy + topOffY, topTex, kind === 'cannon' ? 0 : undefined).setDepth(7).setScale(0.5);
-    if (kind === 'arrow') {
-      // The bow carries the arms (player.ts drawBow): origin at the grip, held out
-      // to the side at rest, the nocked arrow's fletching on the string. Matches
-      // CombatSystem.aimArcher at rotation 0 so nothing jumps on the first aim.
-      this.top.setOrigin(0.25, 0.5).setPosition(wx + 10, wy + topOffY + 2);
-      this.nockedArrow = scene.add.sprite(wx + 25, wy + topOffY + 2, 'arrow_0').setDepth(7.5).setScale(0.5);
+      this.top = createArrowTowerArcher(scene, wx, wy).setDepth(7);
     } else {
-      this.muzzleFlash = scene.add.sprite(wx, wy + topOffY, 'c_muzzle_flash')
+      const topY = wy + CANNON_PIVOT_Y;
+      this.stand = scene.add.sprite(wx, topY, 'c_mount').setDepth(6.5).setScale(0.5);
+      this.top = scene.add.sprite(wx, topY, 'c_top', 0).setDepth(7).setScale(0.5);
+      this.muzzleFlash = scene.add.sprite(wx, topY, 'c_muzzle_flash')
         .setOrigin(0.25, 0.5).setDepth(7.5).setScale(0.5).setVisible(false);
     }
 
@@ -87,22 +75,10 @@ export class Tower extends Phaser.Physics.Arcade.Sprite {
     this.maxHp = s.hp;
     this.totalSpent = CFG.tower.kinds[kind].cost;
     this.applyTierVisual();
-    this.applyArcherTier();
   }
 
-  /** Animation prefix for the archer body at this level; CombatSystem adds the pose suffix. */
-  get archerAnim(): string { return `archer${this.level}`; }
-  /** Animation prefix for the archer's bow at this level. */
-  get bowAnim(): string { return `tower-top${this.level}`; }
-
-  /** Switch the archer and bow to this level's outfit. Only on construction
-   *  and upgrade: applyTierVisual also runs after every hit flash, and
-   *  restarting the animations there would cut shots short. */
-  private applyArcherTier() {
-    if (this.kind !== 'arrow' || !this.stand) return;
-    this.stand.play(`${this.archerAnim}-idle`);
-    this.top.play(`${this.bowAnim}-idle`);
-    this.nockedArrow?.setVisible(true);
+  poseArcher(shot: number) {
+    setArrowTowerArcherPose(this.top, this.level as 0 | 1 | 2, this.archerAim, shot);
   }
 
   stats() {
@@ -125,18 +101,13 @@ export class Tower extends Phaser.Physics.Arcade.Sprite {
     this.maxHp = s.hp;
     this.hp = Math.ceil(s.hp * ratio);
     this.applyTierVisual();
-    this.applyArcherTier();
-    // pop fx
-    const scale = 0.5;
-    const targets = [this, this.top];
-    if (this.stand) targets.push(this.stand);
-    if (this.nockedArrow) targets.push(this.nockedArrow);
-    this.scene.tweens.add({
-      targets,
-      scale: { from: scale * 1.15, to: scale },
-      duration: 220,
-      ease: 'Back.Out'
-    });
+    if (this.kind === 'arrow') this.poseArcher(0);
+    const baseScale = this.kind === 'arrow' ? ARROW_TOWER_BASE_SCALE : 0.5;
+    const topScale = this.kind === 'arrow' ? ARROW_TOWER_ART_SCALE : 0.5;
+    this.scene.tweens.add({ targets: this.stand ? [this, this.stand] : [this],
+      scale: { from: baseScale * 1.15, to: baseScale }, duration: 220, ease: 'Back.Out' });
+    this.scene.tweens.add({ targets: this.top,
+      scale: { from: topScale * 1.15, to: topScale }, duration: 220, ease: 'Back.Out' });
     return true;
   }
 
@@ -151,13 +122,6 @@ export class Tower extends Phaser.Physics.Arcade.Sprite {
     if (this.kind === 'cannon') this.top.clearTint();
     else this.top.setTint(tint);
     if (this.stand) this.stand.setTint(tint);
-    if (this.nockedArrow) {
-      // Match the per-level arrow projectile tint used in spawnProjectile
-      const arrowTint = this.level === 2 ? 0xffd67a : this.level === 1 ? 0x9fd9ff : 0;
-      if (arrowTint) this.nockedArrow.setTint(arrowTint);
-      else this.nockedArrow.clearTint();
-    }
-
     // Swap tower base sprite per upgrade level
     if (this.kind === 'arrow') {
       const baseKey = this.level === 2 ? 't_base_2' :
@@ -182,7 +146,6 @@ export class Tower extends Phaser.Physics.Arcade.Sprite {
     this.setTintFill(0xffffff);
     this.top.setTintFill(0xffffff);
     if (this.stand) this.stand.setTintFill(0xffffff);
-    if (this.nockedArrow) this.nockedArrow.setTintFill(0xffffff);
     this.scene.time.delayedCall(60, () => {
       if (!this.scene) return;
       this.applyTierVisual();
@@ -216,7 +179,6 @@ export class Tower extends Phaser.Physics.Arcade.Sprite {
     this.hpBar.destroy();
     this.top.destroy();
     if (this.stand) this.stand.destroy();
-    if (this.nockedArrow) this.nockedArrow.destroy();
     if (this.muzzleFlash) this.muzzleFlash.destroy();
     this.destroy();
   }
