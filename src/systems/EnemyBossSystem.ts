@@ -822,6 +822,7 @@ export class EnemyBossSystem {
       b.state = 'charging';
       b.stateEnd = time + 1000;
       b.setVelocity(b.chargeDirX * 320, b.chargeDirY * 320);
+      if (ap === 'fboss') b.setFlipX(dx < 0);
       b.play(`${ap}-dash`);
       this.spawnChargeSmoke(b, 3);
       b.lastSmoke = time;
@@ -1009,6 +1010,7 @@ export class EnemyBossSystem {
       b.state = 'charge_wind';
       b.stateEnd = time + 1200;
       b.setVelocity(0, 0);
+      if (ap === 'fboss') b.setFlipX(px < b.x);
       const windAnim = `${ap}-windup`;
       b.play(scene.anims.exists(windAnim) ? windAnim : `${ap}-chargewind`);
       return;
@@ -1040,6 +1042,7 @@ export class EnemyBossSystem {
       b.state = 'slam_wind';
       b.stateEnd = time + 600;
       b.setVelocity(0, 0);
+      if (ap === 'fboss') b.setFlipX(px < b.x);
       b.play(`${ap}-atk`);
       return;
     }

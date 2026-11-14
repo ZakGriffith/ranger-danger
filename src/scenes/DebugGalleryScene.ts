@@ -3,6 +3,9 @@ import { CFG } from '../config';
 import { generateAllArt } from '../assets/generateArt';
 import { MEADOW_ENEMY_ART } from '../assets/art/meadowEnemies/textures';
 import { MEADOW_RAM_ART } from '../assets/art/meadowRam';
+import { FOREST_BEAR_ART } from '../assets/art/forestEnemies/bear';
+import { registerForestAnimations } from '../assets/art/forestEnemies/textures';
+import { FOREST_WENDIGO_ART } from '../assets/art/forestEnemies/wendigo';
 import { CANNON_PIVOT_Y } from '../assets/art/cannon';
 import {
   registerRangerGalleryArt,
@@ -52,14 +55,15 @@ const RANGER_ENTRY: SpriteDebugEntry = {
 
 const ENTITY_PROC_SCALES: Record<string, number> = {
   boss_meadow: CFG.bossScale,
+  boss_forest: CFG.bossScale,
   basic: 0.5,
   heavy: 0.5,
   snake: MEADOW_ENEMY_ART.snake.spriteScale,
   rat: 0.45,
   deer: MEADOW_ENEMY_ART.deer.spriteScale,
-  wolf: 0.45,
-  bear: 0.55,
-  spider: 0.45,
+  wolf: 0.54,
+  bear: FOREST_BEAR_ART.spriteScale,
+  spider: 0.40,
   infected_basic: 0.5,
   infected_runner: 0.425,
   infected_heavy: 0.5,
@@ -211,6 +215,7 @@ export class DebugGalleryScene extends Phaser.Scene {
   create() {
     this.resizeDebugCanvas();
     generateAllArt(this);
+    registerForestAnimations(this);
     registerRangerGalleryArt(this);
     applySpriteOverrides(this);
     reregisterSpriteOverrideAnimations(this);
@@ -770,11 +775,12 @@ export class DebugGalleryScene extends Phaser.Scene {
   private updateSandboxLineupScale() {
     if (!this.sandboxLineupSprite || !this.selected) return;
     const { folder } = this.selected;
-    const meadowScale = folder === 'boss_meadow' ? MEADOW_RAM_ART.scale
+    const artScale = folder === 'boss_meadow' ? MEADOW_RAM_ART.scale
+      : folder === 'boss_forest' ? FOREST_WENDIGO_ART.scale
       : folder === 'snake' || folder === 'deer' ? MEADOW_ENEMY_ART[folder].scale : 1;
     const baseScale = this.selected.kind === 'player'
       ? RANGER_SCALE
-      : getEntityVisualScale(this, folder, 'move', ENTITY_PROC_SCALES[folder] ?? 0.5, meadowScale);
+      : getEntityVisualScale(this, folder, 'move', ENTITY_PROC_SCALES[folder] ?? 0.5, artScale);
     this.sandboxLineupSprite.setScale(baseScale * this.previewScale);
     this.sandboxLineupSprite.y = Math.max(
       this.sandboxLineupBaseY,

@@ -379,12 +379,17 @@ export function reregisterSpriteOverrideAnimations(scene: Phaser.Scene) {
       if (a.derivedAllFrames) {
         const sourceSpec = findAnim(c, a.derivedAllFrames);
         if (!sourceSpec) continue;
-        // Source canonical keys exist after generateAllArt/applySpriteOverrides,
-        // whether procedural or PNG-backed.
-        let n = 0;
-        while (scene.textures.exists(canonicalKey(sourceSpec, c.texPrefix, n))) n++;
-        if (n === 0) continue;
-        const used = Math.max(1, n - (sourceSpec.skipLast ?? 0));
+        const sourceSheet = sheetKey(c.texPrefix, sourceSpec.suffix);
+        const hasSourceSheet = scene.textures.exists(sourceSheet);
+        if (!hasSourceSheet && scene.anims.exists(a.animKey)) continue;
+        let frameCount = 0;
+        if (hasSourceSheet) {
+          frameCount = inferFrameCount(scene, sourceSheet, sourceSpec.frameCount);
+        } else {
+          while (scene.textures.exists(canonicalKey(sourceSpec, c.texPrefix, frameCount))) frameCount++;
+        }
+        if (frameCount === 0) continue;
+        const used = Math.max(1, frameCount - (sourceSpec.skipLast ?? 0));
         const frameRate = a.fps ?? 24;
         if (scene.anims.exists(a.animKey)) scene.anims.remove(a.animKey);
         const keys = Array.from({ length: used }, (_, i) => canonicalKey(sourceSpec, c.texPrefix, i));
@@ -465,7 +470,7 @@ export function applyEntityVisual(
   procBodyH: number,
   procOffsetX: number,
   procOffsetY: number,
-  proceduralArt?: { scale: number; feetY: number },
+  proceduralArt?: { scale: number; feetY: number; bodyOffsetX?: number },
 ): void {
   const c = CHARACTERS.find(cs => cs.folder === characterFolder);
   const sheetK = c ? sheetKey(c.texPrefix, primarySuffix) : '';
@@ -513,13 +518,13 @@ export function applyEntityVisual(
       sprite.setOffset(procOffsetX * ratio, procOffsetY * ratio);
     }
   } else if (proceduralArt) {
-    const { scale, feetY } = proceduralArt;
+    const { scale, feetY, bodyOffsetX = 0 } = proceduralArt;
     const { displayOriginX, displayOriginY } = sprite;
     // Scale around the feet and convert the existing collision box back to source pixels.
     const originY = feetY + (displayOriginY - feetY) / scale;
     sprite.setScale(procScale * scale).setDisplayOrigin(displayOriginX, originY);
     sprite.setSize(procBodyW / scale, procBodyH / scale);
-    sprite.setOffset(displayOriginX + (procOffsetX - displayOriginX) / scale,
+    sprite.setOffset(displayOriginX + (procOffsetX + bodyOffsetX - displayOriginX) / scale,
       originY + (procOffsetY - displayOriginY) / scale);
   } else {
     sprite.setScale(procScale);

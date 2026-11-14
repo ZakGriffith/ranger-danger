@@ -22,7 +22,6 @@ import { MEADOW_FRAMES, MEADOW_MOVE_FRAMES, MEADOW_ATK_FRAMES } from './art/mead
 import { generateMeadowEnemyTextures } from './art/meadowEnemies/textures';
 import { SPIDER_SMOKE_FRAMES, drawSpiderSmoke } from './art/spiderPoison';
 import { INFECTED_SPIDER_FRAMES, INFECTED_SPIDER_MOVE_FRAMES, INFECTED_SPIDER_ATTACK_FRAMES, INFECTED_SPIDER_MOVE_FPS, INFECTED_SPIDER_ATTACK_FPS, drawInfectedSpider } from './art/infectedSpider';
-import { SPIDER_FRAMES, SPIDER_MOVE_FRAMES, SPIDER_ATK_FRAMES, drawSpider } from './art/spider';
 import { drawRat, RAT_VARIANTS } from './art/rat';
 import { TOAD_FRAMES, TOAD_IDLE_FRAMES, TOAD_HOP_FRAMES, TOAD_ATTACK_FRAMES, TOAD_IDLE_FPS, TOAD_ATTACK_FPS, drawToad } from './art/toad';
 import { TOAD_BOMB_FRAMES, TOAD_SMOKE_FRAMES, drawToadBomb, drawToadSmoke } from './art/toadPoison';
@@ -33,12 +32,11 @@ import {
   pxIdx, pxEq, pxCopy, scale2x, makeCanvas, mirrorX,
   rect, disc, ring, line, ellipse, flashOverlay, hexToRgb, add,
 } from './art/canvas';
-import { BEAR_FRAMES, BEAR_MOVE_FRAMES, BEAR_ATK_FRAMES, BEAR_BITE_FRAMES, BEAR_MOVE_FPS, BEAR_ATK_FPS, drawBear, drawBearBite } from './art/bear';
-import { WOLF_FRAMES, WOLF_MOVE_FRAMES, WOLF_ATK_FRAMES, WOLF_MOVE_FPS, WOLF_ATK_FPS, drawWolf } from './art/wolf';
+import { generateForestEnemyTextures, registerForestAnimations } from './art/forestEnemies/textures';
 import {
-  BossFrame, RamFrame, ForestBossFrame, forestBossFrames, riverBossFrames, infectedBossFrames,
+  BossFrame, RamFrame, riverBossFrames, infectedBossFrames,
   phantomQueenFrames, castleDragonFrames,
-  drawFogPhantom, drawBoss, drawInfectedBoss, drawForestBoss,
+  drawFogPhantom, drawBoss, drawInfectedBoss,
   drawPhantomQueen, drawCastleDragon, drawDesertBoss,
   drawQueenOrb, drawDragonFireball, drawDragonFireExplosion,
 } from './art/bosses';
@@ -118,16 +116,7 @@ export function generateAllArt(scene: Phaser.Scene) {
   for (let variant = 0; variant < POISON_SMOKE_VARIANTS; variant++) for (const f of TOAD_SMOKE_FRAMES) {
     add(scene, `toad_smoke_${variant}_${f}`, makeHD(128, drawToadSmoke(f * POISON_SMOKE_FRAME_MS, CFG.infected.toadPoisonLifetime, variant), { outline: false }));
   }
-  for (const f of WOLF_FRAMES) add(scene, `ew_${f}`, makeHD(64, drawWolf(f), { outline: false }));
-  for (const f of BEAR_FRAMES) {
-    add(scene, `ear_${f}`, makeHD(64, drawBear(f, 'r')));
-    add(scene, `eal_${f}`, makeHD(64, drawBear(f, 'l')));
-  }
-  for (const f of BEAR_BITE_FRAMES) {
-    add(scene, `ear_${f}`, makeHD(64, drawBearBite(f, 'r')));
-    add(scene, `eal_${f}`, makeHD(64, drawBearBite(f, 'l')));
-  }
-  for (const f of SPIDER_FRAMES) add(scene, `es_${f}`, makeHD(64, drawSpider(f)));
+  generateForestEnemyTextures(scene);
   // River flying enemies
   // Crow uses the extended frame set (6-frame wingbeat, 4-frame dive)
   for (const f of e6Frames) add(scene, `ecr_${f}`, makeCanvas(32, drawEnemyCrow(f)));
@@ -416,9 +405,6 @@ export function generateAllArt(scene: Phaser.Scene) {
   // Infected boss gets extra idle + windup frames on top of the shared set
   for (const f of infectedBossFrames) add(scene, `iboss_${f}`, makeCanvas(64, drawInfectedBoss(f)));
 
-  // Forest boss (Ent) textures
-  for (const f of forestBossFrames) add(scene, `fboss_${f}`, makeCanvas(64, drawForestBoss(f)));
-
   // River boss (Fog Phantom) textures
   // River boss gets extra idle + windup frames on top of the shared boss set
   for (const f of riverBossFrames) add(scene, `rboss_${f}`, makeCanvas(64, drawFogPhantom(f)));
@@ -524,23 +510,7 @@ export function registerAnimations(scene: Phaser.Scene) {
   mk('etd-atk', TOAD_ATTACK_FRAMES.map(f => `etd_${f}`), TOAD_ATTACK_FPS, 0);
   mk('etd-hit',  ['etd_hit'], 8, 0);
 
-  mk('ew-move', WOLF_MOVE_FRAMES.map(f => `ew_${f}`), WOLF_MOVE_FPS, -1);
-  mk('ew-atk', WOLF_ATK_FRAMES.map(f => `ew_${f}`), WOLF_ATK_FPS, 0);
-  mk('ew-hit',  ['ew_hit'], 10, 0);
-  mk('ew-die',  ['ew_die0','ew_die1','ew_die2','ew_die3'], 10, 0);
-
-  for (const prefix of ['ear', 'eal']) {
-    mk(`${prefix}-move`, BEAR_MOVE_FRAMES.map(f => `${prefix}_${f}`), BEAR_MOVE_FPS, -1);
-    mk(`${prefix}-atk`, BEAR_ATK_FRAMES.map(f => `${prefix}_${f}`), BEAR_ATK_FPS, 0);
-    mk(`${prefix}-bite`, BEAR_BITE_FRAMES.map(f => `${prefix}_${f}`), BEAR_ATK_FPS, 0);
-    mk(`${prefix}-hit`, [`${prefix}_hit`], 8, 0);
-    mk(`${prefix}-die`, ['die0','die1','die2','die3'].map(f => `${prefix}_${f}`), 8, 0);
-  }
-
-  mk('es-move', SPIDER_MOVE_FRAMES.map(f => `es_${f}`), 18, -1);
-  mk('es-atk', SPIDER_ATK_FRAMES.map(f => `es_${f}`), 16, -1);
-  mk('es-hit',  ['es_hit'], 10, 0);
-  mk('es-die',  ['es_die0','es_die1','es_die2','es_die3'], 10, 0);
+  registerForestAnimations(scene);
 
   // River flying enemies
   // 6-frame wingbeat + 4-frame scream-and-dive strike
@@ -680,23 +650,6 @@ export function registerAnimations(scene: Phaser.Scene) {
   mk('iboss-hit',        ['iboss_hit'], 10, 0);
   mk('iboss-birth',      ['iboss_birth0','iboss_birth1','iboss_birth2','iboss_birth3','iboss_birth4'], 4, 0);
   mk('iboss-die',        ['iboss_die0','iboss_die1','iboss_die2','iboss_die3','iboss_die4'], 6, 0);
-
-  // Forest boss (Ent) animations
-  // 4-frame idle/move at flicker rates so the green flames never sit still
-  mk('fboss-idle',       ['fboss_idle0','fboss_idle1','fboss_idle2','fboss_idle3'], 6, -1);
-  mk('fboss-move',       ['fboss_move0','fboss_move1','fboss_move2','fboss_move3'], 8, -1);
-  mk('fboss-atk',        ['fboss_atk0','fboss_atk1'], 4, 0);
-  // Dash windup: plays ONCE (repeat 0) over the 1.2s charge_wind state —
-  // the arms rise a single time (cw0→cw1), then stay locked overhead while
-  // the peak frames (cw2-5, flame phases 0-3) keep the inferno pulsing.
-  mk('fboss-chargewind', [
-    'fboss_chargeWind0','fboss_chargeWind1',
-    'fboss_chargeWind2','fboss_chargeWind3','fboss_chargeWind4','fboss_chargeWind5',
-    'fboss_chargeWind2','fboss_chargeWind3','fboss_chargeWind4','fboss_chargeWind5',
-  ], 8, 0);
-  mk('fboss-hit',        ['fboss_hit'], 10, 0);
-  mk('fboss-birth',      ['fboss_birth0','fboss_birth1','fboss_birth2','fboss_birth3','fboss_birth4'], 4, 0);
-  mk('fboss-die',        ['fboss_die0','fboss_die1','fboss_die2','fboss_die3','fboss_die4'], 6, 0);
 
   // River boss (Fog Phantom)
   // 4-frame idle/move at flicker rates so the blue flames + chest vortex

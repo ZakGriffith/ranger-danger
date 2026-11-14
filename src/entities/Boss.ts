@@ -3,6 +3,7 @@ import { Biome } from '../levels';
 import { CFG } from '../config';
 import { applyEntityVisual } from '../assets/spriteOverrides';
 import { MEADOW_RAM_ART } from '../assets/art/meadowRam';
+import { FOREST_WENDIGO_ART } from '../assets/art/forestEnemies/wendigo';
 import { Shadow } from './Shadow';
 import { measureOpaqueBounds } from './spriteBounds';
 import { DEBUG } from '../debug.config';
@@ -93,7 +94,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
       bw, bw,
       Math.round((128 - bw) / 2),     // recentre horizontally
       Math.round(96 - bw),            // keep the box anchored at the feet
-      prefix === 'ram' ? MEADOW_RAM_ART : undefined,
+      prefix === 'ram' ? MEADOW_RAM_ART : prefix === 'fboss' ? FOREST_WENDIGO_ART : undefined,
     );
     this.play(`${prefix}-idle`);
 

@@ -7,6 +7,7 @@ import { RAT_VARIANTS } from '../assets/art/rat';
 import { BLOB_ORIGIN_Y, BLOB_VARIANTS } from '../assets/art/infectedBlob';
 import { IRONCAP_ORIGIN_Y } from '../assets/art/ironcap';
 import { MEADOW_ENEMY_ART } from '../assets/art/meadowEnemies/textures';
+import { FOREST_BEAR_ART } from '../assets/art/forestEnemies/bear';
 import type { GameScene } from '../scenes/GameScene';
 
 export type EnemyKind = 'basic' | 'heavy' | 'runner' | 'snake' | 'rat' | 'deer' | 'wolf' | 'bear' | 'spider' | 'infected_basic' | 'infected_heavy' | 'infected_runner' | 'toad' | 'crow' | 'bat' | 'dragonfly' | 'mosquito' | 'skeleton' | 'warlock' | 'golem' | 'shadow_imp' | 'castle_bat' | 'castle_rat' | 'scorpion' | 'boss_scorpion' | 'scarab' | 'sand_mite' | 'cactus_hopper' | 'dune_strider' | 'sand_wraith' | 'temple_guardian' | 'sun_mote';
@@ -117,7 +118,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
         this.play('ew-move');
         break;
       case 'bear':
-        applyEntityVisual(this, 'bear', 'move', 0.60, 40, 30, 12, 18);
+        applyEntityVisual(this, 'bear', 'move', FOREST_BEAR_ART.spriteScale, 40, 30, 12, 18, FOREST_BEAR_ART);
         this.play('ear-move');
         break;
       case 'spider':
