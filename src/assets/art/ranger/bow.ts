@@ -24,7 +24,9 @@ const colors = {
 export const RANGER_AIM_HEIGHT = 41;
 
 const ARROW_LENGTH = 38;
-const WEAPON_SCALE = 1.15;
+const BOW_SPAN_SCALE = 1.28;
+const ARROW_SCALE = 1.2;
+const ARROW_WIDTH_SCALE = 1.3;
 
 function stroke(ctx: CanvasRenderingContext2D, color: string, width: number, trace: Trace) {
   ctx.beginPath();
@@ -82,7 +84,7 @@ function bowPose({ angle, bob, draw, recoil }: RangerPose) {
 
 export function getArrowOrigin(pose: RangerPose): Point {
   const bow = bowPose(pose);
-  return bow.screen(bow.nock + ARROW_LENGTH * WEAPON_SCALE);
+  return bow.screen(bow.nock + ARROW_LENGTH * ARROW_SCALE);
 }
 
 function drawSleeve(ctx: CanvasRenderingContext2D, start: Point, control: Point, end: Point, shadow: boolean) {
@@ -144,6 +146,8 @@ function drawFist(ctx: CanvasRenderingContext2D, at: Point, angle: number, shado
 }
 
 function drawArrow(ctx: CanvasRenderingContext2D) {
+  ctx.save();
+  ctx.scale(1, ARROW_WIDTH_SCALE);
   const tip = ARROW_LENGTH;
   paint(ctx, colors.fletching, 1, p => {
     p.moveTo(1, -3);
@@ -169,11 +173,12 @@ function drawArrow(ctx: CanvasRenderingContext2D) {
     p.moveTo(tip - 6.4, -2.1);
     p.lineTo(tip - 1, -.1);
   });
+  ctx.restore();
 }
 
 export function drawFlyingArrow(ctx: CanvasRenderingContext2D) {
   ctx.save();
-  ctx.scale(WEAPON_SCALE, WEAPON_SCALE);
+  ctx.scale(ARROW_SCALE, ARROW_SCALE);
   ctx.translate(-ARROW_LENGTH, 0);
   drawArrow(ctx);
   ctx.restore();
@@ -244,12 +249,12 @@ export function drawRangerBow(ctx: CanvasRenderingContext2D, pose: RangerPose) {
   ctx.translate(0, pivotY);
   ctx.rotate(angle);
   ctx.save();
-  ctx.scale(1, WEAPON_SCALE);
+  ctx.scale(1, BOW_SPAN_SCALE);
   drawRecurve(ctx, bow);
   ctx.restore();
   if (loaded) {
     ctx.translate(nock, 0);
-    ctx.scale(WEAPON_SCALE, WEAPON_SCALE);
+    ctx.scale(ARROW_SCALE, ARROW_SCALE);
     drawArrow(ctx);
   }
   ctx.restore();
