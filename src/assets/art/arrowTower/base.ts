@@ -2,7 +2,7 @@ type Tier = 0 | 1 | 2;
 type Point = readonly [number, number];
 type Paint = string | CanvasGradient;
 
-export const ARROW_TOWER_DECK_Y = -92;
+export const ARROW_TOWER_DECK_Y = -84;
 
 const INK = '#292633';
 const TIERS = [

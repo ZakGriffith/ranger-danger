@@ -19,7 +19,7 @@ const SHOT_LENGTH = .9;
 const SHOT_INTERVAL = 1.55;
 const ARROW_SPEED = 430;
 const ART_WIDTH = 218;
-const ART_HEIGHT = 216;
+const ART_HEIGHT = 228;
 const BASE_CENTER_X = 84;
 const BASE_GROUND_Y = 144;
 

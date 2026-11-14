@@ -10,9 +10,9 @@ export const ARROW_TOWER_PROJECTILE_TEXTURE = 'arrow-tower-arrow';
 const DIRECTION_COUNT = 32;
 const DIRECTION_STEP = 2 * Math.PI / DIRECTION_COUNT;
 const POSES = [0, .18, .36, ARROW_TOWER_RELEASE - .001, ARROW_TOWER_RELEASE, .66, .77];
-const FRAME_WIDTH = 96;
-const FRAME_HEIGHT = 104;
-const FRAME_FEET_Y = 86;
+const FRAME_WIDTH = 120;
+const FRAME_HEIGHT = 124;
+const FRAME_FEET_Y = 104;
 
 function directionFor(aim: number): number {
   const direction = Math.round(aim / DIRECTION_STEP) % DIRECTION_COUNT;

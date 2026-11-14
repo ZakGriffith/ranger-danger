@@ -3,7 +3,7 @@ import { drawRangerBody } from '../ranger/body';
 import { drawRangerBow, getArrowOrigin } from '../ranger/bow';
 import type { RangerPose, RangerView } from '../ranger/pose';
 
-export const ARROW_TOWER_ARCHER_SCALE = .73;
+export const ARROW_TOWER_ARCHER_SCALE = .88;
 export const ARROW_TOWER_RELEASE = .55;
 
 const VIEWS: readonly RangerView[] = ['east', 'south', 'west', 'north'];
