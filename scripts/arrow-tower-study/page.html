@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Arrow Tower · Ranger Danger</title>
+<style>
+  :root {
+    color-scheme: light;
+    --paper: #f2ead8;
+    --ink: #273229;
+    --muted: #596154;
+    --rule: #c8bea6;
+    --serif: "Instrument Serif", Georgia, serif;
+    --mono: "IBM Plex Mono", Consolas, monospace;
+    font: 14px/1.5 Inter, "Helvetica Neue", Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    color: var(--ink);
+    background: radial-gradient(ellipse at 14% 0%, #fcf5e6, transparent 65%), var(--paper);
+  }
+  main { max-width: 1260px; margin: auto; padding: 18px 36px 26px; }
+  h1, h2, p { margin: 0; }
+  h1 { font: 400 clamp(50px, 7vw, 83px)/.96 var(--serif); letter-spacing: -.065em; margin: 12px 0 16px; }
+  h2 { font: 400 clamp(28px, 4vw, 42px)/1 var(--serif); letter-spacing: -.045em; }
+  header, .label {
+    font: 600 11px/1.5 var(--mono);
+    text-transform: uppercase;
+    letter-spacing: .1em;
+  }
+  header { border-bottom: 1px solid var(--rule); padding-bottom: 10px; }
+  .toolbar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px 14px;
+    padding: 10px 0;
+    border-block: 1px solid var(--rule);
+  }
+  .buttons, .cardinals, label { display: flex; align-items: center; gap: 6px; }
+  button, select {
+    padding: 6px 9px;
+    min-height: 32px;
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    background: #f9f2e2;
+    color: var(--ink);
+    font: 600 12px Inter, "Helvetica Neue", Arial, sans-serif;
+    cursor: pointer;
+  }
+  button:hover, select:hover { border-color: #69775c; }
+  button[aria-pressed="true"] { background: #334336; border-color: #334336; color: var(--paper); }
+  #fire { color: #f9f0dc; background: #855c40; border-color: #855c40; }
+  #fire:hover { background: #744b34; }
+  :focus-visible { outline: 2px solid #a26d48; outline-offset: 2px; }
+  label { font-size: 12px; font-weight: 600; color: var(--muted); }
+  .aim { flex: 1 1 180px; }
+  input { accent-color: #55714d; min-width: 70px; flex: 1; }
+  output { width: 4ch; font: 600 11px var(--mono); text-align: right; }
+  .cardinals button { min-width: 29px; padding-inline: 4px; }
+  .directions { display: flex; align-items: center; gap: 10px; flex: 1 1 310px; }
+  .hint { margin: 7px 0 9px; font-size: 12px; color: var(--muted); }
+  .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 13px; }
+  article { min-width: 0; }
+  .art {
+    display: block;
+    width: 100%;
+    height: auto;
+    border: 1px solid #334439;
+    background: radial-gradient(ellipse at 49% 37%, #68745a, #334638 78%);
+    cursor: crosshair;
+    touch-action: manipulation;
+  }
+  article:nth-child(2) .art { background: radial-gradient(ellipse at 49% 37%, #68716a, #38443f 78%); }
+  article:nth-child(3) .art { background: radial-gradient(ellipse at 49% 37%, #786b56, #484635 78%); }
+  article h2 { margin: 8px 0 7px; }
+  .comparison { padding: 7px; border: 1px solid var(--rule); }
+  .comparison p { color: var(--muted); margin: 0 0 6px; font-size: 10px; }
+  .field { width: 100%; height: auto; display: block; background: #345033; }
+  .captions { display: grid; grid-template-columns: 1fr 1fr; text-align: center; font-size: 11px; color: var(--muted); }
+  .captions span { padding: 4px 2px 1px; }
+  @media (max-width: 650px) {
+    main { padding: 18px 14px; }
+    h1 { margin-bottom: 16px; }
+    .grid { grid-template-columns: minmax(0, 1fr); gap: 20px; }
+    .toolbar { gap: 8px; }
+    .directions { order: 1; flex-basis: 100%; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <header>Ranger Danger · Art study</header>
+  <h1>Arrow tower</h1>
+  <div class="toolbar" role="group" aria-label="Preview controls">
+    <div class="buttons">
+      <button type="button" id="auto-aim" aria-pressed="true">Auto aim</button>
+      <button type="button" id="auto-fire" aria-pressed="true">Auto fire</button>
+      <button type="button" id="pause">Pause</button>
+      <button type="button" id="fire">Fire</button>
+    </div>
+    <div class="directions">
+      <div class="cardinals" role="group" aria-label="Aim direction">
+        <button type="button" data-aim="270" aria-label="Aim north">N</button>
+        <button type="button" data-aim="0" aria-label="Aim east">E</button>
+        <button type="button" data-aim="90" aria-label="Aim south">S</button>
+        <button type="button" data-aim="180" aria-label="Aim west">W</button>
+      </div>
+      <label class="aim" for="angle">Aim
+        <input type="range" id="angle" min="0" max="359" step="1" value="0">
+        <output id="heading" for="angle">0°</output>
+      </label>
+    </div>
+    <label>Speed <select id="speed"><option value=".25">¼×</option><option value=".5">½×</option><option value="1" selected>1×</option></select></label>
+  </div>
+  <p class="hint" id="help">Point at a preview to aim. Click or press Space on it to fire all three towers.</p>
+  <section class="grid" id="tiers" aria-label="Arrow tower levels"></section>
+</main>
+<template id="card">
+  <article>
+    <canvas class="art" width="400" height="268" tabindex="0" aria-describedby="help"></canvas>
+    <h2></h2>
+    <section class="comparison">
+      <p class="label">Approx. game scale</p>
+      <canvas class="field" width="300" height="96" role="img"></canvas>
+      <div class="captions" aria-hidden="true"><span>Current</span><span>Illustrated</span></div>
+    </section>
+  </article>
+</template>
+<script type="module" src="./viewer.js"></script>
+</body>
+</html>
