@@ -1,7 +1,8 @@
 import type Phaser from 'phaser';
 import { add } from '../canvas';
-import { CANNON_TOWER_ART_SCALE, CANNON_TOWER_DECK_Y, drawCannonTowerBase } from './base';
+import { CANNON_TOWER_ART_SCALE, CANNON_TOWER_DECK_Y } from './base';
 import { CANNON_TOWER_BALL_RADIUS, drawCannonTowerBall } from './ball';
+import { drawFoundryBase } from './foundry';
 
 const BASE_SIZE = 128;
 const BASE_GROUND_Y = 112;
@@ -19,7 +20,7 @@ export function generateCannonTowerBases(scene: Phaser.Scene): void {
     const scale = CANNON_TOWER_ART_SCALE / CANNON_TOWER_BASE_SCALE;
     ctx.translate(BASE_SIZE / 2, BASE_GROUND_Y);
     ctx.scale(scale, scale);
-    drawCannonTowerBase(ctx, tier);
+    drawFoundryBase(ctx, tier);
     add(scene, BASE_KEYS[tier], canvas);
   }
 }
