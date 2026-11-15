@@ -20,9 +20,7 @@ export class DepthSortSystem {
   applyTowerDepth(t: Tower) {
     const d = DepthSortSystem.yDepth(t.y);
     t.setDepth(d);
-    if (t.stand) t.stand.setDepth(d + 0.1);
     t.top.setDepth(d + 0.2);
-    if (t.muzzleFlash) t.muzzleFlash.setDepth(d + 0.3);
   }
 
   update() {

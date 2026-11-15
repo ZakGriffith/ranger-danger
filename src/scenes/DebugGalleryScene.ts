@@ -6,8 +6,10 @@ import { MEADOW_RAM_ART } from '../assets/art/meadowRam';
 import { FOREST_BEAR_ART } from '../assets/art/forestEnemies/bear';
 import { registerForestAnimations } from '../assets/art/forestEnemies/textures';
 import { FOREST_WENDIGO_ART } from '../assets/art/forestEnemies/wendigo';
-import { CANNON_PIVOT_Y } from '../assets/art/cannon';
 import { ARROW_TOWER_PROJECTILE_TEXTURE, createArrowTowerArcher } from '../assets/art/arrowTower/rig';
+import { CANNON_TOWER_GALLERY_KEYS, generateCannonTowerGalleryTextures } from '../assets/art/cannonTower/gallery';
+import { createCannonTowerGun } from '../assets/art/cannonTower/rig';
+import { CANNON_TOWER_BASE_SCALE, CANNON_TOWER_PLATFORM_Y, CANNON_TOWER_PROJECTILE_TEXTURE } from '../assets/art/cannonTower/textures';
 import {
   registerRangerGalleryArt,
   RANGER_GALLERY_ANIMS,
@@ -16,9 +18,6 @@ import {
   RANGER_TEXTURE_FEET,
   RANGER_TEXTURE_HEIGHT,
 } from '../assets/art/ranger/textures';
-import cannonBaseImg from '../assets/sprites/cannon_base.png';
-import cannonBase1Img from '../assets/sprites/cannon_base_1.png';
-import cannonBase2Img from '../assets/sprites/cannon_base_2.png';
 import {
   loadTreeOverrides,
   TREE_CLUSTER_CONFIG,
@@ -105,14 +104,17 @@ type StaticDebugGroup = {
 
 const STATIC_GROUPS: StaticDebugGroup[] = [
   {
-    title: 'towers',
-    subtitle: 'tower art',
+    title: 'cannon towers',
+    subtitle: 'upgrade levels',
+    textures: CANNON_TOWER_GALLERY_KEYS.map((key, tier) => ({ key, label: `level ${tier + 1}` })),
+  },
+  {
+    title: 'arrow towers',
+    subtitle: 'tower bases',
     textures: [
-      { key: 't_base', label: 'arrow base' },
-      { key: 't_base_1', label: 'arrow base · level 2' },
-      { key: 't_base_2', label: 'arrow base · level 3' },
-      { key: 'c_base', label: 'cannon base' },
-      { key: 'c_top', label: 'cannon', frame: 0 },
+      { key: 't_base', label: 'level 1' },
+      { key: 't_base_1', label: 'level 2' },
+      { key: 't_base_2', label: 'level 3' },
     ],
   },
   {
@@ -120,7 +122,7 @@ const STATIC_GROUPS: StaticDebugGroup[] = [
     subtitle: 'combat art',
     textures: [
       { key: ARROW_TOWER_PROJECTILE_TEXTURE, label: 'tower arrow' },
-      { key: 'cball_0', label: 'cannonball' },
+      { key: CANNON_TOWER_PROJECTILE_TEXTURE, label: 'cannonball' },
       { key: 'boulder_0', label: 'boulder' },
       { key: 'dfball_0', label: 'dragon fire' },
     ],
@@ -200,9 +202,6 @@ export class DebugGalleryScene extends Phaser.Scene {
   constructor() { super('DebugGallery'); }
 
   preload() {
-    if (!this.textures.exists('c_base_png')) this.load.image('c_base_png', cannonBaseImg);
-    if (!this.textures.exists('c_base_1_png')) this.load.image('c_base_1_png', cannonBase1Img);
-    if (!this.textures.exists('c_base_2_png')) this.load.image('c_base_2_png', cannonBase2Img);
     loadTreeOverrides(this);
     loadInfectedPlantOverrides(this);
     loadSpriteOverrides(this, null);
@@ -211,6 +210,7 @@ export class DebugGalleryScene extends Phaser.Scene {
   create() {
     this.resizeDebugCanvas();
     generateAllArt(this);
+    generateCannonTowerGalleryTextures(this);
     registerForestAnimations(this);
     registerRangerGalleryArt(this);
     applySpriteOverrides(this);
@@ -717,7 +717,7 @@ export class DebugGalleryScene extends Phaser.Scene {
       { label: 'player', key: RANGER_GALLERY_IDLE_FRAME, anim: RANGER_GALLERY_ANIMS[0].animKey, scale: RANGER_SCALE, ranger: true },
       { label: entry.folder, key: this.firstTextureFor(animKey), anim: animKey, selected: true, ranger: entry.kind === 'player' },
       { label: 'arrow tower', key: 't_base', scale: 0.5 },
-      { label: 'cannon', key: 'c_base', scale: 0.5 },
+      { label: 'cannon', key: 'c_base', scale: CANNON_TOWER_BASE_SCALE },
       { label: 'tree', key: treeKey, scale: this.worldHeightScale(treeKey, TREE_CLUSTER_CONFIG.targetWorldHeight) },
       {
         label: 'plant',
@@ -800,10 +800,7 @@ export class DebugGalleryScene extends Phaser.Scene {
 
   private addLineupCannonTop(x: number, baseY: number, baseH: number) {
     const centerY = baseY - baseH / 2;
-    for (const key of ['c_mount', 'c_top']) {
-      if (!this.textures.exists(key)) continue;
-      this.sandbox.add(this.add.sprite(x, centerY + CANNON_PIVOT_Y, key, key === 'c_top' ? 0 : undefined).setScale(0.5));
-    }
+    this.sandbox.add(createCannonTowerGun(this, x, centerY + CANNON_TOWER_PLATFORM_Y));
   }
 
   private cycleAnim(dir: number) {

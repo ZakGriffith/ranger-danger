@@ -1,9 +1,11 @@
 import Phaser from 'phaser';
 import { CFG } from '../config';
 import { DEBUG } from '../debug.config';
-import { CANNON_PIVOT_Y } from '../assets/art/cannon';
 import { ARROW_TOWER_ART_SCALE, ARROW_TOWER_BASE_SCALE } from '../assets/art/arrowTower/textures';
 import { createArrowTowerArcher, setArrowTowerArcherPose } from '../assets/art/arrowTower/rig';
+import { CANNON_TOWER_ART_SCALE } from '../assets/art/cannonTower/base';
+import { CANNON_TOWER_BASE_SCALE, CANNON_TOWER_PLATFORM_Y } from '../assets/art/cannonTower/textures';
+import { createCannonTowerGun, setCannonTowerGunPose } from '../assets/art/cannonTower/rig';
 
 export type TowerKind = 'arrow' | 'cannon';
 
@@ -14,11 +16,9 @@ export class Tower extends Phaser.Physics.Arcade.Sprite {
   maxHp: number;
   totalSpent: number;
   lastShot = 0;
-  stand: Phaser.GameObjects.Sprite | null = null; // cannon mount
   top: Phaser.GameObjects.Sprite;
   archerAim = 0;
-  muzzleFlash: Phaser.GameObjects.Sprite | null = null;
-  cannonDirection = 0;
+  cannonAim = 0;
   hpBar: Phaser.GameObjects.Graphics;
   tileX: number;
   tileY: number;
@@ -36,7 +36,7 @@ export class Tower extends Phaser.Physics.Arcade.Sprite {
     const wy = (tileY + size / 2) * CFG.tile;
     const baseTex = kind === 'cannon' ? 'c_base' : 't_base';
     super(scene, wx, wy, baseTex);
-    this.setScale(kind === 'arrow' ? ARROW_TOWER_BASE_SCALE : 0.5);
+    this.setScale(kind === 'arrow' ? ARROW_TOWER_BASE_SCALE : CANNON_TOWER_BASE_SCALE);
     scene.add.existing(this);
     scene.physics.add.existing(this, true); // static
     this.kind = kind;
@@ -45,28 +45,15 @@ export class Tower extends Phaser.Physics.Arcade.Sprite {
     this.setDepth(6);
     const bodyRadius = (CFG.tile * this.size - 20) / 2;
     const body = this.body as Phaser.Physics.Arcade.StaticBody;
-    // Center the circular body exactly on the grid cell. Pass the offset
-    // through setCircle so updateFromGameObject re-inserts the body into the
-    // static collision tree at the correct location. Mutating
-    // body.position.x/y after updateFromGameObject does NOT update the
-    // spatial tree, so collisions fire against the pre-override position —
-    // that's what made the player jitter at the top/left edge of arrow
-    // towers (their PNG is 128×128, while cannon PNG is 88×124, so the
-    // pre-override body sat ~10px NW of grid for arrow vs ~0×9 for cannon).
+    // Set the offset before refreshing so the static collision tree indexes
+    // the circle at the grid center, independent of the art dimensions.
     const offX = this.displayWidth / 2 - bodyRadius;
     const offY = this.displayHeight / 2 - bodyRadius;
     body.setCircle(bodyRadius, offX, offY);
     body.updateFromGameObject();
 
-    if (kind === 'arrow') {
-      this.top = createArrowTowerArcher(scene, wx, wy).setDepth(7);
-    } else {
-      const topY = wy + CANNON_PIVOT_Y;
-      this.stand = scene.add.sprite(wx, topY, 'c_mount').setDepth(6.5).setScale(0.5);
-      this.top = scene.add.sprite(wx, topY, 'c_top', 0).setDepth(7).setScale(0.5);
-      this.muzzleFlash = scene.add.sprite(wx, topY, 'c_muzzle_flash')
-        .setOrigin(0.25, 0.5).setDepth(7.5).setScale(0.5).setVisible(false);
-    }
+    this.top = (kind === 'arrow' ? createArrowTowerArcher(scene, wx, wy)
+      : createCannonTowerGun(scene, wx, wy + CANNON_TOWER_PLATFORM_Y)).setDepth(7);
 
     this.hpBar = scene.add.graphics().setDepth(20);
 
@@ -79,6 +66,10 @@ export class Tower extends Phaser.Physics.Arcade.Sprite {
 
   poseArcher(shot: number) {
     setArrowTowerArcherPose(this.top, this.level as 0 | 1 | 2, this.archerAim, shot);
+  }
+
+  poseCannon(cycle: number) {
+    setCannonTowerGunPose(this.top, this.level as 0 | 1 | 2, this.cannonAim, cycle);
   }
 
   stats() {
@@ -102,9 +93,10 @@ export class Tower extends Phaser.Physics.Arcade.Sprite {
     this.hp = Math.ceil(s.hp * ratio);
     this.applyTierVisual();
     if (this.kind === 'arrow') this.poseArcher(0);
-    const baseScale = this.kind === 'arrow' ? ARROW_TOWER_BASE_SCALE : 0.5;
-    const topScale = this.kind === 'arrow' ? ARROW_TOWER_ART_SCALE : 0.5;
-    this.scene.tweens.add({ targets: this.stand ? [this, this.stand] : [this],
+    else this.poseCannon(0);
+    const baseScale = this.kind === 'arrow' ? ARROW_TOWER_BASE_SCALE : CANNON_TOWER_BASE_SCALE;
+    const topScale = this.kind === 'arrow' ? ARROW_TOWER_ART_SCALE : CANNON_TOWER_ART_SCALE;
+    this.scene.tweens.add({ targets: this,
       scale: { from: baseScale * 1.15, to: baseScale }, duration: 220, ease: 'Back.Out' });
     this.scene.tweens.add({ targets: this.top,
       scale: { from: topScale * 1.15, to: topScale }, duration: 220, ease: 'Back.Out' });
@@ -117,27 +109,9 @@ export class Tower extends Phaser.Physics.Arcade.Sprite {
     // GameObject (Phaser nulls `scene` on destroy) — bail out.
     if (!this.scene) return;
     const tint = Tower.TIER_TINT[this.kind][this.level] ?? 0xffffff;
-    this.setTint(tint);
-    // Cannon top is already dark pixel art — don't wash it with tint.
-    if (this.kind === 'cannon') this.top.clearTint();
-    else this.top.setTint(tint);
-    if (this.stand) this.stand.setTint(tint);
-    // Swap tower base sprite per upgrade level
-    if (this.kind === 'arrow') {
-      const baseKey = this.level === 2 ? 't_base_2' :
-                      this.level === 1 ? 't_base_1' : 't_base';
-      if (this.scene.textures.exists(baseKey)) {
-        this.setTexture(baseKey);
-        this.setTint(tint);
-      }
-    } else if (this.kind === 'cannon') {
-      const baseKey = this.level === 2 ? 'c_base_2' :
-                      this.level === 1 ? 'c_base_1' : 'c_base';
-      if (this.scene.textures.exists(baseKey)) {
-        this.setTexture(baseKey);
-        this.setTint(tint);
-      }
-    }
+    const baseKey = this.kind === 'arrow' ? 't_base' : 'c_base';
+    this.setTexture(this.level === 0 ? baseKey : `${baseKey}_${this.level}`).setTint(tint);
+    this.top.setTint(tint);
   }
 
   hurt(amount: number) {
@@ -145,7 +119,6 @@ export class Tower extends Phaser.Physics.Arcade.Sprite {
     this.hp -= amount;
     this.setTintFill(0xffffff);
     this.top.setTintFill(0xffffff);
-    if (this.stand) this.stand.setTintFill(0xffffff);
     this.scene.time.delayedCall(60, () => {
       if (!this.scene) return;
       this.applyTierVisual();
@@ -178,8 +151,6 @@ export class Tower extends Phaser.Physics.Arcade.Sprite {
   destroyTower() {
     this.hpBar.destroy();
     this.top.destroy();
-    if (this.stand) this.stand.destroy();
-    if (this.muzzleFlash) this.muzzleFlash.destroy();
     this.destroy();
   }
 }

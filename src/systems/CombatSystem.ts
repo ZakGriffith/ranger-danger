@@ -10,12 +10,16 @@ import { SFX } from '../audio/sfx';
 import { ARROW_TOWER_RELEASE } from '../assets/art/arrowTower/archer';
 import { ARROW_TOWER_AIM_Y, ARROW_TOWER_PROJECTILE_TEXTURE, getArrowTowerArcherShot } from '../assets/art/arrowTower/rig';
 import { ARROW_TOWER_ART_SCALE } from '../assets/art/arrowTower/textures';
-import {
-  CANNON_DIRECTION_COUNT, CANNON_GROUND_Y, CANNON_HEIGHT_Y,
-  CANNON_BARREL_HEIGHT, CANNON_MUZZLE_DISTANCE,
-} from '../assets/art/cannon';
+import { CANNON_TOWER_BALL_RADIUS } from '../assets/art/cannonTower/ball';
+import { CANNON_TOWER_ART_SCALE } from '../assets/art/cannonTower/base';
+import { CANNON_TOWER_RECOIL_DURATION, CANNON_TOWER_RELEASE } from '../assets/art/cannonTower/gun';
+import { getCannonTowerAim, getCannonTowerShot } from '../assets/art/cannonTower/rig';
 import type { Tower } from '../entities/Tower';
 import type { GameScene } from '../scenes/GameScene';
+
+const CANNON_ARC_HEIGHT = 22;
+const CANNON_SHOT_MS = 840;
+const CANNON_FUSE_MS = 180;
 
 /**
  * Tower firing logic, target selection (nearest, most-threatening,
@@ -34,46 +38,48 @@ export class CombatSystem {
       // Walls keep blocking enemies until the timer completes (handled by
       // the grid still containing them until executeSell).
       if (scene.sellTimers.has(tower)) {
-        tower.muzzleFlash?.setVisible(false);
+        if (tower.kind === 'cannon') tower.poseCannon(0);
         continue;
       }
-      const st = tower.stats();
 
-      if (st.splashRadius > 0) {
-        // Cannon: aim at the spot that hits the most enemies
-        const aim = this.findBestCannonTarget(tower.x, tower.y, st.range, st.splashRadius, st.projectileSpeed);
-        if (!aim) continue;
-        const muzzle = this.aimCannon(tower, aim.x, aim.y);
-        if (time > tower.lastShot + st.fireRate) {
-          tower.lastShot = time;
-          SFX.play('cannonShoot');
-          tower.muzzleFlash!.play('c-muzzle-flash');
-          const cScale = 0.5 + tower.level * 0.15;
-          this.spawnProjectile(muzzle.x, muzzle.y, aim.x, aim.y, st.projectileSpeed, st.damage, st.splashRadius, cScale);
-        }
+      if (tower.kind === 'cannon') {
+        this.updateCannonTower(tower, time);
       } else {
         this.updateArrowTower(tower, time);
       }
     }
   }
 
-  private aimCannon(tower: Tower, aimX: number, aimY: number): { x: number; y: number } {
-    const top = tower.top;
-    const centerY = top.y - CANNON_BARREL_HEIGHT * CANNON_HEIGHT_Y * top.scaleY;
-    // The visual arc starts with tangent (dx, dy - 22π). Invert the ground
-    // projection before choosing a frame so the lit barrel follows that tangent.
-    const yaw = Math.atan2(
-      (aimY - centerY - 22 * Math.PI) / (CANNON_GROUND_Y * top.scaleY),
-      (aimX - top.x) / top.scaleX,
-    );
-    tower.cannonDirection = Phaser.Math.Wrap(Math.round(yaw / (Math.PI * 2) * CANNON_DIRECTION_COUNT), 0, CANNON_DIRECTION_COUNT);
-    top.setFrame(tower.cannonDirection).setRotation(0);
-    const heading = tower.cannonDirection / CANNON_DIRECTION_COUNT * Math.PI * 2;
-    const dx = Math.cos(heading) * top.scaleX;
-    const dy = Math.sin(heading) * CANNON_GROUND_Y * top.scaleY;
-    const muzzle = { x: top.x + CANNON_MUZZLE_DISTANCE * dx, y: centerY + CANNON_MUZZLE_DISTANCE * dy };
-    tower.muzzleFlash!.setPosition(muzzle.x, muzzle.y).setRotation(Math.atan2(dy, dx)).setScale(top.scaleX, top.scaleY);
-    return muzzle;
+  private updateCannonTower(tower: Tower, time: number) {
+    const elapsed = time - tower.lastShot;
+    const recovery = elapsed / CANNON_SHOT_MS;
+    if (tower.lastShot > 0 && recovery < CANNON_TOWER_RECOIL_DURATION) {
+      tower.poseCannon(CANNON_TOWER_RELEASE + recovery);
+      return;
+    }
+
+    const { range, fireRate, projectileSpeed, damage, splashRadius } = tower.stats();
+    const aim = this.findBestCannonTarget(tower.x, tower.y, range, splashRadius, projectileSpeed);
+    if (!aim) {
+      tower.poseCannon(0);
+      return;
+    }
+
+    // The derivative of the flight arc at release adds this upward component to its aim.
+    tower.cannonAim = getCannonTowerAim(tower.top, aim.x, aim.y, CANNON_ARC_HEIGHT * Math.PI);
+    if (elapsed <= fireRate) {
+      const fuse = Phaser.Math.Clamp(1 - (fireRate - elapsed) / CANNON_FUSE_MS, 0, .999);
+      tower.poseCannon(CANNON_TOWER_RELEASE * fuse);
+      return;
+    }
+
+    tower.lastShot = time;
+    tower.poseCannon(CANNON_TOWER_RELEASE);
+    const tier = tower.level as 0 | 1 | 2;
+    const muzzle = getCannonTowerShot(tower.top, tier, tower.cannonAim);
+    const scale = CANNON_TOWER_ART_SCALE * (1 + tier / CANNON_TOWER_BALL_RADIUS);
+    SFX.play('cannonShoot');
+    this.spawnProjectile(muzzle.x, muzzle.y, aim.x, aim.y, projectileSpeed, damage, splashRadius, scale);
   }
 
   private updateArrowTower(tower: Tower, time: number) {
@@ -289,7 +295,7 @@ export class CombatSystem {
         // Arc: parabolic height based on flight progress
         const traveled = Math.hypot(p.x - p.startX, p.y - p.startY);
         const t = Math.min(traveled / p.totalDist, 1);
-        const arcHeight = Math.sin(t * Math.PI) * 22;
+        const arcHeight = Math.sin(t * Math.PI) * CANNON_ARC_HEIGHT;
         p.arcOffset = arcHeight;
 
         // Shadow follows on the ground

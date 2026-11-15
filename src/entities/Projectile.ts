@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { RANGER_ARROW_TIP_X } from '../assets/art/ranger/textures';
+import { CANNON_TOWER_PROJECTILE_TEXTURE } from '../assets/art/cannonTower/textures';
 
 export class Projectile extends Phaser.Physics.Arcade.Sprite {
   damage = 10;
@@ -46,12 +47,11 @@ export class Projectile extends Phaser.Physics.Arcade.Sprite {
       this.startX = this.x;
       this.startY = this.y;
       this.totalDist = Math.hypot(tx - this.x, ty - this.y) || 1;
-      this.setTexture('cball_0');
-      this.play('cball-spin');
+      this.setTexture(CANNON_TOWER_PROJECTILE_TEXTURE);
       this.setRotation(0);
       this.setScale(scale);
       if (tint) this.setTint(tint); else this.clearTint();
-      this.setSize(16, 16).setOffset(24, 24);
+      this.setSize(16, 16).setOffset(this.displayOriginX - 8, this.displayOriginY - 8);
       this.setDepth(14);
 
       // Ground shadow

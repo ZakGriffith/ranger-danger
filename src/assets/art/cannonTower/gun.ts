@@ -27,24 +27,28 @@ const GUNS = [
 type Gun = typeof GUNS[Tier];
 
 export const CANNON_TOWER_RELEASE = .35;
+export const CANNON_TOWER_BARREL_Y = -20;
+export const CANNON_TOWER_RECOIL_DURATION = .28;
 
-const BARREL_Y = -20;
-const RECOIL_DURATION = .28;
+const IGNITION_PEAK = CANNON_TOWER_RELEASE - .095;
+const IGNITION_DURATION = .12;
 const LIGHT_ANGLE = Math.atan2(-1, -.3);
+
+export const CANNON_TOWER_IGNITION_START = IGNITION_PEAK - IGNITION_DURATION;
 
 function pose(gun: Gun, angle: number, cycle: number) {
   const cos = Math.cos(angle);
   const sin = Math.sin(angle);
   const depth = 1 / Math.hypot(cos, sin / CANNON_GROUND_Y);
   const afterRelease = cycle - CANNON_TOWER_RELEASE;
-  const recoil = afterRelease < 0 ? 0 : Math.max(0, 1 - afterRelease / RECOIL_DURATION) ** 2;
+  const recoil = afterRelease < 0 ? 0 : Math.max(0, 1 - afterRelease / CANNON_TOWER_RECOIL_DURATION) ** 2;
   const forward = gun.length * depth - recoil * 7.5 * depth;
   return { cos, sin, depth, recoil, forward };
 }
 
 export function getCannonTowerMuzzle(tier: Tier, angle: number, cycle: number): { x: number; y: number } {
   const { cos, sin, forward } = pose(GUNS[tier], angle, cycle);
-  return { x: cos * forward, y: BARREL_Y + sin * forward };
+  return { x: cos * forward, y: CANNON_TOWER_BARREL_Y + sin * forward };
 }
 
 function timber(ctx: CanvasRenderingContext2D, trace: (p: CanvasRenderingContext2D) => void, light: string, dark: string, outline = 2.35) {
@@ -111,8 +115,8 @@ function timberCheek(ctx: CanvasRenderingContext2D, gun: Gun, project: (a: numbe
 function touchhole(ctx: CanvasRenderingContext2D, gun: Gun, cos: number, sin: number, depth: number, recoil: number, cycle: number) {
   const breech = -11 * depth - recoil * 7.5 * depth;
   const x = cos * breech;
-  const y = BARREL_Y + sin * breech - gun.breech * .6;
-  const l = Math.max(0, 1 - Math.abs(cycle - CANNON_TOWER_RELEASE + .095) / .12);
+  const y = CANNON_TOWER_BARREL_Y + sin * breech - gun.breech * .6;
+  const l = Math.max(0, 1 - Math.abs(cycle - IGNITION_PEAK) / IGNITION_DURATION);
   shape(ctx, gun.band, 1.4, p => p.ellipse(x, y, 3.9, 2.6, 0, 0, 2 * Math.PI));
   oval(ctx, x + .2, y - .2, 1.6, 1.05, '#28232b');
   if (l > 0) {
@@ -160,7 +164,7 @@ function barrel(ctx: CanvasRenderingContext2D, gun: Gun, tier: Tier, angle: numb
   const highlight = .5 + .32 * lightAcross;
   const ringDepth = 2.7 + 4.8 * Math.abs(sin);
   ctx.save();
-  ctx.translate(-cos * recoil * 7.5 * depth, BARREL_Y - sin * recoil * 7.5 * depth);
+  ctx.translate(-cos * recoil * 7.5 * depth, CANNON_TOWER_BARREL_Y - sin * recoil * 7.5 * depth);
   ctx.rotate(angle);
 
   const steel = wash(ctx, -radius, radius, [

@@ -1,4 +1,5 @@
 import { CANNON_TOWER_ART_SCALE, CANNON_TOWER_DECK_Y, drawCannonTowerBase } from '../../src/assets/art/cannonTower/base';
+import { CANNON_TOWER_BALL_RADIUS, drawCannonTowerBall } from '../../src/assets/art/cannonTower/ball';
 import { CANNON_TOWER_RELEASE, drawCannonTowerGun, getCannonTowerMuzzle } from '../../src/assets/art/cannonTower/gun';
 import { drawForgeCannonGun, getForgeCannonMuzzle } from '../../src/assets/art/cannonTower/forgeGun';
 import { drawFieldGun, getFieldGunMuzzle } from '../../src/assets/art/cannonTower/fieldGun';
@@ -181,18 +182,9 @@ function drawImpact(ctx, tier, x, y, age) {
 }
 
 function drawRound(ctx, tier, x, y, onGroundX, onGroundY) {
-  const radius = 10 + tier;
+  const radius = CANNON_TOWER_BALL_RADIUS + tier;
   oval(ctx, onGroundX, onGroundY, radius * 1.25, radius * .4, '#1e24287a');
-  oval(ctx, x, y, radius, radius, '#26252f');
-  const metal = ctx.createRadialGradient(
-    x - radius * .32, y - radius * .38, radius * .05,
-    x, y, radius * .91,
-  );
-  metal.addColorStop(0, '#b0b9bc');
-  metal.addColorStop(.42, '#727e8b');
-  metal.addColorStop(1, '#3c414f');
-  oval(ctx, x, y, radius * .86, radius * .86, metal);
-  oval(ctx, x - radius * .30, y - radius * .37, radius * .22, radius * .12, '#cad0ce');
+  drawCannonTowerBall(ctx, x, y, radius);
 }
 
 function drawFlight(ctx, tier, shot, launch, reach) {

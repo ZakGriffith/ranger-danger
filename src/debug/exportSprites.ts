@@ -1,20 +1,18 @@
 import Phaser from 'phaser';
 import { ARROW_TOWER_PROJECTILE_TEXTURE, getArrowTowerArcherIdleKey } from '../assets/art/arrowTower/rig';
+import { getCannonTowerGunIdleKey } from '../assets/art/cannonTower/rig';
+import { CANNON_TOWER_PROJECTILE_TEXTURE } from '../assets/art/cannonTower/textures';
 
 // Texture keys for all static (non-animated, non-particle) world art. Used by
 // the DEBUG_EXPORT_STATIC_SPRITES flag to dump the procedural art to disk so
 // it can be replaced with hand-drawn PNGs.
-//
-// Already-PNG keys (tower bases) are included because seeing them next to the
-// procedural neighbors makes the style comparison easier.
 const STATIC_TEXTURE_KEYS: string[] = [
   // Walls — 16 autotile masks × normal + damaged
   ...Array.from({ length: 16 }, (_, i) => `wall_${i}`),
   ...Array.from({ length: 16 }, (_, i) => `wall_${i}_dmg`),
   // Tower components
   ARROW_TOWER_PROJECTILE_TEXTURE,
-  'c_mount',
-  'c_top', 'c_muzzle_flash',
+  CANNON_TOWER_PROJECTILE_TEXTURE,
   'foundation',
   // Tower bases
   't_base', 't_base_1', 't_base_2',
@@ -73,8 +71,10 @@ function downloadCanvas(canvas: HTMLCanvasElement, filename: string): Promise<vo
  */
 export async function exportStaticSprites(scene: Phaser.Scene): Promise<void> {
   let exported = 0, missing = 0;
-  const archers = ([0, 1, 2] as const).map(tier => getArrowTowerArcherIdleKey(scene, tier));
-  for (const key of [...STATIC_TEXTURE_KEYS, ...archers]) {
+  const towerTops = ([0, 1, 2] as const).flatMap(tier => [
+    getArrowTowerArcherIdleKey(scene, tier), getCannonTowerGunIdleKey(scene, tier),
+  ]);
+  for (const key of [...STATIC_TEXTURE_KEYS, ...towerTops]) {
     const canvas = textureToCanvas(scene, key);
     if (!canvas) {
       console.warn(`[exportStaticSprites] missing texture: ${key}`);

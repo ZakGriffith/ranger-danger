@@ -39,51 +39,6 @@ export function drawArrow(frame: 0|1) {
   };
 }
 
-// ==================================================================
-//  CANNONBALL (32x32) — dark iron sphere with specular highlight
-// ==================================================================
-export function drawCannonball(frame: 0|1) {
-  return (put: Put) => {
-    const cx = 16, cy = 16, r = 5;
-    // Main sphere body — dark iron
-    for (let dy = -r; dy <= r; dy++) {
-      for (let dx = -r; dx <= r; dx++) {
-        if (dx * dx + dy * dy > r * r) continue;
-        const dist = Math.sqrt(dx * dx + dy * dy) / r;
-        let color: string;
-        if (dist < 0.4) color = '#4a4a54';       // lighter center
-        else if (dist < 0.7) color = '#333340';   // mid
-        else color = '#1e1e28';                    // dark edge
-        put(cx + dx, cy + dy, color);
-      }
-    }
-    // Outline ring
-    for (let dy = -(r + 1); dy <= r + 1; dy++) {
-      for (let dx = -(r + 1); dx <= r + 1; dx++) {
-        const d2 = dx * dx + dy * dy;
-        if (d2 > (r + 1) * (r + 1) || d2 <= r * r) continue;
-        // Only draw outline where there isn't already a sphere pixel
-        const innerD = Math.sqrt(dx * dx + dy * dy);
-        if (innerD > r && innerD <= r + 1.2) put(cx + dx, cy + dy, P.outline);
-      }
-    }
-    // Specular highlight — upper-left
-    const hx = cx - 2, hy = cy - 2;
-    put(hx, hy, '#8888a0');
-    put(hx + 1, hy, '#6a6a7a');
-    put(hx, hy + 1, '#6a6a7a');
-    if (frame === 0) {
-      put(hx - 1, hy - 1, '#aaaabc');  // bright specular dot
-    } else {
-      put(hx + 1, hy - 1, '#aaaabc');  // shifted slightly for subtle spin
-    }
-    // Bottom rivet/seam detail
-    put(cx - 1, cy + 3, '#141420');
-    put(cx, cy + 3, '#141420');
-    put(cx + 1, cy + 3, '#141420');
-  };
-}
-
 // BOULDER (32x32) — mossy rock thrown by forest boss
 export function drawBoulder(frame: 0|1) {
   return (put: Put) => {

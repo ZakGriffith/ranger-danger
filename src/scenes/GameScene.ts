@@ -38,11 +38,6 @@ import { generateAllArt, registerAnimations } from '../assets/generateArt';
 import { Difficulty, Biome, LEVELS } from '../levels';
 import { computeViewport, viewportWorldSize } from '../viewport';
 
-// Tower-base sprites used by generateAllArt() in create(). Kept out of
-// BootScene so they don't block PLAY → level-select.
-import cannonBaseImg from '../assets/sprites/cannon_base.png';
-import cannonBase1Img from '../assets/sprites/cannon_base_1.png';
-import cannonBase2Img from '../assets/sprites/cannon_base_2.png';
 import {
   loadSpriteOverrides,
   applySpriteOverrides,
@@ -385,15 +380,6 @@ export class GameScene extends Phaser.Scene {
   }
 
   preload() {
-    // Tower-base textures consumed by generateAllArt() during create().
-    // Loaded here (under "Generating world..." overlay) instead of in
-    // BootScene so PLAY → level-select isn't gated on them. Phaser's
-    // loader is idempotent on the texture key, so re-entering a level
-    // is a no-op.
-    if (!this.textures.exists('c_base_png')) this.load.image('c_base_png', cannonBaseImg);
-    if (!this.textures.exists('c_base_1_png')) this.load.image('c_base_1_png', cannonBase1Img);
-    if (!this.textures.exists('c_base_2_png')) this.load.image('c_base_2_png', cannonBase2Img);
-
     // Biome-aware sprite loading: campaign runs only load PNG sheets for
     // characters that can spawn in the chosen biome. Endless mode rotates
     // through all biomes, so it falls back to loading everything.

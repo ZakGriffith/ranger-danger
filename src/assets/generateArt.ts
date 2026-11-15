@@ -7,6 +7,7 @@ import { CFG } from '../config';
 import { generateRangerArrow } from './art/ranger/textures';
 import { generateArrowTowerProjectile } from './art/arrowTower/rig';
 import { generateArrowTowerBases } from './art/arrowTower/textures';
+import { generateCannonTowerBases, generateCannonTowerProjectile } from './art/cannonTower/textures';
 import { makeHD } from './art/hd';
 import { POISON_SMOKE_VARIANTS, POISON_SMOKE_FRAME_MS } from './art/poisonSmoke';
 import {
@@ -43,13 +44,8 @@ import {
 } from './art/bosses';
 import { createMeadowRamFrame } from './art/meadowRam';
 import {
-  drawTowerBase, drawBallistaStand,
-} from './art/towers';
-import { CANNON_SIZE, CANNON_DIRECTION_COUNT, makeCannonSheet, drawCannonFlash } from './art/cannon';
-import { CANNON_MOUNT_SIZE, drawCannonMount } from './art/cannonMount';
-import {
   CoinTier,
-  drawArrow, drawCannonball, drawBoulder, drawBoulderShadow,
+  drawArrow, drawBoulder, drawBoulderShadow,
   drawCannonballShadow, drawCoin,
 } from './art/projectiles';
 import { drawBoulderImpact, drawHitSpark, drawDeathBurst, drawCoinPop } from './art/fx';
@@ -164,61 +160,8 @@ export function generateAllArt(scene: Phaser.Scene) {
   add(scene, 'sunbolt_0', makeCanvas(16, drawSunBolt(0)));
   add(scene, 'sunbolt_1', makeCanvas(16, drawSunBolt(1)));
 
-  // Shared helper to copy a loaded PNG texture to a new key
-  const copyTex = (src: string, dst: string) => {
-    if (scene.textures.exists(dst)) scene.textures.remove(dst);
-    const srcTex = scene.textures.get(src);
-    const srcImg = srcTex.getSourceImage() as HTMLImageElement;
-    const c = document.createElement('canvas');
-    c.width = srcImg.width; c.height = srcImg.height;
-    c.getContext('2d')!.drawImage(srcImg, 0, 0);
-    scene.textures.addCanvas(dst, c);
-  };
-
   generateArrowTowerBases(scene);
-  // Cannon tower — PNG base (sprite #29)
-  if (scene.textures.exists('c_base_png')) {
-    const cleanAndCopy = (src: string, dst: string) => {
-      if (scene.textures.exists(dst)) scene.textures.remove(dst);
-      const srcTex = scene.textures.get(src);
-      const srcImg = srcTex.getSourceImage() as HTMLImageElement;
-      const c = document.createElement('canvas');
-      c.width = srcImg.width; c.height = srcImg.height;
-      const ctx = c.getContext('2d')!;
-      ctx.drawImage(srcImg, 0, 0);
-      // Strip magenta fringe: any pixel where R and B are high but G is low
-      const id = ctx.getImageData(0, 0, c.width, c.height);
-      const d = id.data;
-      for (let i = 0; i < d.length; i += 4) {
-        const r = d[i], g = d[i + 1], b = d[i + 2];
-        if (r > 180 && b > 180 && g < 100) {
-          d[i + 3] = 0; // make transparent
-        }
-      }
-      ctx.putImageData(id, 0, 0);
-      scene.textures.addCanvas(dst, c);
-    };
-    cleanAndCopy('c_base_png', 'c_base');
-  } else {
-    add(scene, 'c_base', makeCanvas(64, drawTowerBase));
-  }
-  // Cannon tower upgrade bases (level 1 = sprite #11, level 2 = sprite #32)
-  if (scene.textures.exists('c_base_1_png')) {
-    copyTex('c_base_1_png', 'c_base_1');
-  }
-  if (scene.textures.exists('c_base_2_png')) {
-    copyTex('c_base_2_png', 'c_base_2');
-  }
-  add(scene, 'c_mount', makeHD(CANNON_MOUNT_SIZE, drawCannonMount, { outline: false }));
-  const cannonSheet = makeCannonSheet();
-  add(scene, 'c_top', cannonSheet);
-  const cannonTexture = scene.textures.get('c_top');
-  const cannonColumns = cannonSheet.width / CANNON_SIZE;
-  for (let frame = 0; frame < CANNON_DIRECTION_COUNT; frame++) {
-    cannonTexture.add(frame, 0, frame % cannonColumns * CANNON_SIZE,
-      Math.floor(frame / cannonColumns) * CANNON_SIZE, CANNON_SIZE, CANNON_SIZE);
-  }
-  add(scene, 'c_muzzle_flash', makeHD(32, drawCannonFlash, { outline: false }));
+  generateCannonTowerBases(scene);
 
   // Off-screen tower indicators
   add(scene, 'ind_arrow',  makeCanvas(32, drawIndicatorArrow()));
@@ -268,8 +211,7 @@ export function generateAllArt(scene: Phaser.Scene) {
   add(scene, 'arrow_1', makeCanvas(32, drawArrow(1)));
 
   // Cannonball
-  add(scene, 'cball_0', makeCanvas(32, drawCannonball(0)));
-  add(scene, 'cball_1', makeCanvas(32, drawCannonball(1)));
+  generateCannonTowerProjectile(scene);
   add(scene, 'cball_shadow', makeCanvas(32, drawCannonballShadow()));
 
   // Boulder (boss projectile)
@@ -563,14 +505,7 @@ export function registerAnimations(scene: Phaser.Scene) {
   }
   mk('sunbolt-spin', ['sunbolt_0','sunbolt_1'], 10, -1);
 
-  if (a.exists('c-muzzle-flash')) a.remove('c-muzzle-flash');
-  a.create({
-    key: 'c-muzzle-flash', frames: [{ key: 'c_muzzle_flash' }], duration: 100,
-    repeat: 0, showOnStart: true, hideOnComplete: true,
-  });
-
   mk('arrow-spin', ['arrow_0','arrow_1'], 20, -1);
-  mk('cball-spin', ['cball_0','cball_1'], 8, -1);
   mk('boulder-spin', ['boulder_0','boulder_1'], 6, -1);
 
   mk('coin-spin',  ['coin_0','coin_1','coin_2','coin_3','coin_4','coin_5'], 10, -1);
