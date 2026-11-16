@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { CFG } from '../config';
 import { generateAllArt } from '../assets/generateArt';
+import { COIN_TEXTURE, coinFrame } from '../assets/art/coins';
 import { MEADOW_ENEMY_ART } from '../assets/art/meadowEnemies/textures';
 import { MEADOW_RAM_ART } from '../assets/art/meadowRam';
 import { FOREST_BEAR_ART } from '../assets/art/forestEnemies/bear';
@@ -99,7 +100,7 @@ type GalleryCard = {
 type StaticDebugGroup = {
   title: string;
   subtitle: string;
-  textures: { key: string; label: string; frame?: number }[];
+  textures: { key: string; label: string; frame?: number | string }[];
 };
 
 const STATIC_GROUPS: StaticDebugGroup[] = [
@@ -131,7 +132,7 @@ const STATIC_GROUPS: StaticDebugGroup[] = [
     title: 'effects',
     subtitle: 'fx art',
     textures: [
-      { key: 'coin_0', label: 'coin' },
+      { key: COIN_TEXTURE, frame: coinFrame('gold', 0), label: 'coin' },
       { key: 'fx_hit_0', label: 'hit' },
       { key: 'fx_death_0', label: 'death' },
       { key: 'dfexpl_0', label: 'explosion' },

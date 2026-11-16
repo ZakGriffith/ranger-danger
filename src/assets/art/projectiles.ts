@@ -1,7 +1,4 @@
-// All projectile / loot art: arrow, cannonball, boulder + shadows, and the
-// 6-frame coin spin (3 tiers).
-
-import { Put, P, rect, disc, ring } from './canvas';
+import { Put, P, rect } from './canvas';
 
 // ==================================================================
 //  ARROW (32x32)
@@ -102,74 +99,6 @@ export function drawCannonballShadow() {
           put(cx + dx, cy + dy, P.outline);
         }
       }
-    }
-  };
-}
-
-// ==================================================================
-//  COIN (32x32) — 6 spin frames
-// ==================================================================
-export type CoinTier = 'bronze' | 'silver' | 'gold';
-export function drawCoin(frame: 0|1|2|3|4|5, tier: CoinTier = 'gold') {
-  const pal = tier === 'bronze'
-    ? { base: P.bronze, d: P.bronzeD, m: P.bronzeM, l: P.bronzeL }
-    : tier === 'silver'
-    ? { base: P.silver, d: P.silverD, m: P.silverM, l: P.silverL }
-    : { base: P.gold, d: P.goldD, m: P.goldM, l: P.goldL };
-  return (put: Put) => {
-    const cx = 16, cy = 16;
-    // shadow
-    for (let dx = -5; dx <= 5; dx++)
-      for (let dy = -1; dy <= 1; dy++)
-        if ((dx * dx) / 25 + (dy * dy) / 1.5 <= 1) put(cx + dx, 24 + dy, P.shadow);
-
-    // width profile: face → edge → face
-    const widths = [7, 6, 3, 1, 3, 6];
-    const w = widths[frame];
-    const h = 7;
-    // disc body
-    for (let y = -h; y <= h; y++) {
-      for (let x = -w; x <= w; x++) {
-        if ((x * x) / (w * w + 0.1) + (y * y) / (h * h) <= 1) {
-          put(cx + x, cy + y, pal.base);
-        }
-      }
-    }
-    // outline
-    for (let y = -h; y <= h; y++) {
-      for (let x = -w - 1; x <= w + 1; x++) {
-        if ((x * x) / ((w + 1) * (w + 1) + 0.1) + (y * y) / ((h + 0.6) * (h + 0.6)) <= 1 &&
-            !((x * x) / (w * w + 0.1) + (y * y) / (h * h) <= 1)) {
-          put(cx + x, cy + y, pal.d);
-        }
-      }
-    }
-    // highlight arc (upper left)
-    if (w >= 3) {
-      for (let y = -h + 1; y <= -2; y++) {
-        for (let x = -w + 1; x <= 0; x++) {
-          if ((x * x) / ((w - 1) * (w - 1) + 0.1) + (y * y) / ((h - 1) * (h - 1)) <= 1) {
-            put(cx + x, cy + y, pal.l);
-          }
-        }
-      }
-    }
-    // shadow arc (lower right)
-    if (w >= 3) {
-      for (let y = 2; y <= h - 1; y++) {
-        for (let x = 1; x <= w - 1; x++) {
-          if ((x * x) / ((w - 1) * (w - 1) + 0.1) + (y * y) / ((h - 1) * (h - 1)) <= 1) {
-            put(cx + x, cy + y, pal.m);
-          }
-        }
-      }
-    }
-    // star emblem when facing (w >= 5)
-    if (w >= 5) {
-      put(cx, cy - 2, pal.d);
-      put(cx - 1, cy, pal.d); put(cx, cy, pal.d); put(cx + 1, cy, pal.d);
-      put(cx - 2, cy + 1, pal.d); put(cx + 2, cy + 1, pal.d);
-      put(cx, cy + 2, pal.d);
     }
   };
 }

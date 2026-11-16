@@ -1,6 +1,5 @@
 import Phaser from 'phaser';
-
-export type CoinTier = 'bronze' | 'silver' | 'gold';
+import { COIN_TEXTURE, coinFrame, type CoinTier } from '../assets/art/coins';
 
 export class Coin extends Phaser.Physics.Arcade.Sprite {
   value = 1;
@@ -9,7 +8,7 @@ export class Coin extends Phaser.Physics.Arcade.Sprite {
   collecting = false;
 
   constructor(scene: Phaser.Scene, x: number, y: number, tier: CoinTier = 'bronze') {
-    super(scene, x, y, `coin_${tier}_0`);
+    super(scene, x, y, COIN_TEXTURE, coinFrame(tier, 0));
     this.setScale(0.5);
     scene.add.existing(this);
     scene.physics.add.existing(this);

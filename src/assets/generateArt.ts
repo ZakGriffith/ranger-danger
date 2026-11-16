@@ -8,6 +8,7 @@ import { generateRangerArrow } from './art/ranger/textures';
 import { generateArrowTowerProjectile } from './art/arrowTower/rig';
 import { generateArrowTowerBases } from './art/arrowTower/textures';
 import { generateCannonTowerBases, generateCannonTowerProjectile } from './art/cannonTower/textures';
+import { generateCoinTextures, registerCoinAnimations } from './art/coins';
 import { makeHD } from './art/hd';
 import { POISON_SMOKE_VARIANTS, POISON_SMOKE_FRAME_MS } from './art/poisonSmoke';
 import {
@@ -43,11 +44,7 @@ import {
   drawQueenOrb, drawDragonFireball, drawDragonFireExplosion,
 } from './art/bosses';
 import { createMeadowRamFrame } from './art/meadowRam';
-import {
-  CoinTier,
-  drawArrow, drawBoulder, drawBoulderShadow,
-  drawCannonballShadow, drawCoin,
-} from './art/projectiles';
+import { drawArrow, drawBoulder, drawBoulderShadow, drawCannonballShadow } from './art/projectiles';
 import { drawBoulderImpact, drawHitSpark, drawDeathBurst, drawCoinPop } from './art/fx';
 import {
   TREE_PATTERNS, SPIKE_VARIANT_COUNT, CACTUS_VARIANT_COUNT, QUICKSAND_VARIANT_COUNT, TEMPLE_BLOCK_VARIANT_COUNT,
@@ -219,11 +216,7 @@ export function generateAllArt(scene: Phaser.Scene) {
   add(scene, 'boulder_1', makeCanvas(32, drawBoulder(1)));
   add(scene, 'boulder_shadow', makeCanvas(32, drawBoulderShadow()));
 
-  // Coin (bronze / silver / gold tiers)
-  for (let i = 0; i < 6; i++) add(scene, `coin_${i}`, makeCanvas(32, drawCoin(i as any, 'gold')));
-  for (const tier of ['bronze','silver','gold'] as const) {
-    for (let i = 0; i < 6; i++) add(scene, `coin_${tier}_${i}`, makeCanvas(32, drawCoin(i as any, tier)));
-  }
+  generateCoinTextures(scene);
 
   // Effects
   for (let i = 0; i < 3; i++) add(scene, `fx_hit_${i}`,   makeCanvas(32, drawHitSpark(i as any)));
@@ -508,12 +501,7 @@ export function registerAnimations(scene: Phaser.Scene) {
   mk('arrow-spin', ['arrow_0','arrow_1'], 20, -1);
   mk('boulder-spin', ['boulder_0','boulder_1'], 6, -1);
 
-  mk('coin-spin',  ['coin_0','coin_1','coin_2','coin_3','coin_4','coin_5'], 10, -1);
-  for (const tier of ['bronze','silver','gold'] as const) {
-    mk(`coin-${tier}-spin`,
-      [`coin_${tier}_0`,`coin_${tier}_1`,`coin_${tier}_2`,`coin_${tier}_3`,`coin_${tier}_4`,`coin_${tier}_5`],
-      10, -1);
-  }
+  registerCoinAnimations(scene);
 
   mk('fx-hit',    ['fx_hit_0','fx_hit_1','fx_hit_2'], 22, 0);
   mk('fx-death',  ['fx_death_0','fx_death_1','fx_death_2','fx_death_3','fx_death_4'], 18, 0);
