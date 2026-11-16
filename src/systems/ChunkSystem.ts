@@ -128,40 +128,29 @@ export class ChunkSystem {
     }
   }
 
-  /** Destroy a tree tile at grid coords, removing its blocker and sprite. */
+  /**
+   * Destroy a tree tile at grid coords, removing its blocker and sprite.
+   * PNG-mode trees are tagged per tile (_gx/_gy) so only that tile's trees
+   * go. Baked clusters are one image per cluster (tagged with _tiles), so
+   * the image goes and every tile it covered is freed with it; freeing only
+   * the hit tile left the rest of the cluster as invisible blockers.
+   */
   destroyTreeTile(gx: number, gy: number) {
     const scene = this.scene;
     const t = CFG.tile;
-    gridSet(scene.grid, gx, gy, 0);
-    scene.pathing.syncWallTile(gx, gy, false);
+    const free = new Map<string, { gx: number; gy: number }>();
+    free.set(`${gx},${gy}`, { gx, gy });
 
-    // Remove the physics blocker zone at this tile
-    const wx = gx * t + t / 2;
-    const wy = gy * t + t / 2;
-    for (const child of scene.wallGroup.getChildren()) {
-      if (Math.abs((child as any).x - wx) < 2 && Math.abs((child as any).y - wy) < 2) {
-        child.destroy();
-        break;
-      }
-    }
-
-    // Destroy tree sprites belonging to this tile. PNG-mode trees are tagged
-    // with _gx/_gy so we hit exactly the right tile's trees; legacy baked
-    // cluster sprites (no tag, one per cluster) fall back to a bounding-box
-    // overlap test, which destroys the whole cluster when any of its tiles
-    // is hit — same behavior the system had before PNG mode was added.
-    const px = gx * t + t / 2;
-    const py = gy * t + t / 2;
     for (let i = scene.treeSprites.length - 1; i >= 0; i--) {
-      const spr = scene.treeSprites[i] as Phaser.GameObjects.Image & { _gx?: number; _gy?: number };
-      const hasTag = spr._gx !== undefined && spr._gy !== undefined;
-      let hit: boolean;
-      if (hasTag) {
-        hit = spr._gx === gx && spr._gy === gy;
+      const spr = scene.treeSprites[i] as Phaser.GameObjects.Image & {
+        _gx?: number; _gy?: number; _tiles?: { gx: number; gy: number }[];
+      };
+      let hit = false;
+      if (spr._tiles) {
+        hit = spr._tiles.some(tile => tile.gx === gx && tile.gy === gy);
+        if (hit) for (const tile of spr._tiles) free.set(`${tile.gx},${tile.gy}`, tile);
       } else {
-        const hw = spr.width * spr.scaleX / 2;
-        const hh = spr.height * spr.scaleY / 2;
-        hit = px >= spr.x - hw && px <= spr.x + hw && py >= spr.y - hh && py <= spr.y + hh;
+        hit = spr._gx === gx && spr._gy === gy;
       }
       if (hit) {
         spr.destroy();
@@ -169,7 +158,23 @@ export class ChunkSystem {
       }
     }
 
+    const blockers = scene.wallGroup.getChildren();
+    for (const tile of free.values()) {
+      if (gridGet(scene.grid, tile.gx, tile.gy) !== 3) continue;
+      gridSet(scene.grid, tile.gx, tile.gy, 0);
+      scene.pathing.syncWallTile(tile.gx, tile.gy, false);
+      const wx = tile.gx * t + t / 2;
+      const wy = tile.gy * t + t / 2;
+      for (const child of blockers) {
+        if (Math.abs((child as any).x - wx) < 2 && Math.abs((child as any).y - wy) < 2) {
+          child.destroy();
+          break;
+        }
+      }
+    }
+
     scene.gridVersion++; scene._wallCheckCache.clear();
+    scene.pathing.rebuildGapBlockers();
   }
 
   // ---------- RIVER TERRAIN (river biome) ----------
@@ -334,6 +339,9 @@ export class ChunkSystem {
         const texKey = scene.biome === 'infected' ? `infected_plant_${patIdx}` : `tree_cluster_${patIdx}`;
         // forest clusters are HD (64 px per tile) and display at half scale
         const spr = scene.add.image(sprX, sprY, texKey).setScale(scene.biome === 'infected' ? 1 : 0.5).setDepth(100 + bottomY * 0.1);
+        // One image covers the whole cluster, so remember which tiles it
+        // stands for: destroying it has to free all of them (destroyTreeTile).
+        (spr as any)._tiles = pattern.tiles.map(tile => ({ gx: ox + tile.dx, gy: oy + tile.dy }));
         scene.treeSprites.push(spr);
       }
 
