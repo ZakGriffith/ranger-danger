@@ -3,7 +3,7 @@ import { CFG } from '../config';
 import { DEBUG } from '../debug.config';
 import { ARROW_TOWER_ART_SCALE, ARROW_TOWER_BASE_SCALE } from '../assets/art/arrowTower/textures';
 import { createArrowTowerArcher, setArrowTowerArcherPose } from '../assets/art/arrowTower/rig';
-import { CANNON_TOWER_ART_SCALE } from '../assets/art/cannonTower/base';
+import { CANNON_TOWER_WEAPON_SCALE } from '../assets/art/cannonTower/base';
 import { CANNON_TOWER_BASE_SCALE, CANNON_TOWER_PLATFORM_Y } from '../assets/art/cannonTower/textures';
 import { createCannonTowerGun, setCannonTowerGunPose } from '../assets/art/cannonTower/rig';
 
@@ -95,7 +95,7 @@ export class Tower extends Phaser.Physics.Arcade.Sprite {
     if (this.kind === 'arrow') this.poseArcher(0);
     else this.poseCannon(0);
     const baseScale = this.kind === 'arrow' ? ARROW_TOWER_BASE_SCALE : CANNON_TOWER_BASE_SCALE;
-    const topScale = this.kind === 'arrow' ? ARROW_TOWER_ART_SCALE : CANNON_TOWER_ART_SCALE;
+    const topScale = this.kind === 'arrow' ? ARROW_TOWER_ART_SCALE : CANNON_TOWER_WEAPON_SCALE;
     this.scene.tweens.add({ targets: this,
       scale: { from: baseScale * 1.15, to: baseScale }, duration: 220, ease: 'Back.Out' });
     this.scene.tweens.add({ targets: this.top,

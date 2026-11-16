@@ -2,7 +2,8 @@ import { oval } from '../forestEnemies/paint';
 
 export const CANNON_TOWER_BALL_RADIUS = 10;
 
-export function drawCannonTowerBall(ctx: CanvasRenderingContext2D, x: number, y: number, radius: number): void {
+export function drawCannonTowerBall(ctx: CanvasRenderingContext2D, x: number, y: number, baseRadius: number): void {
+  const radius = baseRadius * 1.3;
   oval(ctx, x, y, radius, radius, '#26252f');
   const metal = ctx.createRadialGradient(
     x - radius * .32, y - radius * .38, radius * .05,

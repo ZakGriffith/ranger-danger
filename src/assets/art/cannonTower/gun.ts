@@ -28,6 +28,7 @@ type Gun = typeof GUNS[Tier];
 
 export const CANNON_TOWER_RELEASE = .35;
 export const CANNON_TOWER_BARREL_Y = -20;
+export const CANNON_TOWER_BARREL_RISE = .28;
 export const CANNON_TOWER_RECOIL_DURATION = .28;
 
 const IGNITION_PEAK = CANNON_TOWER_RELEASE - .095;
@@ -40,15 +41,21 @@ function pose(gun: Gun, angle: number, cycle: number) {
   const cos = Math.cos(angle);
   const sin = Math.sin(angle);
   const depth = 1 / Math.hypot(cos, sin / CANNON_GROUND_Y);
+  const barrelY = sin - CANNON_TOWER_BARREL_RISE;
+  const barrelAngle = Math.atan2(barrelY, cos);
+  const barrelDepth = depth * Math.hypot(cos, barrelY);
   const afterRelease = cycle - CANNON_TOWER_RELEASE;
   const recoil = afterRelease < 0 ? 0 : Math.max(0, 1 - afterRelease / CANNON_TOWER_RECOIL_DURATION) ** 2;
   const forward = gun.length * depth - recoil * 7.5 * depth;
-  return { cos, sin, depth, recoil, forward };
+  return { cos, sin, depth, barrelY, barrelAngle, barrelDepth, recoil, forward };
+}
+
+function muzzleOffset({ cos, barrelY, forward }: ReturnType<typeof pose>) {
+  return { x: cos * forward, y: CANNON_TOWER_BARREL_Y + barrelY * forward };
 }
 
 export function getCannonTowerMuzzle(tier: Tier, angle: number, cycle: number): { x: number; y: number } {
-  const { cos, sin, forward } = pose(GUNS[tier], angle, cycle);
-  return { x: cos * forward, y: CANNON_TOWER_BARREL_Y + sin * forward };
+  return muzzleOffset(pose(GUNS[tier], angle, cycle));
 }
 
 function timber(ctx: CanvasRenderingContext2D, trace: (p: CanvasRenderingContext2D) => void, light: string, dark: string, outline = 2.35) {
@@ -112,10 +119,10 @@ function timberCheek(ctx: CanvasRenderingContext2D, gun: Gun, project: (a: numbe
   });
 }
 
-function touchhole(ctx: CanvasRenderingContext2D, gun: Gun, cos: number, sin: number, depth: number, recoil: number, cycle: number) {
+function touchhole(ctx: CanvasRenderingContext2D, gun: Gun, { cos, barrelY, depth, recoil }: ReturnType<typeof pose>, cycle: number) {
   const breech = -11 * depth - recoil * 7.5 * depth;
   const x = cos * breech;
-  const y = CANNON_TOWER_BARREL_Y + sin * breech - gun.breech * .6;
+  const y = CANNON_TOWER_BARREL_Y + barrelY * breech - gun.breech * .6;
   const l = Math.max(0, 1 - Math.abs(cycle - IGNITION_PEAK) / IGNITION_DURATION);
   shape(ctx, gun.band, 1.4, p => p.ellipse(x, y, 3.9, 2.6, 0, 0, 2 * Math.PI));
   oval(ctx, x + .2, y - .2, 1.6, 1.05, '#28232b');
@@ -152,20 +159,19 @@ function barrelBand(ctx: CanvasRenderingContext2D, gun: Gun, x: number, radius: 
   });
 }
 
-function barrel(ctx: CanvasRenderingContext2D, gun: Gun, tier: Tier, angle: number, cycle: number) {
-  const { cos, sin, depth, recoil } = pose(gun, angle, cycle);
-  const back = -23 * depth;
-  const neck = gun.length * depth;
+function barrel(ctx: CanvasRenderingContext2D, gun: Gun, tier: Tier, { cos, sin, depth, barrelY, barrelAngle, barrelDepth, recoil }: ReturnType<typeof pose>) {
+  const back = -23 * barrelDepth;
+  const neck = gun.length * barrelDepth;
   const throat = gun.lip * .68;
   const radius = gun.breech;
-  const localLight = LIGHT_ANGLE - angle;
+  const localLight = LIGHT_ANGLE - barrelAngle;
   const lightAcross = Math.sin(localLight);
   const lightAlong = Math.cos(localLight);
   const highlight = .5 + .32 * lightAcross;
   const ringDepth = 2.7 + 4.8 * Math.abs(sin);
   ctx.save();
-  ctx.translate(-cos * recoil * 7.5 * depth, CANNON_TOWER_BARREL_Y - sin * recoil * 7.5 * depth);
-  ctx.rotate(angle);
+  ctx.translate(-cos * recoil * 7.5 * depth, CANNON_TOWER_BARREL_Y - barrelY * recoil * 7.5 * depth);
+  ctx.rotate(barrelAngle);
 
   const steel = wash(ctx, -radius, radius, [
     [0, gun.metalDeep], [.35 * highlight, gun.metalDark], [.73 * highlight, gun.metal],
@@ -253,7 +259,8 @@ export function drawCannonTowerFlash(
 
 export function drawCannonTowerGun(ctx: CanvasRenderingContext2D, tier: Tier, angle: number, cycle: number): void {
   const gun = GUNS[tier];
-  const { cos, sin, depth, recoil } = pose(gun, angle, cycle);
+  const gunPose = pose(gun, angle, cycle);
+  const { cos, sin, depth, barrelAngle } = gunPose;
   const project = (a: number, side: number, lift = 0): Point => [
     cos * a * depth - sin * side,
     sin * a * depth + cos * side * CANNON_GROUND_Y - lift * .76,
@@ -264,8 +271,8 @@ export function drawCannonTowerGun(ctx: CanvasRenderingContext2D, tier: Tier, an
   plate(ctx, gun, tier);
   timberCheek(ctx, gun, project, -1);
   timberCheek(ctx, gun, project, 1);
-  barrel(ctx, gun, tier, angle, cycle);
-  touchhole(ctx, gun, cos, sin, depth, recoil, cycle);
-  drawCannonTowerFlash(ctx, tier, angle, cycle, getCannonTowerMuzzle(tier, angle, cycle));
+  barrel(ctx, gun, tier, gunPose);
+  touchhole(ctx, gun, gunPose, cycle);
+  drawCannonTowerFlash(ctx, tier, barrelAngle, cycle, muzzleOffset(gunPose));
   ctx.restore();
 }

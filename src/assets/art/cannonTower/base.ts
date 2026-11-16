@@ -5,6 +5,8 @@ type Point = readonly [number, number];
 
 export const CANNON_TOWER_DECK_Y = -83;
 export const CANNON_TOWER_ART_SCALE = .40;
+export const CANNON_TOWER_WEAPON_SIZE_MULTIPLIER = 1.3;
+export const CANNON_TOWER_WEAPON_SCALE = CANNON_TOWER_ART_SCALE * CANNON_TOWER_WEAPON_SIZE_MULTIPLIER;
 const BASE_WIDTH_SCALE = .89;
 
 const PALETTES = [

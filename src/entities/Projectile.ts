@@ -16,6 +16,8 @@ export class Projectile extends Phaser.Physics.Arcade.Sprite {
   totalDist = 0;
   shadow: Phaser.GameObjects.Sprite | null = null;
   arcOffset = 0; // current visual Y offset (pixels above ground)
+  arcLaunchLift = 0;
+  arcPeakHeight = 0;
   homingTarget: Phaser.Physics.Arcade.Sprite | null = null;
   speed = 0;
 
@@ -38,6 +40,8 @@ export class Projectile extends Phaser.Physics.Arcade.Sprite {
     this.setVelocity(Math.cos(angle) * speed, Math.sin(angle) * speed);
     this.setActive(true).setVisible(true);
     this.arcOffset = 0;
+    this.arcLaunchLift = 0;
+    this.arcPeakHeight = 0;
 
     if (splashRadius > 0) {
       // Cannonball

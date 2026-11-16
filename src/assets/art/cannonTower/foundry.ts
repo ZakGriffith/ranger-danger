@@ -221,14 +221,14 @@ function deck(ctx: CanvasRenderingContext2D, palette: Palette, tier: Tier) {
     for (const [x, y] of [[-42, 17], [-25, 25], [0, 26], [25, 24], [42, 16]] as const) rivet(ctx, palette, x, y, 1.65);
   }
 
-  shape(ctx, dark, 1.8, p => p.ellipse(0, -1, 38, 15, 0, 0, 2 * Math.PI));
-  const bed = stone ? wash(ctx, -14, 15, [[0, '#a47c54'], [1, '#705345']])
-    : wash(ctx, -14, 15, [[0, palette.iron], [1, palette.deep]]);
+  shape(ctx, dark, 1.8, p => p.ellipse(0, 0, 44, 19.8, 0, 0, 2 * Math.PI));
+  const bed = stone ? wash(ctx, -17, 17, [[0, '#a47c54'], [1, '#705345']])
+    : wash(ctx, -17, 17, [[0, palette.iron], [1, palette.deep]]);
   shape(ctx, bed, 2.2,
-    p => p.ellipse(0, -1, 32, 12, 0, 0, 2 * Math.PI));
+    p => p.ellipse(0, 0, 39, 17, 0, 0, 2 * Math.PI));
   if (!stone) {
-    line(ctx, palette.trim, 1.7, p => p.ellipse(0, -1, 36, 14, 0, .16 * Math.PI, .87 * Math.PI));
-    for (const [x, y] of [[-36, 1], [-25, 10], [24, 10], [36, 1]] as const) rivet(ctx, palette, x, y, 1.55);
+    line(ctx, palette.trim, 1.7, p => p.ellipse(0, 0, 41, 18.5, 0, .16 * Math.PI, .87 * Math.PI));
+    for (const [x, y] of [[-41, 1], [-28, 13], [28, 13], [41, 1]] as const) rivet(ctx, palette, x, y, 1.55);
   }
   ctx.restore();
 }

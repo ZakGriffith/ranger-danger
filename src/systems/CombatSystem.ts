@@ -11,13 +11,16 @@ import { ARROW_TOWER_RELEASE } from '../assets/art/arrowTower/archer';
 import { ARROW_TOWER_AIM_Y, ARROW_TOWER_PROJECTILE_TEXTURE, getArrowTowerArcherShot } from '../assets/art/arrowTower/rig';
 import { ARROW_TOWER_ART_SCALE } from '../assets/art/arrowTower/textures';
 import { CANNON_TOWER_BALL_RADIUS } from '../assets/art/cannonTower/ball';
-import { CANNON_TOWER_ART_SCALE } from '../assets/art/cannonTower/base';
+import { CANNON_TOWER_WEAPON_SCALE } from '../assets/art/cannonTower/base';
 import { CANNON_TOWER_RECOIL_DURATION, CANNON_TOWER_RELEASE } from '../assets/art/cannonTower/gun';
 import { getCannonTowerAim, getCannonTowerShot } from '../assets/art/cannonTower/rig';
 import type { Tower } from '../entities/Tower';
 import type { GameScene } from '../scenes/GameScene';
 
-const CANNON_ARC_HEIGHT = 22;
+const CANNON_IMPACT_RADIUS = 14;
+const CANNON_NORTH_ARC_HEIGHT = 40;
+const CANNON_SOUTH_ARC_HEIGHT = 24;
+const CANNON_FULL_ARC_DISTANCE = 150;
 const CANNON_SHOT_MS = 840;
 const CANNON_FUSE_MS = 180;
 
@@ -65,8 +68,8 @@ export class CombatSystem {
       return;
     }
 
-    // The derivative of the flight arc at release adds this upward component to its aim.
-    tower.cannonAim = getCannonTowerAim(tower.top, aim.x, aim.y, CANNON_ARC_HEIGHT * Math.PI);
+    const { angle, launchLift } = getCannonTowerAim(tower.top, aim.x, aim.y);
+    tower.cannonAim = angle;
     if (elapsed <= fireRate) {
       const fuse = Phaser.Math.Clamp(1 - (fireRate - elapsed) / CANNON_FUSE_MS, 0, .999);
       tower.poseCannon(CANNON_TOWER_RELEASE * fuse);
@@ -77,9 +80,16 @@ export class CombatSystem {
     tower.poseCannon(CANNON_TOWER_RELEASE);
     const tier = tower.level as 0 | 1 | 2;
     const muzzle = getCannonTowerShot(tower.top, tier, tower.cannonAim);
-    const scale = CANNON_TOWER_ART_SCALE * (1 + tier / CANNON_TOWER_BALL_RADIUS);
+    const scale = CANNON_TOWER_WEAPON_SCALE * (1 + tier / CANNON_TOWER_BALL_RADIUS);
     SFX.play('cannonShoot');
-    this.spawnProjectile(muzzle.x, muzzle.y, aim.x, aim.y, projectileSpeed, damage, splashRadius, scale);
+    const projectile = this.spawnProjectile(muzzle.x, muzzle.y, aim.x, aim.y, projectileSpeed, damage, splashRadius, scale);
+    const flightDistance = Math.max(0, projectile.totalDist - CANNON_IMPACT_RADIUS);
+    const groundAngle = Math.atan2(aim.y - tower.y, aim.x - tower.x);
+    const southward = (1 + Math.sin(groundAngle)) / 2;
+    const maxHeight = Phaser.Math.Linear(CANNON_NORTH_ARC_HEIGHT, CANNON_SOUTH_ARC_HEIGHT, southward);
+    projectile.arcPeakHeight = maxHeight * Math.min(1, flightDistance / CANNON_FULL_ARC_DISTANCE);
+    // The curve ends at the impact radius, so scale its initial lift to preserve the barrel's slope.
+    projectile.arcLaunchLift = launchLift * flightDistance / projectile.totalDist;
   }
 
   private updateArrowTower(tower: Tower, time: number) {
@@ -254,6 +264,7 @@ export class CombatSystem {
     const pr = new Projectile(scene, x, y);
     scene.projectiles.add(pr);
     pr.fire(tx, ty, speed, dmg, splashRadius, scale, tint, homingTarget, arrowTexture);
+    return pr;
   }
 
   updateProjectiles(time: number) {
@@ -285,25 +296,33 @@ export class CombatSystem {
 
         // Check arrival at ground target
         const d = Math.hypot(p.groundX - p.x, p.groundY - p.y);
-        if (d < 14) {
+        if (d <= CANNON_IMPACT_RADIUS) {
           p.arcOffset = 0;
           this.cannonExplode(p.groundX, p.groundY, p.splashRadius, p.damage);
           p.destroy();
           return true;
         }
 
-        // Arc: parabolic height based on flight progress
-        const traveled = Math.hypot(p.x - p.startX, p.y - p.startY);
-        const t = Math.min(traveled / p.totalDist, 1);
-        const arcHeight = Math.sin(t * Math.PI) * CANNON_ARC_HEIGHT;
+        // Arcade applies the body's movement to the sprite after the scene update.
+        const body = p.body as Phaser.Physics.Arcade.Body;
+        const flightX = p.x + (body.position.x - body.prevFrame.x);
+        const flightY = p.y + (body.position.y - body.prevFrame.y);
+        const traveled = Math.hypot(flightX - p.startX, flightY - p.startY);
+        const flightDistance = p.totalDist - CANNON_IMPACT_RADIUS;
+        const t = Math.min(traveled / flightDistance, 1);
+        const flightCurve = Math.sin(t * Math.PI);
+        // Match the barrel at launch and the ground at impact regardless of the chosen peak.
+        const launchSlope = p.arcLaunchLift / (Math.PI * p.arcPeakHeight);
+        const arcHeight = p.arcPeakHeight * flightCurve * (launchSlope + flightCurve)
+          / (1 + launchSlope * flightCurve);
         p.arcOffset = arcHeight;
 
         // Shadow follows on the ground
         if (p.shadow) {
-          p.shadow.setPosition(p.x, p.y);
-          const shadowScale = 0.2 + Math.sin(t * Math.PI) * 0.25;
+          p.shadow.setPosition(flightX, flightY);
+          const shadowScale = 0.2 + flightCurve * 0.25;
           p.shadow.setScale(shadowScale);
-          p.shadow.setAlpha(0.4 - Math.sin(t * Math.PI) * 0.2);
+          p.shadow.setAlpha(0.4 - flightCurve * 0.2);
         }
 
         // Visually shift the ball upward (arc)
