@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { getRegistry } from '../core/registry';
 import { getEvents } from '../core/events';
 import { CFG } from '../config';
+import { wallTextureKey } from '../assets/art/fieldstone';
 import { Tower, TowerKind } from '../entities/Tower';
 import { Wall } from '../entities/Wall';
 import { SFX } from '../audio/sfx';
@@ -67,7 +68,7 @@ export class BuildSystem {
       scene.ghost.setTint(baseTint);
     }
     if (k === 'wall') {
-      scene.ghost.setTexture('wall');
+      scene.ghost.setTexture(wallTextureKey());
       scene.ghost.clearTint();
     }
     if (k !== 'none') scene.towerSelect.deselectTower();

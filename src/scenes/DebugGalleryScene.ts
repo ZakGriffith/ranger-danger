@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { CFG } from '../config';
 import { generateAllArt } from '../assets/generateArt';
 import { COIN_TEXTURE, coinFrame } from '../assets/art/coins';
+import { WALL_ART_SCALE, WALL_TEXTURE_SIZE, wallTextureKey } from '../assets/art/fieldstone';
 import { MEADOW_ENEMY_ART } from '../assets/art/meadowEnemies/textures';
 import { MEADOW_RAM_ART } from '../assets/art/meadowRam';
 import { FOREST_BEAR_ART } from '../assets/art/forestEnemies/bear';
@@ -142,7 +143,7 @@ const STATIC_GROUPS: StaticDebugGroup[] = [
     title: 'terrain',
     subtitle: 'world props',
     textures: [
-      { key: 'wall_15', label: 'wall' },
+      { key: wallTextureKey(), label: 'wall' },
       { key: 'tree_cluster_0', label: 'trees' },
       { key: 'infected_plant_0', label: 'plants' },
       { key: 'castle_spikes_0', label: 'spikes' },
@@ -729,7 +730,7 @@ export class DebugGalleryScene extends Phaser.Scene {
             * (INFECTED_PLANT_CLUSTER_CONFIG.variantScales?.[0] ?? 1),
         ),
       },
-      { label: 'wall', key: 'wall_15', scale: 0.5 },
+      { label: 'wall', key: wallTextureKey(), scale: WALL_ART_SCALE, originY: 0.5 + CFG.tile / (2 * WALL_TEXTURE_SIZE) },
     ];
     const step = w / items.length;
     const startX = x - w / 2 + step / 2;
@@ -746,7 +747,7 @@ export class DebugGalleryScene extends Phaser.Scene {
       if (!this.textures.exists(item.key)) continue;
       const itemX = startX + step * i;
       const sprite = this.add.sprite(itemX, baseY, item.key)
-        .setOrigin(0.5, item.ranger ? RANGER_TEXTURE_FEET / RANGER_TEXTURE_HEIGHT : 1);
+        .setOrigin(0.5, item.ranger ? RANGER_TEXTURE_FEET / RANGER_TEXTURE_HEIGHT : (item.originY ?? 1));
       if (item.anim && this.anims.exists(item.anim)) sprite.play(item.anim);
       if (item.selected) {
         this.sandboxLineupSprite = sprite;

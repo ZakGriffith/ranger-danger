@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { CFG } from '../config';
 import { DEBUG } from '../debug.config';
+import { WALL_ART_SCALE, wallTextureKey } from '../assets/art/fieldstone';
 
 export class Wall extends Phaser.Physics.Arcade.Sprite {
   hp = CFG.wall.hp;
@@ -12,8 +13,8 @@ export class Wall extends Phaser.Physics.Arcade.Sprite {
   constructor(scene: Phaser.Scene, tileX: number, tileY: number) {
     const wx = tileX * CFG.tile + CFG.tile / 2;
     const wy = tileY * CFG.tile + CFG.tile / 2;
-    super(scene, wx, wy, 'wall_0');
-    this.setScale(0.5);
+    super(scene, wx, wy, wallTextureKey());
+    this.setScale(WALL_ART_SCALE);
     scene.add.existing(this);
     scene.physics.add.existing(this, true);
     // Full tile body
@@ -40,7 +41,6 @@ export class Wall extends Phaser.Physics.Arcade.Sprite {
   /** Update texture based on current neighborMask and damage state */
   updateTexture() {
     const dmg = this.hp < this.maxHp * 0.5;
-    const key = dmg ? `wall_${this.neighborMask}_dmg` : `wall_${this.neighborMask}`;
-    this.setTexture(key);
+    this.setTexture(wallTextureKey(this.neighborMask, dmg));
   }
 }

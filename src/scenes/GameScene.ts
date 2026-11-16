@@ -35,6 +35,7 @@ import { RunStats } from '../state/RunStats';
 import { PlayerUpgradeState } from '../state/PlayerUpgradeState';
 import { SFX } from '../audio/sfx';
 import { generateAllArt, registerAnimations } from '../assets/generateArt';
+import { wallTextureKey } from '../assets/art/fieldstone';
 import { Difficulty, Biome, LEVELS } from '../levels';
 import { computeViewport, viewportWorldSize } from '../viewport';
 
@@ -617,7 +618,7 @@ export class GameScene extends Phaser.Scene {
     this.input.mouse!.disableContextMenu();
 
     // build ghost
-    this.ghost = this.add.sprite(0, 0, 'wall').setAlpha(0.5).setDepth(800).setVisible(false).setOrigin(0.5).setScale(0.5);
+    this.ghost = this.add.sprite(0, 0, wallTextureKey()).setAlpha(0.5).setDepth(800).setVisible(false).setOrigin(0.5).setScale(0.5);
 
     // Red X overlay shown in wall build mode when the cursor is on an
     // existing wall — hint that clicking will start the sell countdown.

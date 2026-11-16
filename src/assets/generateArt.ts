@@ -9,6 +9,7 @@ import { generateArrowTowerProjectile } from './art/arrowTower/rig';
 import { generateArrowTowerBases } from './art/arrowTower/textures';
 import { generateCannonTowerBases, generateCannonTowerProjectile } from './art/cannonTower/textures';
 import { generateCoinTextures, registerCoinAnimations } from './art/coins';
+import { generateWallTextures } from './art/wallTextures';
 import { makeHD } from './art/hd';
 import { POISON_SMOKE_VARIANTS, POISON_SMOKE_FRAME_MS } from './art/poisonSmoke';
 import {
@@ -60,7 +61,7 @@ export {
   createGroundChunk,
 } from './art/terrain';
 import {
-  drawWall, drawIndicatorArrow, drawIndicatorCannon, drawIndicatorBoss, drawIndicatorPointer,
+  drawIndicatorArrow, drawIndicatorCannon, drawIndicatorBoss, drawIndicatorPointer,
 } from './art/ui';
 
 
@@ -193,15 +194,7 @@ export function generateAllArt(scene: Phaser.Scene) {
     add(scene, 'ui_check', c);
   }
 
-  // Wall
-  // Walls — 16 autotile variants (N=1, E=2, S=4, W=8) × normal/damaged
-  for (let mask = 0; mask < 16; mask++) {
-    add(scene, `wall_${mask}`,     makeCanvas(32, drawWall(mask, false)));
-    add(scene, `wall_${mask}_dmg`, makeCanvas(32, drawWall(mask, true)));
-  }
-  // Legacy keys for ghost preview and default
-  add(scene, 'wall',     makeCanvas(32, drawWall(0, false)));
-  add(scene, 'wall_dmg', makeCanvas(32, drawWall(0, true)));
+  generateWallTextures(scene);
 
   // Arrow
   add(scene, 'arrow_0', makeCanvas(32, drawArrow(0)));
