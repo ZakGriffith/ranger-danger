@@ -228,17 +228,22 @@ export class PathingSystem {
       scene.gapBlockers!.add(blocker);
     };
 
-    // Tower bodies are circles smaller than their footprint so the player
-    // can stand on the ground pixels at the corners, which leaves a channel
-    // where two towers touch. Enemies path on the grid and never use it, so
-    // close it for the player too: a thin blocker along the whole shared
-    // edge, so they stop at the seam instead of slipping through.
-    const seam = 12;
+    // Tower bodies are circles smaller than their footprint, so a strip of
+    // walkable ground runs along each edge between the circle and the tile
+    // boundary. Where that edge meets another tower or a solid tile (wall,
+    // tree, water) the strip becomes a channel. Enemies beeline through
+    // tower footprints during direct pursuit and the circle-vs-box physics
+    // can squeeze them through it, so close the shared edge with a blocker
+    // thick enough to reach the circle's tangent on the tower side.
     const towers = scene.towers;
-    for (let a = 0; a < towers.length; a++)
+    const inset = 10; // Tower.ts: bodyRadius = (tile * size - 20) / 2, so 10 px of ground per edge
+    const seam = (inset + 2) * 2; // centred on the edge, reaching 2 px past the tangent
+    const isSolid = (v: number) => v === 1 || v === 3 || v === 4 || v === 7 || v === 9;
+    for (let a = 0; a < towers.length; a++) {
+      const A = towers[a];
+      const ax0 = A.tileX, ax1 = A.tileX + A.size, ay0 = A.tileY, ay1 = A.tileY + A.size;
       for (let b = a + 1; b < towers.length; b++) {
-        const A = towers[a], B = towers[b];
-        const ax0 = A.tileX, ax1 = A.tileX + A.size, ay0 = A.tileY, ay1 = A.tileY + A.size;
+        const B = towers[b];
         const bx0 = B.tileX, bx1 = B.tileX + B.size, by0 = B.tileY, by1 = B.tileY + B.size;
         if (ax1 === bx0 || bx1 === ax0) {
           // side by side: a vertical seam over the rows they share
@@ -250,6 +255,16 @@ export class PathingSystem {
           if (x1 > x0) addBlocker((x0 + x1) / 2 * t, (ay1 === by0 ? ay1 : by1) * t, (x1 - x0) * t, seam);
         }
       }
+      // Solid tiles along each edge of this tower: one seam per shared tile edge.
+      for (let x = ax0; x < ax1; x++) {
+        if (isSolid(gridGet(scene.grid, x, ay0 - 1))) addBlocker((x + 0.5) * t, ay0 * t, t, seam);
+        if (isSolid(gridGet(scene.grid, x, ay1)))     addBlocker((x + 0.5) * t, ay1 * t, t, seam);
+      }
+      for (let y = ay0; y < ay1; y++) {
+        if (isSolid(gridGet(scene.grid, ax0 - 1, y))) addBlocker(ax0 * t, (y + 0.5) * t, seam, t);
+        if (isSolid(gridGet(scene.grid, ax1, y)))     addBlocker(ax1 * t, (y + 0.5) * t, seam, t);
+      }
+    }
 
     // Scan all blocked tiles and check their corners
     for (const [key] of scene.grid) {
@@ -269,7 +284,6 @@ export class PathingSystem {
         // Only block corners where a wall/tree (solid) meets a tower (2) diagonally.
         // Wall-to-wall corners don't need blockers (both are full-tile rectangles).
         // Tower-to-tower corners are intentional gaps (gameplay feature).
-        const isSolid = (v: number) => v === 1 || v === 3 || v === 4 || v === 7 || v === 9;
         const tlbrNeedBlock = (isSolid(tr) && bl === 2) || (tr === 2 && isSolid(bl));
         const trblNeedBlock = (isSolid(tl) && br === 2) || (tl === 2 && isSolid(br));
 

@@ -566,6 +566,7 @@ export class GameScene extends Phaser.Scene {
     this.physics.add.collider(this.player, this.gapBlockers);
     this.physics.add.collider(this.enemies, this.wallGroup, (e, w) => this.enemyBoss.enemyHitsWall(e as Enemy, w as Wall), (_e, _w) => !((_e as Enemy).flying));
     this.physics.add.collider(this.enemies, this.towerGroup, (e, t) => this.enemyBoss.enemyHitsTower(e as Enemy, t as Tower), (_e, _t) => !((_e as Enemy).flying));
+    this.physics.add.collider(this.enemies, this.gapBlockers, undefined, (e) => !((e as Enemy).flying));
     // Big-body enemies (currently just golems) push each other apart so their
     // sprites don't overlap. Add more kinds to the filter to extend.
     this.physics.add.collider(this.enemies, this.enemies, undefined, (a, b) => (a as Enemy).kind === 'golem' && (b as Enemy).kind === 'golem');
