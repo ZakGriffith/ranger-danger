@@ -7,12 +7,12 @@ export const TOAD_SMOKE_FRAMES = Array.from({ length: 80 }, (_, frame) => frame)
 export const TOAD_BOMB_FRAME_MS = 75;
 
 const VENOM_COLORS = [
-  { light: '#fff1a1', body: '#e4af54', base: '#a05a55' },
+  { light: '#e7f3a0', body: '#b8cc59', base: '#708741' },
   { light: '#f0f5b4', body: '#aebf67', base: '#527653' },
 ] as const;
 
 export const TOAD_VENOM_TRAIL = [
-  [0xe4af54, 0xbc8054, 0xf3d580],
+  [0xb8cc59, 0x879c48, 0xd6e581],
   [0xa8bd6b, 0x83a163, 0xbdd485],
 ] as const;
 

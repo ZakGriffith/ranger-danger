@@ -184,7 +184,7 @@ const BUILTIN: CharacterSpec[] = [
   { folder: 'wolf',           texPrefix: 'ew',    anims: stdEnemyAnims('ew') },
   { folder: 'spider',         texPrefix: 'es',    anims: stdEnemyAnims('es') },
   { folder: 'infected_basic', texPrefix: 'eiblob0', anims: stdEnemyAnims('eiblob0'), proceduralCanvasSize: 112 },
-  { folder: 'infected_runner', texPrefix: 'eir', anims: stdEnemyAnims('eir') },
+  { folder: 'infected_runner', texPrefix: 'eir0', anims: stdEnemyAnims('eir0') },
   { folder: 'infected_heavy', texPrefix: 'eih',   anims: stdEnemyAnims('eih') },
   { folder: 'crow',           texPrefix: 'ecr',   anims: stdEnemyAnims('ecr') },
   { folder: 'bat',            texPrefix: 'ebt',   anims: stdEnemyAnims('ebt') },

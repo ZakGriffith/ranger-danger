@@ -15,7 +15,7 @@ const roster = [
   {
     name: 'Poison Toad', actions: 'Hop · Poison lob',
     options: [...toadOptions, gulperOption, glassbellyOption, bellowsOption],
-    preferred: bellowsOption, field: .34, close: 1.36, stride: .90, shadow: 40, offset: -17,
+    field: .34, close: 1.36, stride: .90, shadow: 40, offset: -17,
   },
   { name: 'The Blighted One', actions: 'Advance · Poison charge', options: blightedOptions, field: .58, close: 1.11, stride: 1.28, shadow: 55 },
 ];
@@ -78,8 +78,7 @@ const sections = roster.map((enemy, enemyIndex) => {
     return { article, canvas, button, ctx: canvas.getContext('2d'), option };
   });
   root.append(section);
-  const selected = enemy.preferred ? enemy.options.indexOf(enemy.preferred) : 0;
-  return { enemy, selection, selected, cards, section };
+  return { enemy, selection, selected: 0, cards, section };
 });
 
 function setChoice(group, index) {

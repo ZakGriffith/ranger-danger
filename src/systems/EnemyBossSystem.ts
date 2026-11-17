@@ -5,10 +5,18 @@ import { Boss } from '../entities/Boss';
 import { Wall } from '../entities/Wall';
 import { Tower } from '../entities/Tower';
 import { findPath, gridGet, gridSet } from './Pathfinding';
+import { LanternMawTossSystem } from './LanternMawTossSystem';
 import type { GameScene } from '../scenes/GameScene';
 import { getEvents } from '../core/events';
 import { getRegistry } from '../core/registry';
 import { DEBUG } from '../debug.config';
+import { POISON_SMOKE_DEPTH, POISON_SMOKE_GROUND_Y, POISON_SMOKE_RADIUS } from '../assets/art/poisonSmoke';
+import {
+  LANTERN_MAW_GAS_FIRST_FRAME, LANTERN_MAW_WAKE_MS,
+  LANTERN_MAW_WAKE_SCALE, LANTERN_MAW_WAKE_VARIANTS, lanternMawWakeKey,
+} from '../assets/art/infectedEnemies/lanternMawSmoke';
+
+const BOSS_GAS_RADIUS = 36;
 
 /**
  * Combined enemy + boss AI / abilities / projectile lifecycle. EnemySystem
@@ -18,7 +26,11 @@ import { DEBUG } from '../debug.config';
  * so much surface area that a single class keeps the call graph readable.
  */
 export class EnemyBossSystem {
-  constructor(private scene: GameScene) {}
+  private readonly lanternMawToss: LanternMawTossSystem;
+
+  constructor(private scene: GameScene) {
+    this.lanternMawToss = new LanternMawTossSystem(scene);
+  }
   /** vTime of the last DEBUG_STUCK snapshot. Throttles the per-enemy
    *  state log to once every 3 seconds when the flag is on. */
   private _lastStuckSnapshotAt = 0;
@@ -809,6 +821,11 @@ export class EnemyBossSystem {
     if (!b || !b.active || b.dying) return;
     b.drawHpBar();
 
+    if (b.state === 'goo_throw') {
+      this.lanternMawToss.update(b, time);
+      return;
+    }
+
     const ap = b.animPrefix;
     if (b.state === 'slam_wind' && time >= b.stateEnd) {
       this.bossSlamImpact(b);
@@ -1015,6 +1032,7 @@ export class EnemyBossSystem {
       b.play(scene.anims.exists(windAnim) ? windAnim : `${ap}-chargewind`);
       return;
     }
+    if (ap === 'iboss' && onScreen && this.lanternMawToss.tryStart(b, time, px, py, distToPlayer)) return;
     // Boulder throw belongs to every non-castle boss EXCEPT the grasslands
     // ram (intentionally simpler as the tutorial boss). Key off boss identity,
     // not scene.biome, so the Wendigo/Blighted/Fog Phantom still throw when
@@ -1422,19 +1440,19 @@ export class EnemyBossSystem {
     const backDist = 26;
     const baseX = b.x - b.chargeDirX * backDist;
     const baseY = b.y - b.chargeDirY * backDist + 4;
-    // Blighted One's purple-poison smoke trails the boss regardless of which
-    // map it's fighting on. Key on boss identity, not scene.biome.
-    const isBlighted = b.animPrefix === 'iboss';
+    if (b.animPrefix === 'iboss') {
+      this.spawnLanternMawWake(b, baseX, baseY, puffs);
+      this.spawnGasCloud(baseX, baseY, 'lantern-maw');
+      return;
+    }
     for (let i = 0; i < puffs; i++) {
       const jx = Phaser.Math.Between(-6, 6);
       const jy = Phaser.Math.Between(-4, 4);
       const r = Phaser.Math.Between(8, 12);
-      const shade = isBlighted
-        ? [0xd060a0, 0xe080c0, 0xc04890][i % 3]
-        : [0x9a9aa8, 0xb8b8c4, 0x7e7e8a][i % 3];
+      const shade = [0x9a9aa8, 0xb8b8c4, 0x7e7e8a][i % 3];
       const puff = scene.add.circle(baseX + jx, baseY + jy, r, shade, 0.7)
         .setDepth(8)
-        .setStrokeStyle(1, isBlighted ? 0x8a2060 : 0x5a5a66, 0.5);
+        .setStrokeStyle(1, 0x5a5a66, 0.5);
       const driftX = -b.chargeDirX * 14 + Phaser.Math.Between(-6, 6);
       const driftY = -b.chargeDirY * 14 + Phaser.Math.Between(-14, -6);
       scene.tweens.add({
@@ -1448,18 +1466,42 @@ export class EnemyBossSystem {
         onComplete: () => puff.destroy()
       });
     }
+  }
 
-    // Gas cloud is the Blighted One's signature trail — leave it tied to
-    // boss identity so it appears wherever the Blighted spawns.
-    if (b.animPrefix === 'iboss') {
-      this.spawnGasCloud(baseX, baseY);
+  private spawnLanternMawWake(b: Boss, x: number, y: number, count: number) {
+    const scene = this.scene;
+    for (let i = 0; i < count; i++) {
+      const variant = Phaser.Math.Between(0, LANTERN_MAW_WAKE_VARIANTS - 1);
+      const puff = scene.add.sprite(x + Phaser.Math.Between(-5, 5), y + Phaser.Math.Between(-3, 3), lanternMawWakeKey(variant, 0))
+        .setOrigin(0.5, POISON_SMOKE_GROUND_Y / 128)
+        .setScale(LANTERN_MAW_WAKE_SCALE).setAlpha(0.8).setDepth(8)
+        .setFlipX(Math.random() < 0.5).setName('lantern-maw-wake');
+      puff.play(`iboss-wake-${variant}`);
+      puff.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => puff.destroy());
+      scene.tweens.add({
+        targets: puff,
+        x: puff.x - b.chargeDirX * 10,
+        y: puff.y - b.chargeDirY * 10 - 7,
+        duration: LANTERN_MAW_WAKE_MS,
+        ease: 'Sine.Out',
+      });
     }
   }
 
-  spawnGasCloud(x: number, y: number) {
+  spawnGasCloud(x: number, y: number, source: 'lantern-maw' | 'sand' = 'sand') {
     const scene = this.scene;
     for (const gc of scene.gasClouds) {
       if (Phaser.Math.Distance.Between(x, y, gc.x, gc.y) < 20) return;
+    }
+    if (source === 'lantern-maw') {
+      const scale = BOSS_GAS_RADIUS / POISON_SMOKE_RADIUS;
+      const cloud = scene.add.sprite(x, y, `toad_smoke_0_${LANTERN_MAW_GAS_FIRST_FRAME}`)
+        .setOrigin(0.5, POISON_SMOKE_GROUND_Y / 128)
+        .setScale(scale, scale / POISON_SMOKE_DEPTH).setAlpha(0.86).setDepth(7)
+        .setFlipX(Math.random() < 0.5).setName('lantern-maw-charge-gas');
+      cloud.play({ key: 'iboss-gas', startFrame: Phaser.Math.Between(0, 35) });
+      scene.gasClouds.push({ x, y, sprites: [cloud], expireAt: Infinity, dmgCd: 0 });
+      return;
     }
     const sprites: Phaser.GameObjects.Arc[] = [];
     const count = Phaser.Math.Between(3, 4);
@@ -1501,7 +1543,7 @@ export class EnemyBossSystem {
       }
       if (time > gc.dmgCd) {
         const dist = Phaser.Math.Distance.Between(scene.player.x, scene.player.y, gc.x, gc.y);
-        if (dist < 36) {
+        if (dist < BOSS_GAS_RADIUS) {
           const dmg = 3;
           scene.player.hurt(dmg, scene);
           scene.hud.pushHud();

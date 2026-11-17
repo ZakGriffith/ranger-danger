@@ -222,7 +222,7 @@ export class GameScene extends Phaser.Scene {
   levelWaveCount = CFG.spawn.waveCount;
   boulders: { sprite: Phaser.GameObjects.Sprite; shadow: Phaser.GameObjects.Sprite; sx: number; sy: number; tx: number; ty: number; totalDist: number; speed: number; dmg: number; splashRadius: number; born: number }[] = [];
   webs: { x: number; y: number; sprite: Phaser.GameObjects.Sprite; expireAt: number }[] = [];
-  gasClouds: { x: number; y: number; sprites: Phaser.GameObjects.Arc[]; expireAt: number; dmgCd: number }[] = [];
+  gasClouds: { x: number; y: number; sprites: (Phaser.GameObjects.Arc | Phaser.GameObjects.Sprite)[]; expireAt: number; dmgCd: number }[] = [];
   birdPoops: { sprite: Phaser.GameObjects.Image; expireAt: number; dmgCd: number }[] = [];
   treeSprites: Phaser.GameObjects.GameObject[] = [];
   treeChunksGenerated = new Set<string>();

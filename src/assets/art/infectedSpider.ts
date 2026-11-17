@@ -1,4 +1,5 @@
 import { ellipse, poly, rect, type HdDraw, type HdPut, type Paint } from './hd';
+import { drawBoneLoper } from './infectedEnemies/boneLoper';
 import { drawLanternback } from './infectedEnemies/lanternback';
 type Point = readonly [
     number,
@@ -37,18 +38,29 @@ export const INFECTED_SPIDER_FRAMES = [...INFECTED_SPIDER_MOVE_FRAMES, ...INFECT
 export const INFECTED_SPIDER_MOVE_FPS = 28;
 export const INFECTED_SPIDER_ATTACK_FPS = 10;
 
-const LANTERNBACK_STRIKE_PHASES = [.1, .25, .35, .44, .55, .63, .74, .88] as const;
+const ILLUSTRATED_RUNNERS = [
+    { draw: drawLanternback, scale: .44 },
+    { draw: drawBoneLoper, scale: .4 },
+] as const;
+const STRIKE_PHASES = [.1, .25, .35, .44, .55, .63, .74, .88] as const;
 
-export function makeIllustratedInfectedRunnerFrame(frame: string): HTMLCanvasElement {
+export const INFECTED_SPIDER_VARIANTS = ILLUSTRATED_RUNNERS.length;
+
+export function infectedSpiderTexturePrefix(variant: number): string {
+    return `eir${variant}`;
+}
+
+export function makeIllustratedInfectedRunnerFrame(frame: string, variant: number): HTMLCanvasElement {
     const moving = frame.startsWith('move');
     const index = Number(frame.slice(moving ? 4 : 3));
-    const phase = moving ? index / INFECTED_SPIDER_MOVE_FRAMES.length : LANTERNBACK_STRIKE_PHASES[index];
+    const phase = moving ? index / INFECTED_SPIDER_MOVE_FRAMES.length : STRIKE_PHASES[index];
+    const runner = ILLUSTRATED_RUNNERS[variant];
     const canvas = document.createElement('canvas');
     canvas.width = canvas.height = 64;
     const ctx = canvas.getContext('2d')!;
     ctx.translate(32, 52);
-    ctx.scale(.44, .44);
-    drawLanternback(ctx, moving ? 'move' : 'attack', phase);
+    ctx.scale(runner.scale, runner.scale);
+    runner.draw(ctx, moving ? 'move' : 'attack', phase);
     return canvas;
 }
 

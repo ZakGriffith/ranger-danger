@@ -5,6 +5,7 @@ import { Shadow } from './Shadow';
 import { DEBUG } from '../debug.config';
 import { RAT_VARIANTS } from '../assets/art/rat';
 import { BLOB_ORIGIN_Y, BLOB_VARIANTS } from '../assets/art/infectedBlob';
+import { INFECTED_SPIDER_VARIANTS, infectedSpiderTexturePrefix } from '../assets/art/infectedSpider';
 import { IRONCAP_ORIGIN_Y } from '../assets/art/ironcap';
 import { TOAD_ART, TOAD_VARIANTS, toadTexturePrefix } from '../assets/art/toad';
 import { MEADOW_ENEMY_ART } from '../assets/art/meadowEnemies/textures';
@@ -138,7 +139,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
       case 'infected_runner':
         this.setScale(0.425);
         this.setSize(40, 26).setOffset(12, 26);
-        this.play('eir-move');
+        this.play(`${texPrefix}-move`);
         break;
       case 'toad':
         this.setScale(TOAD_ART.spriteScale);
@@ -257,6 +258,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
   /** Kinds with several art variants pick one per enemy. */
   static pickVariant(kind: EnemyKind): number {
     if (kind === 'infected_basic') return Phaser.Math.Between(0, BLOB_VARIANTS - 1);
+    if (kind === 'infected_runner') return Phaser.Math.Between(0, INFECTED_SPIDER_VARIANTS - 1);
     if (kind === 'toad') return Phaser.Math.Between(0, TOAD_VARIANTS - 1);
     return kind === 'castle_rat' ? Phaser.Math.Between(0, RAT_VARIANTS - 1) : 0;
   }
@@ -269,7 +271,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
       case 'deer': return 'eder';
       case 'infected_basic': return `eiblob${variant}`;
       case 'infected_heavy': return 'eih';
-      case 'infected_runner': return 'eir';
+      case 'infected_runner': return infectedSpiderTexturePrefix(variant);
       case 'toad': return toadTexturePrefix(variant);
       case 'wolf': return 'ew';
       case 'bear': return 'ear'; // default to right-facing

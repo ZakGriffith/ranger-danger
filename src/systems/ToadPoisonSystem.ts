@@ -1,5 +1,6 @@
 import type Phaser from 'phaser';
 import { CFG } from '../config';
+import { LANTERN_MAW_GOO_FRAMES } from '../assets/art/infectedEnemies/lanternMawThrow';
 import { TOAD_ATTACK_RELEASE_MS, toadSpitOrigin } from '../assets/art/toad';
 import { TOAD_BOMB_FRAMES, TOAD_BOMB_FRAME_MS, TOAD_VENOM_TRAIL, toadBombTextureKey } from '../assets/art/toadPoison';
 import { POISON_SMOKE_VARIANTS, POISON_SMOKE_FRAME_MS, POISON_SMOKE_GROUND_Y, POISON_SMOKE_RADIUS, POISON_SMOKE_DEPTH } from '../assets/art/poisonSmoke';
@@ -8,21 +9,68 @@ import type { Enemy } from '../entities/Enemy';
 import type { GameScene } from '../scenes/GameScene';
 
 type PendingThrow = { source: Enemy; x: number; y: number; releaseAt: number; animationPausedByUs: boolean };
-type Bomb = {
-  sprite: Phaser.GameObjects.Image;
-  shadow: Phaser.GameObjects.Ellipse;
-  trail: Phaser.GameObjects.Graphics;
+type CloudStyle = { radius: number; lifetime: number; texturePrefix: string; name: string };
+type BombStyle = {
+  frameKey: (frame: number) => string;
+  frameCount: number;
+  names: readonly [projectile: string, shadow: string, trail: string];
+  scale: number;
+  shadowSize: readonly [width: number, height: number];
+  trailColors: readonly number[];
+  trailScale: number;
+  cloud: CloudStyle;
+};
+type BombLaunch = {
   sx: number;
   sy: number;
+  startGroundY: number;
   tx: number;
   ty: number;
   born: number;
   duration: number;
-  variant: number;
+  arcHeight: number;
+  style: BombStyle;
+  landingCue?: Phaser.GameObjects.Graphics;
 };
-type CloudStyle = { radius: number; lifetime: number; texturePrefix: string };
+type Bomb = BombLaunch & {
+  sprite: Phaser.GameObjects.Image;
+  shadow: Phaser.GameObjects.Ellipse;
+  trail: Phaser.GameObjects.Graphics;
+};
 type Cloud = CloudStyle & { sprite: Phaser.GameObjects.Image; x: number; y: number; born: number; variant: number };
 type ExposureInterval = { start: number; end: number };
+
+export const LANTERN_MAW_GOO_RADIUS = 36;
+const LANTERN_MAW_GOO_SPEED = 240;
+
+const TOAD_CLOUD: CloudStyle = {
+  radius: CFG.infected.toadPoisonRadius,
+  lifetime: CFG.infected.toadPoisonLifetime,
+  texturePrefix: 'toad_smoke',
+  name: 'toad_smoke-cloud',
+};
+
+const TOAD_BOMBS = TOAD_VENOM_TRAIL.map((trailColors, variant): BombStyle => ({
+  frameKey: frame => toadBombTextureKey(variant, frame),
+  frameCount: TOAD_BOMB_FRAMES.length,
+  names: ['toad-poison-bomb', 'toad-poison-shadow', 'toad-poison-trail'],
+  scale: 0.8,
+  shadowSize: [9, 2.5],
+  trailColors,
+  trailScale: 1,
+  cloud: TOAD_CLOUD,
+}));
+
+const LANTERN_MAW_GOO: BombStyle = {
+  frameKey: frame => `iboss_goo_${frame}`,
+  frameCount: LANTERN_MAW_GOO_FRAMES.length,
+  names: ['lantern-maw-goo', 'lantern-maw-goo-shadow', 'lantern-maw-goo-trail'],
+  scale: 0.85,
+  shadowSize: [13, 4],
+  trailColors: [0xc6ce77, 0xa9ba62, 0x82944e],
+  trailScale: 1.4,
+  cloud: { ...TOAD_CLOUD, radius: LANTERN_MAW_GOO_RADIUS, name: 'lantern-maw-goo-cloud' },
+};
 
 export class ToadPoisonSystem {
   private time = 0;
@@ -42,11 +90,22 @@ export class ToadPoisonSystem {
     this.spawnAt(sx, sy, tx, ty, this.time, 0);
   }
 
+  spawnLanternMawGoo(sx: number, sy: number, groundY: number, tx: number, ty: number, landingCue: Phaser.GameObjects.Graphics): void {
+    const distance = Math.hypot(tx - sx, ty - groundY);
+    this.spawnBomb({
+      sx, sy, startGroundY: groundY, tx, ty, born: this.time, landingCue,
+      duration: distance === 0 ? 0 : Math.max(420, Math.min(1050, distance / LANTERN_MAW_GOO_SPEED * 1000)),
+      arcHeight: Math.min(63, 19 + distance * 0.21),
+      style: LANTERN_MAW_GOO,
+    });
+  }
+
   spawnSpiderCloud(x: number, y: number): void {
     this.addCloud(x, y, this.time, {
       radius: CFG.infected.spiderPoisonRadius,
       lifetime: CFG.infected.spiderPoisonLifetime,
       texturePrefix: 'spider_smoke',
+      name: 'spider_smoke-cloud',
     });
   }
 
@@ -87,7 +146,7 @@ export class ToadPoisonSystem {
 
     for (const bomb of this.bombs) {
       if (this.time >= bomb.born + bomb.duration) {
-        this.addCloud(bomb.tx, bomb.ty, bomb.born + bomb.duration);
+        this.addCloud(bomb.tx, bomb.ty, bomb.born + bomb.duration, bomb.style.cloud);
         this.destroyBomb(bomb);
         this.bombs.delete(bomb);
       } else {
@@ -121,16 +180,27 @@ export class ToadPoisonSystem {
 
   private spawnAt(sx: number, sy: number, tx: number, ty: number, born: number, variant: number): void {
     const distance = Math.hypot(tx - sx, ty - sy);
-    if (distance === 0) {
-      this.addCloud(tx, ty, born);
+    this.spawnBomb({
+      sx, sy, startGroundY: sy, tx, ty, born,
+      duration: distance / CFG.infected.toadBombSpeed * 1000,
+      arcHeight: CFG.infected.toadBombArcHeight,
+      style: TOAD_BOMBS[variant],
+    });
+  }
+
+  private spawnBomb(launch: BombLaunch): void {
+    const { sx, sy, startGroundY, tx, ty, born, duration, style, landingCue } = launch;
+    if (duration === 0) {
+      this.addCloud(tx, ty, born, style.cloud);
+      landingCue?.destroy();
       return;
     }
+    const [projectileName, shadowName, trailName] = style.names;
     const bomb: Bomb = {
-      sprite: this.scene.add.image(sx, sy, toadBombTextureKey(variant, 0)).setScale(0.8).setName('toad-poison-bomb'),
-      shadow: this.scene.add.ellipse(sx, sy, 9, 2.5, 0x101115, 0.19).setName('toad-poison-shadow'),
-      trail: this.scene.add.graphics().setName('toad-poison-trail'),
-      sx, sy, tx, ty, born, variant,
-      duration: distance / CFG.infected.toadBombSpeed * 1000,
+      ...launch,
+      sprite: this.scene.add.image(sx, sy, style.frameKey(0)).setScale(style.scale).setName(projectileName),
+      shadow: this.scene.add.ellipse(sx, startGroundY, ...style.shadowSize, 0x101115, 0.19).setName(shadowName),
+      trail: this.scene.add.graphics().setName(trailName),
     };
     this.bombs.add(bomb);
     this.drawBomb(bomb);
@@ -140,34 +210,35 @@ export class ToadPoisonSystem {
     const age = this.time - bomb.born;
     const progress = Math.min(1, age / bomb.duration);
     const groundX = bomb.sx + (bomb.tx - bomb.sx) * progress;
-    const groundY = bomb.sy + (bomb.ty - bomb.sy) * progress;
+    const groundY = bomb.startGroundY + (bomb.ty - bomb.startGroundY) * progress;
     const depth = 100 + groundY * 0.1;
-    const frame = Math.floor(age / TOAD_BOMB_FRAME_MS) % TOAD_BOMB_FRAMES.length;
-    bomb.sprite.setPosition(groundX, groundY - Math.sin(Math.PI * progress) * CFG.infected.toadBombArcHeight)
-      .setDepth(depth + 3).setTexture(toadBombTextureKey(bomb.variant, frame));
+    const { style } = bomb;
+    const frame = Math.floor(age / TOAD_BOMB_FRAME_MS) % style.frameCount;
+    bomb.sprite.setPosition(groundX, this.bombFlightY(bomb, progress))
+      .setDepth(depth + 3).setTexture(style.frameKey(frame));
     bomb.shadow.setPosition(groundX, groundY).setDepth(depth - 0.5).setScale(1 + progress * 0.3);
     bomb.trail.clear().setDepth(depth + 2.9);
     for (let i = 3; i >= 1; i--) {
       const tail = progress - i * 0.045;
       if (tail < 0) continue;
       const x = bomb.sx + (bomb.tx - bomb.sx) * tail;
-      const y = bomb.sy + (bomb.ty - bomb.sy) * tail - Math.sin(Math.PI * tail) * CFG.infected.toadBombArcHeight;
-      bomb.trail.fillStyle(TOAD_VENOM_TRAIL[bomb.variant][i - 1], 0.4 - i * 0.07);
-      bomb.trail.fillCircle(x, y, 0.5 + i * 0.25);
+      const y = this.bombFlightY(bomb, tail);
+      bomb.trail.fillStyle(style.trailColors[i - 1], 0.4 - i * 0.07);
+      bomb.trail.fillCircle(x, y, (0.5 + i * 0.25) * style.trailScale);
     }
   }
 
-  private addCloud(x: number, y: number, born: number, style: CloudStyle = {
-    radius: CFG.infected.toadPoisonRadius,
-    lifetime: CFG.infected.toadPoisonLifetime,
-    texturePrefix: 'toad_smoke',
-  }): void {
-    const { radius, texturePrefix } = style;
+  private bombFlightY(bomb: Bomb, progress: number): number {
+    return bomb.sy + (bomb.ty - bomb.sy) * progress - Math.sin(Math.PI * progress) * bomb.arcHeight;
+  }
+
+  private addCloud(x: number, y: number, born: number, style: CloudStyle): void {
+    const { radius, texturePrefix, name } = style;
     const variant = Math.floor(Math.random() * POISON_SMOKE_VARIANTS);
     const sprite = this.scene.add.image(x, y, `${texturePrefix}_${variant}_0`)
       .setFlipX(Math.random() < 0.5)
       .setOrigin(0.5, POISON_SMOKE_GROUND_Y / 128).setScale(radius / POISON_SMOKE_RADIUS)
-      .setDepth(100 + (y + radius * POISON_SMOKE_DEPTH) * 0.1 + 0.1).setName(`${texturePrefix}-cloud`);
+      .setDepth(100 + (y + radius * POISON_SMOKE_DEPTH) * 0.1 + 0.1).setName(name);
     this.clouds.add({ sprite, x, y, born, variant, ...style });
   }
 
@@ -255,6 +326,7 @@ export class ToadPoisonSystem {
     bomb.sprite.destroy();
     bomb.shadow.destroy();
     bomb.trail.destroy();
+    bomb.landingCue?.destroy();
   }
 
   private resumeSourceAnimation(pending: PendingThrow): void {

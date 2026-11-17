@@ -1,5 +1,9 @@
 import { line, oval, shape, wash } from '../../src/assets/art/forestEnemies/paint';
 import { boils, drawLanternMaw, eye, thread, type LanternMawPose } from '../../src/assets/art/infectedEnemies/lanternMaw';
+import {
+  LANTERN_MAW_WAKE_MS, LANTERN_MAW_WAKE_VARIANTS, lanternMawWakeKey, makeLanternMawWakeFrame,
+} from '../../src/assets/art/infectedEnemies/lanternMawSmoke';
+import { POISON_SMOKE_FRAME_MS, POISON_SMOKE_GROUND_Y } from '../../src/assets/art/poisonSmoke';
 
 type Action = 'move' | 'attack';
 type Pose = LanternMawPose & { pace: number };
@@ -39,9 +43,35 @@ function trail(ctx: CanvasRenderingContext2D, p: Pose, tint: string) {
 }
 
 function lantern(ctx: CanvasRenderingContext2D, action: Action, phase: number) {
-  const p = pose(action, phase);
-  trail(ctx, p, '#b45b9e');
-  drawLanternMaw(ctx, p);
+  if (action === 'attack') lanternWake(ctx, phase);
+  drawLanternMaw(ctx, pose(action, phase));
+}
+
+const wakeFrames = new Map<string, HTMLCanvasElement>();
+
+function lanternWake(ctx: CanvasRenderingContext2D, phase: number) {
+  ctx.save();
+  ctx.globalAlpha = .72;
+  const scale = .77;
+  for (let i = 0; i < 8; i++) {
+    const emissionPhase = .43 + i * .049;
+    const ageMs = (phase - emissionPhase) * 1350;
+    if (ageMs < POISON_SMOKE_FRAME_MS || ageMs >= LANTERN_MAW_WAKE_MS) continue;
+    const emission = pose('attack', emissionPhase);
+    const variant = i % LANTERN_MAW_WAKE_VARIANTS;
+    const frame = Math.floor(ageMs / POISON_SMOKE_FRAME_MS);
+    const key = lanternMawWakeKey(variant, frame);
+    let image = wakeFrames.get(key);
+    if (!image) {
+      image = makeLanternMawWakeFrame(variant, frame);
+      wakeFrames.set(key, image);
+    }
+    const drift = ageMs / LANTERN_MAW_WAKE_MS;
+    const x = emission.x - 42 - drift * 14;
+    const y = 4 - drift * 12;
+    ctx.drawImage(image, x - 64 * scale, y - POISON_SMOKE_GROUND_Y * scale, 128 * scale, 128 * scale);
+  }
+  ctx.restore();
 }
 
 function shelf(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, tilt: number, color: string) {

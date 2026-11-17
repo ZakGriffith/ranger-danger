@@ -139,6 +139,10 @@ export const CFG = {
     toadPoisonLifetime: 4000,
     toadPoisonDamage: 1,
     toadPoisonTickMs: 500,
+    lanternMawThrowFirstDelay: 4800,
+    lanternMawThrowCooldown: 6500,
+    lanternMawThrowMinRange: 82,
+    lanternMawThrowMaxRange: 270,
     toadHopInterval: 300,       // ms resting after each hop
     toadHopDuration: 350,       // ms a hop takes (airborne)
     toadChance: 0.15,           // chance a spawn is a toad instead of normal infected

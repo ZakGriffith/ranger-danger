@@ -1,4 +1,14 @@
 import { ink, line, oval, shape, wash } from '../forestEnemies/paint';
+import {
+  drawLanternMawThrowArm, LANTERN_MAW_THROW_FRAMES, LANTERN_MAW_THROW_POSES, LANTERN_MAW_THROW_TIP,
+  type LanternMawThrowArm, type LanternMawThrowFrame,
+} from './lanternMawThrow';
+
+export {
+  drawLanternMawGoo, LANTERN_MAW_GOO_FRAMES, LANTERN_MAW_THROW_FRAME_MS, LANTERN_MAW_THROW_FRAMES,
+  LANTERN_MAW_THROW_RELEASE_INDEX, LANTERN_MAW_THROW_RELEASE_MS, makeLanternMawGooFrame, type LanternMawThrowFrame,
+} from './lanternMawThrow';
+
 type Point = readonly [number, number];
 export type LanternMawPose = { time: number; x: number; y: number; wind: number; rush: number };
 export const LANTERN_MAW_DASH_FRAMES = ['dash0', 'dash1', 'dash2', 'dash3'] as const;
@@ -11,6 +21,12 @@ export const LANTERN_MAW_FRAMES = [
 type LanternMawFrame = typeof LANTERN_MAW_FRAMES[number];
 
 const TAU = Math.PI * 2;
+const FRAME = { size: 128, x: 64, y: 96, scale: .77 } as const;
+export const LANTERN_MAW_THROW_RELEASE_POINT = {
+  x: FRAME.x + LANTERN_MAW_THROW_TIP[0] * FRAME.scale,
+  y: FRAME.y + LANTERN_MAW_THROW_TIP[1] * FRAME.scale,
+  groundY: FRAME.y,
+} as const;
 
 export function thread(ctx: CanvasRenderingContext2D, start: Point, tip: Point, width: number, seed: number, hue = '#835176') {
   const [x, y] = start;
@@ -45,29 +61,42 @@ export function boils(ctx: CanvasRenderingContext2D, spots: readonly (readonly [
   }
 }
 
-export function drawLanternMaw(ctx: CanvasRenderingContext2D, p: LanternMawPose) {
+export function drawLanternMaw(ctx: CanvasRenderingContext2D, p: LanternMawPose, throwArm?: LanternMawThrowArm) {
   ctx.save();
   ctx.lineCap = ctx.lineJoin = 'round';
-  const curl = p.wind * 25;
-  for (let i = 0; i < 7; i++) {
+  const scaleX = 1 + p.rush * .13 - p.wind * .10;
+  const scaleY = 1 - p.rush * .12 + p.wind * .09;
+  const curl = p.wind * 18;
+  for (let i = 0; i < (throwArm ? 6 : 7); i++) {
     const startX = -44 + i * 13;
     const wave = Math.sin(p.time * 2 + i * 1.37) * .72 + Math.sin(p.time + i * 1.23) * .28;
     const drag = p.rush * 25 * (1 - Math.abs(startX) / 55);
     const endX = startX * 1.42 + wave * 8 - drag;
     const endY = -4 - Math.abs(wave) * 6 - curl * (.32 + Math.abs(i - 3) * .27);
-    thread(ctx, [p.x + startX, -37 + p.y + Math.abs(i - 3) * 3], [endX, endY], i % 2 ? 10 : 13, wave, i % 2 ? '#6d476f' : '#835176');
+    const root = [p.x + startX * scaleX, p.y + (-37 + Math.abs(i - 3) * 3) * scaleY] as const;
+    thread(ctx, root, [endX, endY], i % 2 ? 10 : 13, wave, i % 2 ? '#6d476f' : '#835176');
+  }
+  for (let i = 0; i < 3; i++) {
+    const x = -24 + i * 25;
+    const wave = Math.sin(p.time * 2 + i * 2.1) * .72 + Math.sin(p.time + i * 1.84) * .28;
+    const endX = x * 1.37 + wave * 14 - p.rush * 13;
+    const endY = -2 - curl * (.28 + i * .13) - Math.max(0, wave) * 8;
+    thread(ctx, [p.x + x * scaleX, p.y - 29 * scaleY], [endX, endY], 9.4, -wave);
+  }
+  if (throwArm) {
+    drawLanternMawThrowArm(ctx, [p.x + 34 * scaleX, p.y - 33 * scaleY], throwArm, p.time / TAU);
   }
   ctx.save();
   ctx.translate(p.x, p.y);
-  ctx.scale(1 + p.rush * .13 - p.wind * .10, 1 - p.rush * .12 + p.wind * .09);
+  ctx.scale(scaleX, scaleY);
   shape(ctx, wash(ctx, -105, -14, [[0, '#c18bab'], [.38, '#965c89'], [.72, '#77476e'], [1, '#52334d']]), 3.7, q => {
     q.moveTo(-58, -35);
     q.bezierCurveTo(-66, -42, -56, -79, -37, -91);
     q.bezierCurveTo(-24, -103, -5, -102, 0, -97);
     q.bezierCurveTo(17, -109, 47, -92, 52, -68);
     q.bezierCurveTo(66, -66, 67, -50, 58, -41);
-    q.bezierCurveTo(63, -24, 45, -18, 38, -25);
-    q.bezierCurveTo(24, -15, 17, -21, 10, -23);
+    q.bezierCurveTo(63, -24, 47, -10, 37, -15);
+    q.bezierCurveTo(24, -10, 16, -15, 10, -21);
     q.bezierCurveTo(-4, -14, -13, -19, -23, -23);
     q.bezierCurveTo(-38, -17, -52, -24, -58, -35);
   });
@@ -99,11 +128,6 @@ export function drawLanternMaw(ctx: CanvasRenderingContext2D, p: LanternMawPose)
     q.moveTo(-25, -63); q.quadraticCurveTo(-15, -59, -10, -55);
   });
   ctx.restore();
-  for (let i = 0; i < 3; i++) {
-    const x = -24 + i * 25;
-    const wave = Math.sin(p.time * 2 + i * 2.1) * .72 + Math.sin(p.time + i * 1.84) * .28;
-    thread(ctx, [p.x + x, p.y - 24], [x * 1.37 + wave * 14 - p.rush * 13, -2 - curl * (.37 + i * .2) - Math.max(0, wave) * 8], 9.4, -wave);
-  }
   ctx.restore();
 }
 
@@ -134,12 +158,29 @@ function deathBurst(ctx: CanvasRenderingContext2D, index: number) {
   }
 }
 
-export function makeLanternMawFrame(frame: LanternMawFrame): HTMLCanvasElement {
+function makeFrameCanvas() {
   const canvas = document.createElement('canvas');
-  canvas.width = canvas.height = 128;
+  canvas.width = canvas.height = FRAME.size;
   const ctx = canvas.getContext('2d')!;
-  ctx.translate(64, 96);
-  ctx.scale(.77, .77);
+  ctx.translate(FRAME.x, FRAME.y);
+  ctx.scale(FRAME.scale, FRAME.scale);
+  return { canvas, ctx };
+}
+
+export function drawLanternMawThrow(ctx: CanvasRenderingContext2D, frame: LanternMawThrowFrame) {
+  const { arm, ...body } = LANTERN_MAW_THROW_POSES[frame];
+  const time = LANTERN_MAW_THROW_FRAMES.indexOf(frame) * .57;
+  drawLanternMaw(ctx, { ...body, time }, arm);
+}
+
+export function makeLanternMawThrowFrame(frame: LanternMawThrowFrame): HTMLCanvasElement {
+  const { canvas, ctx } = makeFrameCanvas();
+  drawLanternMawThrow(ctx, frame);
+  return canvas;
+}
+
+export function makeLanternMawFrame(frame: LanternMawFrame): HTMLCanvasElement {
+  const { canvas, ctx } = makeFrameCanvas();
 
   const index = Number(frame.slice(-1));
   const drawBody = (time: number, y = 0, wind = 0, rush = 0) => {

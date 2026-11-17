@@ -14,6 +14,7 @@ export type BossState =
   | 'slam_wind'
   | 'charge_wind'
   | 'charging'
+  | 'goo_throw'
   | 'dying';
 
 export type BossKind = '' | 'queen' | 'dragon' | 'fissure_burrower' | 'desert_scorpion' | 'sandstorm_beast' | 'dune_wraith' | 'temple_construct' | 'sun_priest';
@@ -30,6 +31,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
   nextBirth = 0;
   nextCharge = 0;
   nextBoulder = 0;
+  nextGooThrow = 0;
   contactCd = 0;
   dying = false;
   flying = false;  // queen + fog phantom hover; controls shadow altitude
@@ -116,6 +118,17 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     this.nextCharge = now + 7500;
     this.nextSlam = now + 1500;
     this.nextBoulder = now + 3000;
+    this.nextGooThrow = now + CFG.infected.lanternMawThrowFirstDelay;
+  }
+
+  beginGooThrow(until: number, nextThrow: number): void {
+    this.state = 'goo_throw';
+    this.stateEnd = until;
+    this.nextGooThrow = nextThrow;
+  }
+
+  finishGooThrow(): void {
+    this.state = 'chase';
   }
 
   /** Cached values from the last bar repaint — skip the Graphics rebuild
