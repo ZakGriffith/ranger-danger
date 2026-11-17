@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Infected enemies · Ranger Danger</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --paper: #17191a;
+    --ink: #ede4d0;
+    --muted: #bdb7ac;
+    --border: #413d40;
+    --gold: #e1c593;
+    --mono: "IBM Plex Mono", Menlo, Consolas, monospace;
+    font: 15px/1.45 "Inter", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    color: var(--ink);
+    background: radial-gradient(ellipse at 85% -5%, #43334880 0, transparent 36rem),
+      radial-gradient(ellipse at 0 -7%, #45504164 0, transparent 36rem), var(--paper);
+  }
+  main { width: min(1260px, 100%); margin: auto; padding: 30px clamp(14px, 4vw, 48px) 60px; }
+  h1, h2, h3, p { margin: 0; }
+  .eyebrow { color: var(--gold); font: 600 .75rem/1.4 var(--mono); text-transform: uppercase; letter-spacing: .15em; }
+  h1 { font: 400 clamp(2.65rem, 7vw, 5.75rem)/1 "Instrument Serif", Georgia, serif; letter-spacing: -.067em; margin: 8px 0 19px; }
+  .toolbar {
+    display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px;
+    padding: 10px 0; border-block: 1px solid var(--border);
+  }
+  .modes { display: flex; flex-wrap: wrap; gap: 4px; }
+  button, select {
+    color: var(--ink); background: #252629; border: 1px solid #625b60; border-radius: 5px;
+    min-height: 35px; padding: 5px 10px; font: 600 .78rem/1.2 "Inter", system-ui, sans-serif; cursor: pointer;
+  }
+  button[aria-pressed="true"], .choice[aria-pressed="true"] { background: var(--gold); color: #25201a; border-color: var(--gold); }
+  button:hover:not([aria-pressed="true"]), select:hover { background: #343138; }
+  button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+  label { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: .8rem; }
+  .timeline { flex: 1 1 125px; }
+  input[type="range"] { width: 100%; min-width: 60px; accent-color: var(--gold); }
+  .lineup { margin-top: 19px; }
+  .lineup h2 { margin-bottom: 8px; font: 600 .78rem/1.4 var(--mono); color: var(--gold); text-transform: uppercase; letter-spacing: .12em; }
+  .stage { display: block; width: 100%; height: clamp(92px, 15vw, 155px); border: 1px solid #554849; border-radius: 7px 7px 0 0; }
+  .lineup-keys { display: grid; grid-template-columns: repeat(5, minmax(0,1fr)); font-size: .74rem; text-align: center; color: var(--muted); padding: 6px 0 9px; gap: 4px; }
+  .lineup-keys strong { display: block; color: var(--ink); overflow-wrap: anywhere; }
+  .lineup-keys span { display: block; font-size: .73rem; overflow-wrap: anywhere; }
+  .enemy { border-top: 1px solid var(--border); margin-top: 25px; padding-top: 12px; scroll-margin-top: 20px; }
+  .enemy header { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 12px; margin-bottom: 9px; }
+  .enemy h2 { font: 400 clamp(1.9rem, 4vw, 2.6rem)/1.1 "Instrument Serif", Georgia, serif; letter-spacing: -.045em; }
+  .actions { font-size: .79rem; color: var(--muted); }
+  .options { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: clamp(5px, 1.6vw, 15px); }
+  article { min-width: 0; }
+  .art {
+    display: block; width: 100%; height: auto; aspect-ratio: 1.52; border: 1px solid #554849;
+    border-radius: 6px 6px 0 0;
+    background: radial-gradient(ellipse at 46% 59%, #5b4e54 0, #3e3946 65%, #302b36 100%);
+  }
+  article[data-selected] .art { border-color: #a68f68; }
+  .choice { display: flex; align-items: baseline; width: 100%; gap: .4em; text-align: left; border-radius: 0 0 5px 5px; min-height: 41px; padding: 5px 8px; }
+  .letter { font: 600 .7rem/1.3 var(--mono); opacity: .8; }
+  .label { font: 650 clamp(.72rem, 1.6vw, .98rem)/1.15 Inter, system-ui, sans-serif; overflow-wrap: anywhere; }
+  .description { color: var(--muted); font-size: clamp(.7rem, 1.25vw, .84rem); line-height: 1.38; margin: 6px 0 0; }
+  @media (max-width: 520px) {
+    main { padding-top: 16px; }
+    .toolbar { gap: 8px; }
+    .timeline { flex-basis: 100%; }
+    .choice { padding: 4px; }
+    .lineup-keys span { display: none; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <header class="hero">
+    <p class="eyebrow">Ranger Danger · Biome 03</p>
+    <h1>Infected enemies</h1>
+  </header>
+  <div class="toolbar" role="group" aria-label="Animation controls">
+    <div class="modes" role="group" aria-label="Animation">
+      <button type="button" data-mode="cycle" aria-pressed="true">Move &amp; attack</button>
+      <button type="button" data-mode="move" aria-pressed="false">Move</button>
+      <button type="button" data-mode="attack" aria-pressed="false">Attack</button>
+    </div>
+    <button type="button" id="play">Pause</button>
+    <label>Speed
+      <select id="speed">
+        <option value="0.25">¼×</option>
+        <option value="0.5">½×</option>
+        <option value="1" selected>1×</option>
+      </select>
+    </label>
+    <label>View
+      <select id="scale">
+        <option value="close">Close-up</option>
+        <option value="field">Approx. game scale</option>
+      </select>
+    </label>
+    <label class="timeline">Pose <input id="phase" type="range" min="0" max="1000" step="1" value="0"></label>
+  </div>
+  <section class="lineup" aria-labelledby="lineup-title">
+    <h2 id="lineup-title">Lineup · Choose a design below</h2>
+    <canvas class="stage" role="img" aria-label="Animated lineup of five Infected enemies"></canvas>
+    <div class="lineup-keys" aria-live="polite"></div>
+  </section>
+  <div id="enemies"></div>
+</main>
+<template id="enemy">
+  <section class="enemy">
+    <header><h2></h2><p class="actions"></p></header>
+    <div class="options"></div>
+  </section>
+</template>
+<template id="option">
+  <article>
+    <canvas class="art" width="608" height="400" role="img"></canvas>
+    <button type="button" class="choice" aria-pressed="false"><span class="letter"></span><span class="label"></span></button>
+    <p class="description"></p>
+  </article>
+</template>
+<script type="module" src="./viewer.js"></script>
+</body>
+</html>
