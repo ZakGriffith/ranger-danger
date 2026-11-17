@@ -2,13 +2,21 @@ import { line, oval, shape, wash } from '../forestEnemies/paint';
 
 type Action = 'move' | 'attack';
 type Point = readonly [number, number];
+type GreenPaint = (hex: string) => string;
 
 const FRAME_SIZE = 96;
 const FOOT_Y = 76;
 const FRAME_SCALE = .48;
 const STRIKE_PHASE = .59;
+const PALETTES = [
+  { name: 'Moss', shift: [0, 0, 0] },
+  { name: 'Olive', shift: [9, 4, -9] },
+  { name: 'Forest', shift: [-11, -9, -5] },
+  { name: 'Sage', shift: [-5, 6, 12] },
+] as const;
 
 export const MIRE_SNAPPER_ORIGIN_Y = 60 / FRAME_SIZE;
+export const MIRE_SNAPPER_PALETTES = PALETTES.map(palette => palette.name);
 export const MIRE_SNAPPER_MOVE_FRAMES = Array.from({ length: 24 }, (_, index) => `move${index}`);
 export const MIRE_SNAPPER_ATTACK_FRAMES = Array.from({ length: 24 }, (_, index) => `atk${index}`);
 export const MIRE_SNAPPER_MOVE_FPS = 24;
@@ -16,16 +24,28 @@ export const MIRE_SNAPPER_ATTACK_FPS = 24;
 export const MIRE_SNAPPER_IMPACT_FRAME = 12;
 export const MIRE_SNAPPER_FRAMES = ['idle', ...MIRE_SNAPPER_MOVE_FRAMES, ...MIRE_SNAPPER_ATTACK_FRAMES, 'hit'];
 
+export function mireSnapperTexturePrefix(variant: number): string {
+  return `eih${variant}`;
+}
+
+function greenPaint(variant: number): GreenPaint {
+  const [red, green, blue] = PALETTES[variant].shift;
+  return hex => {
+    const rgb = Number.parseInt(hex.slice(1), 16);
+    return `rgb(${(rgb >> 16) + red}, ${((rgb >> 8) & 255) + green}, ${(rgb & 255) + blue})`;
+  };
+}
+
 const smooth = (start: number, end: number, t: number) => {
   const x = Math.max(0, Math.min(1, (t - start) / (end - start)));
   return x * x * (3 - 2 * x);
 };
 
-function stompLeg(ctx: CanvasRenderingContext2D, x: number, y: number, reach: number, lift: number, far: boolean, front: boolean) {
+function stompLeg(ctx: CanvasRenderingContext2D, x: number, y: number, reach: number, lift: number, far: boolean, front: boolean, green: GreenPaint) {
   const footX = x + (front ? 10 : -4) + reach;
   const footY = (far ? -5 : 0) - lift;
   const skin = far ? '#49534f' : '#71826d';
-  shape(ctx, wash(ctx, y - 7, footY, [[0, skin], [.65, far ? '#3f494a' : '#56685e'], [1, '#323c43']]), 2.8, p => {
+  shape(ctx, wash(ctx, y - 7, footY, [[0, green(skin)], [.65, green(far ? '#3f494a' : '#56685e')], [1, '#323c43']]), 2.8, p => {
     p.moveTo(x - 12, y);
     p.bezierCurveTo(x - 6, y - 13, x + 9, y - 13, x + 14, y - 2);
     p.quadraticCurveTo(x + 16, y + 9, footX + 4, footY - 9);
@@ -36,7 +56,7 @@ function stompLeg(ctx: CanvasRenderingContext2D, x: number, y: number, reach: nu
     p.quadraticCurveTo(x - 15, y + 10, x - 12, y);
   });
   if (far) return;
-  line(ctx, '#9aa187', 1.55, p => {
+  line(ctx, green('#9aa187'), 1.55, p => {
     p.moveTo(x - 7, y + 8); p.quadraticCurveTo(x - 2, y + 2, x + 4, y + 5);
     p.moveTo(x - 4, y + 13); p.quadraticCurveTo(x + 2, y + 9, x + 6, y + 11);
   });
@@ -75,20 +95,20 @@ function carapaceFlake(ctx: CanvasRenderingContext2D, x: number, y: number, scal
   ctx.restore();
 }
 
-function tail(ctx: CanvasRenderingContext2D, bob: number, wag: number) {
-  shape(ctx, '#526157', 2.9, p => {
+function tail(ctx: CanvasRenderingContext2D, bob: number, wag: number, green: GreenPaint) {
+  shape(ctx, green('#526157'), 2.9, p => {
     p.moveTo(-50, -25 + bob);
     p.quadraticCurveTo(-69, -23 + bob, -76, -13 + wag);
     p.quadraticCurveTo(-83, -8 + wag, -87, -14 + wag);
     p.quadraticCurveTo(-87, -2 + wag, -76, -3 + wag);
     p.quadraticCurveTo(-58, -5 + bob, -43, -13 + bob);
   });
-  line(ctx, '#89916b', 1.55, p => {
+  line(ctx, green('#89916b'), 1.55, p => {
     p.moveTo(-75, -9 + wag); p.quadraticCurveTo(-64, -18 + bob, -54, -18 + bob);
   });
 }
 
-function shell(ctx: CanvasRenderingContext2D, y: number, tilt: number) {
+function shell(ctx: CanvasRenderingContext2D, y: number, tilt: number, green: GreenPaint) {
   ctx.save();
   ctx.translate(-11, y);
   ctx.rotate(tilt);
@@ -102,21 +122,21 @@ function shell(ctx: CanvasRenderingContext2D, y: number, tilt: number) {
     p.bezierCurveTo(45, -11, 27, -12, 9, -13);
     p.bezierCurveTo(-6, -8, -41, -8, -49, -19);
   };
-  shape(ctx, wash(ctx, -70, -13, [[0, '#9ba878'], [.38, '#6e8059'], [.72, '#4e6255'], [1, '#354348']]), 3.8, contour);
+  shape(ctx, wash(ctx, -70, -13, [[0, green('#9ba878')], [.38, green('#6e8059')], [.72, green('#4e6255')], [1, '#354348']]), 3.8, contour);
   ctx.save();
   ctx.beginPath();
   contour(ctx);
   ctx.clip();
-  carapaceFlake(ctx, -27, -38, .92, -.52, '#a2a57c', '#697451');
-  carapaceFlake(ctx, -10, -55, .86, -.22, '#afb58a', '#768860');
-  carapaceFlake(ctx, 13, -54, 1.04, .06, '#b6b98c', '#809362');
-  carapaceFlake(ctx, 35, -43, .84, .44, '#a6b47a', '#6a8254');
-  carapaceFlake(ctx, -34, -23, .75, -.28, '#8e9b71', '#5b7655');
-  carapaceFlake(ctx, -13, -31, 1.01, -.2, '#97ac77', '#657e56');
-  carapaceFlake(ctx, 15, -28, .98, .13, '#8f9e75', '#637654');
-  carapaceFlake(ctx, 42, -25, .85, .3, '#93a375', '#657951');
+  carapaceFlake(ctx, -27, -38, .92, -.52, green('#a2a57c'), green('#697451'));
+  carapaceFlake(ctx, -10, -55, .86, -.22, green('#afb58a'), green('#768860'));
+  carapaceFlake(ctx, 13, -54, 1.04, .06, green('#b6b98c'), green('#809362'));
+  carapaceFlake(ctx, 35, -43, .84, .44, green('#a6b47a'), green('#6a8254'));
+  carapaceFlake(ctx, -34, -23, .75, -.28, green('#8e9b71'), green('#5b7655'));
+  carapaceFlake(ctx, -13, -31, 1.01, -.2, green('#97ac77'), green('#657e56'));
+  carapaceFlake(ctx, 15, -28, .98, .13, green('#8f9e75'), green('#637654'));
+  carapaceFlake(ctx, 42, -25, .85, .3, green('#93a375'), green('#657951'));
   ctx.restore();
-  shape(ctx, wash(ctx, -29, -10, [[0, '#889468'], [.45, '#64724f'], [1, '#3e4c46']]), 2.75, p => {
+  shape(ctx, wash(ctx, -29, -10, [[0, green('#889468')], [.45, green('#64724f')], [1, '#3e4c46']]), 2.75, p => {
     p.moveTo(-50, -22);
     p.quadraticCurveTo(-41, -21, -31, -21);
     p.quadraticCurveTo(-20, -18, -8, -22);
@@ -129,13 +149,13 @@ function shell(ctx: CanvasRenderingContext2D, y: number, tilt: number) {
     p.quadraticCurveTo(-40, -6, -50, -16);
     p.quadraticCurveTo(-52, -19, -50, -22);
   });
-  line(ctx, '#b3bd82', 1.55, p => {
+  line(ctx, green('#b3bd82'), 1.55, p => {
     p.moveTo(-43, -20); p.quadraticCurveTo(-33, -16, -24, -19);
     p.moveTo(25, -19); p.quadraticCurveTo(35, -19, 43, -23);
   });
   for (const [x, yy, w, h] of [[-39, -48, 5, 2], [-25, -56, 7, 2.3], [-21, -53, 4, 2], [10, -58, 6.2, 1.7], [35, -22, 6.8, 2.5], [42, -23, 3.3, 2.75]]) {
-    oval(ctx, x, yy, w, h, '#657f4e', -.12);
-    oval(ctx, x - .8, yy - 1.2, w * .72, h * .52, '#a5b872', -.12);
+    oval(ctx, x, yy, w, h, green('#657f4e'), -.12);
+    oval(ctx, x - .8, yy - 1.2, w * .72, h * .52, green('#a5b872'), -.12);
   }
   for (const [x, yy, r] of [[-24, -45, 2.5], [-21, -42, 1.6], [9, -39, 3.5], [17, -41, 2.2], [19, -36, 1.35]]) {
     oval(ctx, x, yy, r + .5, r, '#473d43');
@@ -145,11 +165,11 @@ function shell(ctx: CanvasRenderingContext2D, y: number, tilt: number) {
   ctx.restore();
 }
 
-function jawHead(ctx: CanvasRenderingContext2D, x: number, y: number, jaw: number, twist: number) {
+function jawHead(ctx: CanvasRenderingContext2D, x: number, y: number, jaw: number, twist: number, green: GreenPaint) {
   ctx.save();
   ctx.translate(x, y);
   ctx.rotate(twist);
-  shape(ctx, wash(ctx, -11, 20, [[0, '#758475'], [.43, '#596d66'], [1, '#414953']]), 3.1, p => {
+  shape(ctx, wash(ctx, -11, 20, [[0, green('#758475')], [.43, green('#596d66')], [1, '#414953']]), 3.1, p => {
     p.moveTo(-19, -3);
     p.quadraticCurveTo(-11, -14, 6, -8);
     p.quadraticCurveTo(12, -3, 15, 8);
@@ -157,7 +177,7 @@ function jawHead(ctx: CanvasRenderingContext2D, x: number, y: number, jaw: numbe
     p.quadraticCurveTo(-17, 19, -23, 11);
     p.quadraticCurveTo(-25, 6, -19, -3);
   });
-  line(ctx, '#859888', 1.5, p => {
+  line(ctx, green('#859888'), 1.5, p => {
     p.moveTo(-18, 3); p.quadraticCurveTo(-22, 9, -14, 15);
     p.moveTo(-12, 2); p.quadraticCurveTo(-14, 9, -8, 13);
   });
@@ -174,7 +194,7 @@ function jawHead(ctx: CanvasRenderingContext2D, x: number, y: number, jaw: numbe
   });
   line(ctx, '#aca887', 1.45, p => { p.moveTo(4, 8); p.quadraticCurveTo(11, 10, 16, 7); });
   ctx.restore();
-  shape(ctx, wash(ctx, -22, 9, [[0, '#8da28b'], [.39, '#728c7b'], [.76, '#526a65'], [1, '#40535b']]), 3, p => {
+  shape(ctx, wash(ctx, -22, 9, [[0, green('#8da28b')], [.39, green('#728c7b')], [.76, green('#526a65')], [1, '#40535b']]), 3, p => {
     p.moveTo(-15, -1);
     p.bezierCurveTo(-20, -8, -16, -18, -7, -20);
     p.quadraticCurveTo(3, -22, 8, -18);
@@ -195,12 +215,12 @@ function jawHead(ctx: CanvasRenderingContext2D, x: number, y: number, jaw: numbe
   oval(ctx, 4.1, -7.75, 4.8, 3.1, '#e2b457', -.22);
   oval(ctx, 5.7, -8, 1.34, 2.63, '#302a2e', .21);
   oval(ctx, 3.3, -8.7, 1, .75, '#f8d289');
-  line(ctx, '#a7b497', 1.45, p => {
+  line(ctx, green('#a7b497'), 1.45, p => {
     p.moveTo(-11, -10); p.quadraticCurveTo(-3, -18, 7, -14);
     p.moveTo(-4, 1); p.quadraticCurveTo(-.5, 3, 4, 1);
   });
   for (const [xx, yy, r] of [[-8, -7, 2.1], [-7, -2, 1.65], [-2, -4, 1.1], [10, -2, 1.55], [13, -3, 1.1]]) {
-    oval(ctx, xx, yy, r, r * .62, '#a1af93', -.19);
+    oval(ctx, xx, yy, r, r * .62, green('#a1af93'), -.19);
   }
   ctx.restore();
 }
@@ -220,7 +240,8 @@ function impactSilt(ctx: CanvasRenderingContext2D, x: number, phase: number) {
   ctx.restore();
 }
 
-export function drawMireSnapper(ctx: CanvasRenderingContext2D, action: Action, phase: number) {
+export function drawMireSnapper(ctx: CanvasRenderingContext2D, action: Action, phase: number, variant = 0) {
+  const green = greenPaint(variant);
   const attack = action === 'attack';
   const windup = attack ? smooth(.02, .46, phase) * (1 - smooth(.46, STRIKE_PHASE, phase)) : 0;
   const hit = attack ? smooth(.49, STRIKE_PHASE, phase) * (1 - smooth(.62, .9, phase)) : 0;
@@ -238,14 +259,14 @@ export function drawMireSnapper(ctx: CanvasRenderingContext2D, action: Action, p
   ctx.save();
   ctx.translate(sway, 0);
   ctx.lineCap = ctx.lineJoin = 'round';
-  tail(ctx, bob, attack ? -windup * 2 : Math.sin(time) * 2.1);
-  stompLeg(ctx, -26, -23 + bob, ...step(.56), true, false);
-  stompLeg(ctx, 26, -22 + bob, ...step(.05), true, true);
-  stompLeg(ctx, -33, -17 + bob, ...step(.03), false, false);
-  stompLeg(ctx, 25, -18 + bob, ...step(.54), false, true);
+  tail(ctx, bob, attack ? -windup * 2 : Math.sin(time) * 2.1, green);
+  stompLeg(ctx, -26, -23 + bob, ...step(.56), true, false, green);
+  stompLeg(ctx, 26, -22 + bob, ...step(.05), true, true, green);
+  stompLeg(ctx, -33, -17 + bob, ...step(.03), false, false, green);
+  stompLeg(ctx, 25, -18 + bob, ...step(.54), false, true, green);
   const stretch = hit * 15 - windup * 9;
-  jawHead(ctx, 44 + stretch, -26 + bob * .38 + hit * 6, jaw, -.09 - windup * .22 + hit * .16);
-  shell(ctx, bob, hit * .075 - windup * .07);
+  jawHead(ctx, 44 + stretch, -26 + bob * .38 + hit * 6, jaw, -.09 - windup * .22 + hit * .16, green);
+  shell(ctx, bob, hit * .075 - windup * .07, green);
   if (attack) impactSilt(ctx, 65, phase);
   ctx.restore();
 }
@@ -256,7 +277,7 @@ function attackPhase(frame: number): number {
   return STRIKE_PHASE + (1 - STRIKE_PHASE) * (frame - MIRE_SNAPPER_IMPACT_FRAME) / recoveryFrames;
 }
 
-export function makeMireSnapperFrame(frame: string): HTMLCanvasElement {
+export function makeMireSnapperFrame(frame: string, variant: number): HTMLCanvasElement {
   const canvas = document.createElement('canvas');
   canvas.width = canvas.height = FRAME_SIZE;
   const ctx = canvas.getContext('2d')!;
@@ -264,9 +285,9 @@ export function makeMireSnapperFrame(frame: string): HTMLCanvasElement {
   ctx.translate(FRAME_SIZE / 2, FOOT_Y);
   ctx.scale(FRAME_SCALE, FRAME_SCALE);
   if (frame.startsWith('move')) {
-    drawMireSnapper(ctx, 'move', Number(frame.slice(4)) / MIRE_SNAPPER_MOVE_FRAMES.length);
+    drawMireSnapper(ctx, 'move', Number(frame.slice(4)) / MIRE_SNAPPER_MOVE_FRAMES.length, variant);
   } else {
-    drawMireSnapper(ctx, 'attack', frame.startsWith('atk') ? attackPhase(Number(frame.slice(3))) : 0);
+    drawMireSnapper(ctx, 'attack', frame.startsWith('atk') ? attackPhase(Number(frame.slice(3))) : 0, variant);
   }
   ctx.restore();
   if (frame === 'hit') {

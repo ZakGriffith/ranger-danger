@@ -6,7 +6,7 @@ import { DEBUG } from '../debug.config';
 import { RAT_VARIANTS } from '../assets/art/rat';
 import { BLOB_ORIGIN_Y, BLOB_VARIANTS } from '../assets/art/infectedBlob';
 import { INFECTED_SPIDER_VARIANTS, infectedSpiderTexturePrefix } from '../assets/art/infectedSpider';
-import { MIRE_SNAPPER_ORIGIN_Y } from '../assets/art/infectedEnemies/mireSnapper';
+import { MIRE_SNAPPER_ORIGIN_Y, MIRE_SNAPPER_PALETTES, mireSnapperTexturePrefix } from '../assets/art/infectedEnemies/mireSnapper';
 import { TOAD_ART, TOAD_VARIANTS, toadTexturePrefix } from '../assets/art/toad';
 import { MEADOW_ENEMY_ART } from '../assets/art/meadowEnemies/textures';
 import { FOREST_BEAR_ART } from '../assets/art/forestEnemies/bear';
@@ -134,7 +134,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
       case 'infected_heavy':
         this.setScale(0.6).setOrigin(0.5, MIRE_SNAPPER_ORIGIN_Y);
         this.setSize(32, 32).setOffset(32, 44);
-        this.play('eih-move');
+        this.play(`${texPrefix}-move`);
         break;
       case 'infected_runner':
         this.setScale(0.425);
@@ -258,6 +258,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
   /** Kinds with several art variants pick one per enemy. */
   static pickVariant(kind: EnemyKind): number {
     if (kind === 'infected_basic') return Phaser.Math.Between(0, BLOB_VARIANTS - 1);
+    if (kind === 'infected_heavy') return Phaser.Math.Between(0, MIRE_SNAPPER_PALETTES.length - 1);
     if (kind === 'infected_runner') return Phaser.Math.Between(0, INFECTED_SPIDER_VARIANTS - 1);
     if (kind === 'toad') return Phaser.Math.Between(0, TOAD_VARIANTS - 1);
     return kind === 'castle_rat' ? Phaser.Math.Between(0, RAT_VARIANTS - 1) : 0;
@@ -270,7 +271,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
       case 'rat': return 'erat';
       case 'deer': return 'eder';
       case 'infected_basic': return `eiblob${variant}`;
-      case 'infected_heavy': return 'eih';
+      case 'infected_heavy': return mireSnapperTexturePrefix(variant);
       case 'infected_runner': return infectedSpiderTexturePrefix(variant);
       case 'toad': return toadTexturePrefix(variant);
       case 'wolf': return 'ew';

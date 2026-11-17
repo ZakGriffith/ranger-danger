@@ -1,12 +1,18 @@
 import { oval, shape } from '../../src/assets/art/forestEnemies/paint';
-import { drawMireSnapper } from '../../src/assets/art/infectedEnemies/mireSnapper';
+import { drawMireSnapper, MIRE_SNAPPER_PALETTES } from '../../src/assets/art/infectedEnemies/mireSnapper';
 import { drawBogclaw } from './bogclaw';
 import { drawSporebell } from './sporebell';
 
 type Action = 'move' | 'attack';
 type Mode = Action | 'cycle';
 
-const painters = [drawMireSnapper, drawBogclaw, drawSporebell];
+const turtleColor = document.querySelector<HTMLSelectElement>('#turtle-color')!;
+MIRE_SNAPPER_PALETTES.forEach((name, variant) => turtleColor.add(new Option(name, String(variant))));
+const painters = [
+  (ctx: CanvasRenderingContext2D, action: Action, phase: number) => drawMireSnapper(ctx, action, phase, Number(turtleColor.value)),
+  drawBogclaw,
+  drawSporebell,
+];
 const canvases = [...document.querySelectorAll<HTMLCanvasElement>('.art')];
 const stages = canvases.map((canvas, index) => ({ ctx: canvas.getContext('2d')!, draw: painters[index] }));
 const buttons = [...document.querySelectorAll<HTMLButtonElement>('[data-mode]')];
@@ -122,6 +128,7 @@ for (const button of buttons) {
   });
 }
 scale.addEventListener('change', paint);
+turtleColor.addEventListener('change', paint);
 pose.addEventListener('input', () => {
   setPlaying(false);
   position = Number(pose.value) / 1000;

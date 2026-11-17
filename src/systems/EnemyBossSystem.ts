@@ -1834,7 +1834,7 @@ export class EnemyBossSystem {
   }
 
   private mireSnapperAttackFrame(e: Enemy): Phaser.Animations.AnimationFrame | null {
-    return e.kind === 'infected_heavy' && e.anims.currentAnim?.key === 'eih-atk' && e.anims.isPlaying
+    return e.kind === 'infected_heavy' && e.anims.currentAnim?.key === `${e.dirPrefix()}-atk` && e.anims.isPlaying
       ? e.anims.currentFrame : null;
   }
 
@@ -1842,7 +1842,7 @@ export class EnemyBossSystem {
     e.setVelocity(0, 0);
     e.setFlipX(this.scene.player.x - e.x < 0);
     this.pendingMireSnaps.add(e);
-    e.play('eih-atk');
+    e.play(`${e.dirPrefix()}-atk`);
   }
 
   private resolveMireSnap(e: Enemy) {
