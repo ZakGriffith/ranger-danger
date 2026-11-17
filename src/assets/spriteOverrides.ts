@@ -183,7 +183,7 @@ const BUILTIN: CharacterSpec[] = [
   { folder: 'deer',           texPrefix: 'eder',  anims: stdEnemyAnims('eder') },
   { folder: 'wolf',           texPrefix: 'ew',    anims: stdEnemyAnims('ew') },
   { folder: 'spider',         texPrefix: 'es',    anims: stdEnemyAnims('es') },
-  { folder: 'infected_basic', texPrefix: 'eib',   anims: stdEnemyAnims('eib') },
+  { folder: 'infected_basic', texPrefix: 'eiblob0', anims: stdEnemyAnims('eiblob0'), proceduralCanvasSize: 112 },
   { folder: 'infected_runner', texPrefix: 'eir', anims: stdEnemyAnims('eir') },
   { folder: 'infected_heavy', texPrefix: 'eih',   anims: stdEnemyAnims('eih') },
   { folder: 'crow',           texPrefix: 'ecr',   anims: stdEnemyAnims('ecr') },
@@ -208,12 +208,10 @@ const BUILTIN: CharacterSpec[] = [
     ...stdEnemyAnims('ear'),
     { suffix: 'bite', indexed: true, indexSep: '', animKey: 'ear-bite' },
   ] },
-  // Toad — drops in as move.png (in-game animation is etd-hop). Idle derives
-  // from move frame_0.
-  { folder: 'toad', texPrefix: 'etd', anims: [
-    { suffix: 'move', indexed: true,  indexSep: '', animKey: 'etd-hop'  },
-    { suffix: 'atk',  indexed: true,  indexSep: '', animKey: 'etd-atk'  },
-    { suffix: 'idle', indexed: true,  indexSep: '', animKey: 'etd-idle', derivedFrom: 'move' },
+  { folder: 'toad', texPrefix: 'etd0', anims: [
+    { suffix: 'move', indexed: true,  indexSep: '', animKey: 'etd0-hop'  },
+    { suffix: 'atk',  indexed: true,  indexSep: '', animKey: 'etd0-atk'  },
+    { suffix: 'idle', indexed: true,  indexSep: '', animKey: 'etd0-idle', derivedFrom: 'move' },
   ]},
   // Bosses — chargeWind isn't overridable (its anim alternates with idle0).
   // Hit flash and death pop are programmatic, so bosses only need move.png + atk.png.

@@ -11,7 +11,7 @@ async function main(){
   const {drawBlisterSpider}=await load('/scripts/sprite-tries/infected-runner-spider.ts');
   const {drawSpider}=await load('/src/assets/art/spider.ts');
   const {drawPlayer}=await load('/src/assets/art/player.ts');
-  const {drawToad}=await load('/src/assets/art/toad.ts');
+  const {drawToad}=await load('/scripts/sprite-tries/toad-legacy.ts');
   const candidate=makeHD(64,drawBlisterSpider,{outline:false});
   const forest=makeHD(64,drawSpider('move0'));
   const player=makeHD(64,drawPlayer('idle0'));

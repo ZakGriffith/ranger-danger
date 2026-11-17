@@ -1,7 +1,7 @@
 import type Phaser from 'phaser';
 import { CFG } from '../config';
-import { TOAD_ATTACK_RELEASE_MS, TOAD_SPIT_ORIGIN } from '../assets/art/toad';
-import { TOAD_BOMB_FRAMES, TOAD_BOMB_FRAME_MS } from '../assets/art/toadPoison';
+import { TOAD_ATTACK_RELEASE_MS, toadSpitOrigin } from '../assets/art/toad';
+import { TOAD_BOMB_FRAMES, TOAD_BOMB_FRAME_MS, TOAD_VENOM_TRAIL, toadBombTextureKey } from '../assets/art/toadPoison';
 import { POISON_SMOKE_VARIANTS, POISON_SMOKE_FRAME_MS, POISON_SMOKE_GROUND_Y, POISON_SMOKE_RADIUS, POISON_SMOKE_DEPTH } from '../assets/art/poisonSmoke';
 import type { Tower } from '../entities/Tower';
 import type { Enemy } from '../entities/Enemy';
@@ -18,6 +18,7 @@ type Bomb = {
   ty: number;
   born: number;
   duration: number;
+  variant: number;
 };
 type CloudStyle = { radius: number; lifetime: number; texturePrefix: string };
 type Cloud = CloudStyle & { sprite: Phaser.GameObjects.Image; x: number; y: number; born: number; variant: number };
@@ -38,7 +39,7 @@ export class ToadPoisonSystem {
   }
 
   spawn(sx: number, sy: number, tx: number, ty: number): void {
-    this.spawnAt(sx, sy, tx, ty, this.time);
+    this.spawnAt(sx, sy, tx, ty, this.time, 0);
   }
 
   spawnSpiderCloud(x: number, y: number): void {
@@ -72,13 +73,14 @@ export class ToadPoisonSystem {
       if (!source.active || source.dying) {
         this.pending.delete(pending);
       } else if (pending.releaseAt <= this.time) {
-        const mouthX = (source.flipX ? 64 - TOAD_SPIT_ORIGIN.x : TOAD_SPIT_ORIGIN.x) / 64;
-        const mouthY = (source.flipY ? 64 - TOAD_SPIT_ORIGIN.y : TOAD_SPIT_ORIGIN.y) / 64;
+        const anchor = toadSpitOrigin(source.variant);
+        const mouthX = source.flipX ? source.width - anchor.x : anchor.x;
+        const mouthY = source.flipY ? source.height - anchor.y : anchor.y;
         const mouth = source.getWorldTransformMatrix().transformPoint(
-          (mouthX - source.originX) * source.width,
-          (mouthY - source.originY) * source.height,
+          mouthX - source.displayOriginX,
+          mouthY - source.displayOriginY,
         );
-        this.spawnAt(mouth.x, mouth.y, pending.x, pending.y, pending.releaseAt);
+        this.spawnAt(mouth.x, mouth.y, pending.x, pending.y, pending.releaseAt, source.variant);
         this.pending.delete(pending);
       }
     }
@@ -117,17 +119,17 @@ export class ToadPoisonSystem {
     this.towerExposure.clear();
   }
 
-  private spawnAt(sx: number, sy: number, tx: number, ty: number, born: number): void {
+  private spawnAt(sx: number, sy: number, tx: number, ty: number, born: number, variant: number): void {
     const distance = Math.hypot(tx - sx, ty - sy);
     if (distance === 0) {
       this.addCloud(tx, ty, born);
       return;
     }
     const bomb: Bomb = {
-      sprite: this.scene.add.image(sx, sy, 'toad_bomb_0').setScale(0.8).setName('toad-poison-bomb'),
+      sprite: this.scene.add.image(sx, sy, toadBombTextureKey(variant, 0)).setScale(0.8).setName('toad-poison-bomb'),
       shadow: this.scene.add.ellipse(sx, sy, 9, 2.5, 0x101115, 0.19).setName('toad-poison-shadow'),
       trail: this.scene.add.graphics().setName('toad-poison-trail'),
-      sx, sy, tx, ty, born,
+      sx, sy, tx, ty, born, variant,
       duration: distance / CFG.infected.toadBombSpeed * 1000,
     };
     this.bombs.add(bomb);
@@ -140,8 +142,9 @@ export class ToadPoisonSystem {
     const groundX = bomb.sx + (bomb.tx - bomb.sx) * progress;
     const groundY = bomb.sy + (bomb.ty - bomb.sy) * progress;
     const depth = 100 + groundY * 0.1;
+    const frame = Math.floor(age / TOAD_BOMB_FRAME_MS) % TOAD_BOMB_FRAMES.length;
     bomb.sprite.setPosition(groundX, groundY - Math.sin(Math.PI * progress) * CFG.infected.toadBombArcHeight)
-      .setDepth(depth + 3).setTexture(`toad_bomb_${Math.floor(age / TOAD_BOMB_FRAME_MS) % TOAD_BOMB_FRAMES.length}`);
+      .setDepth(depth + 3).setTexture(toadBombTextureKey(bomb.variant, frame));
     bomb.shadow.setPosition(groundX, groundY).setDepth(depth - 0.5).setScale(1 + progress * 0.3);
     bomb.trail.clear().setDepth(depth + 2.9);
     for (let i = 3; i >= 1; i--) {
@@ -149,8 +152,8 @@ export class ToadPoisonSystem {
       if (tail < 0) continue;
       const x = bomb.sx + (bomb.tx - bomb.sx) * tail;
       const y = bomb.sy + (bomb.ty - bomb.sy) * tail - Math.sin(Math.PI * tail) * CFG.infected.toadBombArcHeight;
-      bomb.trail.fillStyle(i === 1 ? 0xa8bd6b : i === 2 ? 0x83a163 : 0xbdd485, 0.4 - i * 0.07);
-      bomb.trail.fillRect(Math.round(x), Math.round(y), 1 + i * 0.5, 1 + i * 0.5);
+      bomb.trail.fillStyle(TOAD_VENOM_TRAIL[bomb.variant][i - 1], 0.4 - i * 0.07);
+      bomb.trail.fillCircle(x, y, 0.5 + i * 0.25);
     }
   }
 

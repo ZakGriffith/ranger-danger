@@ -6,6 +6,7 @@ import { DEBUG } from '../debug.config';
 import { RAT_VARIANTS } from '../assets/art/rat';
 import { BLOB_ORIGIN_Y, BLOB_VARIANTS } from '../assets/art/infectedBlob';
 import { IRONCAP_ORIGIN_Y } from '../assets/art/ironcap';
+import { TOAD_ART, TOAD_VARIANTS, toadTexturePrefix } from '../assets/art/toad';
 import { MEADOW_ENEMY_ART } from '../assets/art/meadowEnemies/textures';
 import { FOREST_BEAR_ART } from '../assets/art/forestEnemies/bear';
 import type { GameScene } from '../scenes/GameScene';
@@ -140,8 +141,9 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
         this.play('eir-move');
         break;
       case 'toad':
-        applyEntityVisual(this, 'toad', 'move', 0.55, 28, 24, 18, 22);
-        this.play('etd-idle');
+        this.setScale(TOAD_ART.spriteScale);
+        this.setSize(28, 24).setOffset((TOAD_ART.width - 28) / 2, 22);
+        this.play(`${texPrefix}-idle`);
         break;
       case 'crow':
         applyEntityVisual(this, 'crow', 'move', 0.5, 24, 24, 20, 20);
@@ -252,9 +254,10 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.prevY = this.y;
   }
 
-  /** Kinds with several palette variants pick one per enemy; the variant selects the texture set. */
+  /** Kinds with several art variants pick one per enemy. */
   static pickVariant(kind: EnemyKind): number {
     if (kind === 'infected_basic') return Phaser.Math.Between(0, BLOB_VARIANTS - 1);
+    if (kind === 'toad') return Phaser.Math.Between(0, TOAD_VARIANTS - 1);
     return kind === 'castle_rat' ? Phaser.Math.Between(0, RAT_VARIANTS - 1) : 0;
   }
 
@@ -267,7 +270,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
       case 'infected_basic': return `eiblob${variant}`;
       case 'infected_heavy': return 'eih';
       case 'infected_runner': return 'eir';
-      case 'toad': return 'etd';
+      case 'toad': return toadTexturePrefix(variant);
       case 'wolf': return 'ew';
       case 'bear': return 'ear'; // default to right-facing
       case 'spider': return 'es';

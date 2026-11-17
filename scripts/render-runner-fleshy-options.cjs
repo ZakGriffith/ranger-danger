@@ -65,11 +65,10 @@ async function main() {
   const legacy = await load('/src/assets/art/canvas.ts');
   const enemies = await load('/src/assets/art/enemies.ts');
   const playerArt = await load('/src/assets/art/player.ts');
-  const toad = await load('/src/assets/art/toad.ts');
+  const toad = await load('/scripts/sprite-tries/toad-legacy.ts');
   const blob = await load('/src/assets/art/infectedBlob.ts');
   const { CFG } = await load('/src/config.ts');
-  const enemySource = fs.readFileSync(path.join(ROOT, 'src/entities/Enemy.ts'), 'utf8');
-  const gameScale = Number(enemySource.match(/applyEntityVisual\(this, 'infected_basic', 'move', ([0-9.]+)/)[1]);
+  const gameScale = 0.5;
   fs.mkdirSync(OUT, { recursive: true });
   const subjects = [];
   for (const spec of specs) {

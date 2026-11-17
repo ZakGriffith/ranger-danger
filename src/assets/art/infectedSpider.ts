@@ -1,4 +1,5 @@
 import { ellipse, poly, rect, type HdDraw, type HdPut, type Paint } from './hd';
+import { drawLanternback } from './infectedEnemies/lanternback';
 type Point = readonly [
     number,
     number
@@ -35,6 +36,22 @@ export const INFECTED_SPIDER_ATTACK_FRAMES = Array.from({ length: 8 }, (_, i) =>
 export const INFECTED_SPIDER_FRAMES = [...INFECTED_SPIDER_MOVE_FRAMES, ...INFECTED_SPIDER_ATTACK_FRAMES];
 export const INFECTED_SPIDER_MOVE_FPS = 28;
 export const INFECTED_SPIDER_ATTACK_FPS = 10;
+
+const LANTERNBACK_STRIKE_PHASES = [.1, .25, .35, .44, .55, .63, .74, .88] as const;
+
+export function makeIllustratedInfectedRunnerFrame(frame: string): HTMLCanvasElement {
+    const moving = frame.startsWith('move');
+    const index = Number(frame.slice(moving ? 4 : 3));
+    const phase = moving ? index / INFECTED_SPIDER_MOVE_FRAMES.length : LANTERNBACK_STRIKE_PHASES[index];
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = 64;
+    const ctx = canvas.getContext('2d')!;
+    ctx.translate(32, 52);
+    ctx.scale(.44, .44);
+    drawLanternback(ctx, moving ? 'move' : 'attack', phase);
+    return canvas;
+}
+
 const STRIKE = [
     [-1, -1, 1, 0], [-2, -2, 3, 1], [-2, -3, 5, 2],
     [2, -1, 3, 2], [3, 0, 0, 0], [2, 1, 0, 0], [1, 0, 0, 0], [0, 0, 0, 0],

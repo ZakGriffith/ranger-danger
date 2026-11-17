@@ -80,19 +80,19 @@ async function main() {
   const config = { root: ROOT, logLevel: 'error', plugins: [{ name: 'phaser-stub', resolveId: id => id === 'phaser' ? '\0phaser-stub' : null, load: id => id === '\0phaser-stub' ? 'export default {};' : null }] };
   const load = async file => (await runnerImport(file, config)).module;
   const hd = await load('/src/assets/art/hd.ts');
-  const art = await load('/src/assets/art/ironcap.ts');
-  const idleArt = await load('/src/assets/art/ironcapIdle.ts');
+  const art = await load('/scripts/sprite-tries/infected-heavy-ironcap-animation.ts');
+  const idleArt = await load('/scripts/sprite-tries/infected-heavy-ironcap.ts');
   const playerArt = await load('/src/assets/art/player.ts');
   fs.mkdirSync(OUT, { recursive: true });
   const frameBounds = [];
-  const render = name => { const result = checked(hd, art.drawIroncap(name), name); frameBounds.push({ name, bounds: result.bounds }); return result.image; };
+  const render = name => { const result = checked(hd, art.drawIroncapAnimation(name), name); frameBounds.push({ name, bounds: result.bounds }); return result.image; };
   const idle = render('idle');
   const moves = art.IRONCAP_MOVE_FRAMES.map(render), attacks = art.IRONCAP_ATTACK_FRAMES.map(render);
   const player = hd.makeHD(64, playerArt.drawPlayer('idle0'));
   const reference = hd.makeHD(64, idleArt.drawIroncapHeavy, { outline: false });
   const original = reference.getContext('2d').getImageData(0, 0, 64, 64).data;
   const preserved = idle.getContext('2d').getImageData(16, 16, 64, 64).data;
-  for (let i = 0; i < original.length; i++) if (original[i] !== preserved[i]) throw Error(`Production idle differs at component ${i}`);
+  for (let i = 0; i < original.length; i++) if (original[i] !== preserved[i]) throw Error(`Study idle differs at component ${i}`);
   const write = (name, canvas) => fs.writeFileSync(path.join(OUT, name), canvas.toBuffer('image/png'));
   write('ironcap-idle.png', idle); write('ironcap-move-sheet.png', sheet(moves)); write('ironcap-attack-sheet.png', sheet(attacks));
   write('ironcap-move-contact.png', contact(moves, 'IRONCAP / HEAVY WALK — ALL 24 FRAMES'));
@@ -145,7 +145,7 @@ document.querySelector('#status').textContent='Production Ironcap art used in th
 start().catch(error=>{document.querySelector('#status').textContent='Preview failed: '+error.message;document.querySelector('#status').classList.add('failed');console.error(error);});
 </script></body></html>`);
   fs.writeFileSync(path.join(OUT, 'frame-bounds.json'), JSON.stringify(frameBounds, null, 2));
-  console.log(JSON.stringify({ productionIdle: 'pixel-identical', frames: frameBounds.length, meta, html: path.join(OUT, 'ironcap-preview.html') }, null, 2));
+  console.log(JSON.stringify({ studyIdle: 'pixel-identical', frames: frameBounds.length, meta, html: path.join(OUT, 'ironcap-preview.html') }, null, 2));
 }
 
 main().catch(error => { console.error(error); process.exitCode = 1; });

@@ -7,6 +7,7 @@ import { MEADOW_ENEMY_ART } from '../assets/art/meadowEnemies/textures';
 import { MEADOW_RAM_ART } from '../assets/art/meadowRam';
 import { FOREST_BEAR_ART } from '../assets/art/forestEnemies/bear';
 import { registerForestAnimations } from '../assets/art/forestEnemies/textures';
+import { registerInfectedAnimations } from '../assets/art/infectedEnemies/textures';
 import { FOREST_WENDIGO_ART } from '../assets/art/forestEnemies/wendigo';
 import { ARROW_TOWER_PROJECTILE_TEXTURE, createArrowTowerArcher } from '../assets/art/arrowTower/rig';
 import { CANNON_TOWER_GALLERY_KEYS, generateCannonTowerGalleryTextures } from '../assets/art/cannonTower/gallery';
@@ -55,6 +56,7 @@ const RANGER_ENTRY: SpriteDebugEntry = {
 const ENTITY_PROC_SCALES: Record<string, number> = {
   boss_meadow: CFG.bossScale,
   boss_forest: CFG.bossScale,
+  boss_infected: CFG.bossScale,
   basic: 0.5,
   heavy: 0.5,
   snake: MEADOW_ENEMY_ART.snake.spriteScale,
@@ -65,7 +67,7 @@ const ENTITY_PROC_SCALES: Record<string, number> = {
   spider: 0.40,
   infected_basic: 0.5,
   infected_runner: 0.425,
-  infected_heavy: 0.5,
+  infected_heavy: 0.6,
   toad: 0.55,
   crow: 0.5,
   bat: 0.5,
@@ -214,6 +216,7 @@ export class DebugGalleryScene extends Phaser.Scene {
     generateAllArt(this);
     generateCannonTowerGalleryTextures(this);
     registerForestAnimations(this);
+    registerInfectedAnimations(this);
     registerRangerGalleryArt(this);
     applySpriteOverrides(this);
     reregisterSpriteOverrideAnimations(this);

@@ -88,7 +88,7 @@ start().catch(error=>{document.querySelector('#phase').textContent='Preview fail
 }
 async function main(){
   const {runnerImport}=await import('vite');const config={root:ROOT,logLevel:'error',plugins:[{name:'phaser-stub',resolveId:id=>id==='phaser'?'\0phaser-stub':null,load:id=>id==='\0phaser-stub'?'export default {};':null}]};const load=async file=>(await runnerImport(file,config)).module;
-  const hd=await load('/src/assets/art/hd.ts'),toad=await load('/src/assets/art/toad.ts'),player=await load('/src/assets/art/player.ts'),bombs=await load('/scripts/sprite-tries/toad-poison-bombs.ts'),smoke=await load('/scripts/sprite-tries/toad-poison-smoke.ts');
+  const hd=await load('/src/assets/art/hd.ts'),toad=await load('/scripts/sprite-tries/toad-legacy.ts'),player=await load('/src/assets/art/player.ts'),bombs=await load('/scripts/sprite-tries/toad-poison-bombs.ts'),smoke=await load('/scripts/sprite-tries/toad-poison-smoke.ts');
   const assets={toadIdle:toad.TOAD_IDLE_FRAMES.map(f=>hd.makeHD(64,toad.drawToad(f),{outline:false})),toadAttack:toad.TOAD_ATTACK_FRAMES.map(f=>hd.makeHD(64,toad.drawToad(f),{outline:false})),player:hd.makeHD(64,player.drawPlayer('idle0','level')),bombs:{},smoke:{}};
   fs.mkdirSync(OUT,{recursive:true});
   for(const s of SPECS){assets.bombs[s.key]=Array.from({length:8},(_,i)=>hd.makeHD(32,bombs.drawPoisonBomb(s.key,i),{outline:false}));assets.smoke[s.key]=Array.from({length:80},(_,i)=>hd.makeHD(128,smoke.drawPoisonSmoke(s.key,i*50),{outline:false}));}

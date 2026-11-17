@@ -422,12 +422,12 @@ export class EnemyBossSystem {
 
         if (dist < toadRange && dist > 40 && time > e.attackCd && !td._toadHopping && this.enemyOnScreen(e)) {
           e.attackCd = time + CFG.infected.toadFireRate;
-          e.play('etd-atk');
+          e.play(`${prefix}-atk`);
           scene.toadPoison.queueThrow(e, tx, ty);
         }
 
         // Let the attack animation finish before the hop/idle logic stomps it.
-        if (e.anims.currentAnim?.key === 'etd-atk' && e.anims.isPlaying) {
+        if (e.anims.currentAnim?.key === `${prefix}-atk` && e.anims.isPlaying) {
           e.setVelocity(0, 0);
           return true;
         }
@@ -436,7 +436,7 @@ export class EnemyBossSystem {
           if (time > td._toadHopEnd) {
             td._toadHopping = false;
             e.setVelocity(0, 0);
-            if (e.anims.currentAnim?.key !== 'etd-idle') e.play('etd-idle');
+            if (e.anims.currentAnim?.key !== `${prefix}-idle`) e.play(`${prefix}-idle`);
             td._toadHopNext = time + CFG.infected.toadHopInterval;
           }
           return true;
@@ -473,10 +473,10 @@ export class EnemyBossSystem {
           td._toadHopping = true;
           td._toadHopEnd = time + CFG.infected.toadHopDuration;
           e.setVelocity((dxh / dh) * e.speed, (dyh / dh) * e.speed);
-          e.play('etd-hop');
+          e.play(`${prefix}-hop`);
         } else {
           e.setVelocity(0, 0);
-          if (e.anims.currentAnim?.key !== 'etd-idle') e.play('etd-idle');
+          if (e.anims.currentAnim?.key !== `${prefix}-idle`) e.play(`${prefix}-idle`);
         }
         return true;
       }
@@ -822,7 +822,7 @@ export class EnemyBossSystem {
       b.state = 'charging';
       b.stateEnd = time + 1000;
       b.setVelocity(b.chargeDirX * 320, b.chargeDirY * 320);
-      if (ap === 'fboss') b.setFlipX(dx < 0);
+      if (ap === 'fboss' || ap === 'iboss') b.setFlipX(dx < 0);
       b.play(`${ap}-dash`);
       this.spawnChargeSmoke(b, 3);
       b.lastSmoke = time;
@@ -1010,7 +1010,7 @@ export class EnemyBossSystem {
       b.state = 'charge_wind';
       b.stateEnd = time + 1200;
       b.setVelocity(0, 0);
-      if (ap === 'fboss') b.setFlipX(px < b.x);
+      if (ap === 'fboss' || ap === 'iboss') b.setFlipX(px < b.x);
       const windAnim = `${ap}-windup`;
       b.play(scene.anims.exists(windAnim) ? windAnim : `${ap}-chargewind`);
       return;
@@ -1042,7 +1042,7 @@ export class EnemyBossSystem {
       b.state = 'slam_wind';
       b.stateEnd = time + 600;
       b.setVelocity(0, 0);
-      if (ap === 'fboss') b.setFlipX(px < b.x);
+      if (ap === 'fboss' || ap === 'iboss') b.setFlipX(px < b.x);
       b.play(`${ap}-atk`);
       return;
     }
@@ -1693,6 +1693,7 @@ export class EnemyBossSystem {
       born: scene.vTime
     });
 
+    if (b.animPrefix === 'iboss') b.setFlipX(tx < b.x);
     b.play(`${b.animPrefix}-atk`);
     scene.time.delayedCall(300, () => {
       if (b.active && !b.dying && b.state === 'chase')

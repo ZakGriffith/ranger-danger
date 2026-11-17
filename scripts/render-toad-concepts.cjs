@@ -61,10 +61,9 @@ async function main() {
   }] };
   const load = async file => (await runnerImport(file, config)).module;
   const hd = await load('/src/assets/art/hd.ts');
-  const toad = await load('/src/assets/art/toad.ts');
+  const toad = await load('/scripts/sprite-tries/toad-legacy.ts');
   const bear = await load('/src/assets/art/bear.ts');
-  const enemySource = fs.readFileSync(path.join(ROOT, 'src/entities/Enemy.ts'), 'utf8');
-  const gameScale = Number(enemySource.match(/applyEntityVisual\(this, 'toad', 'move', ([0-9.]+)/)[1]);
+  const gameScale = 0.55;
   fs.mkdirSync(OUT, { recursive: true });
   const subjects = [];
   for (const spec of specs) {

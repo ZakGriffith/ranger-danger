@@ -1,9 +1,45 @@
 import { drawPoisonSmoke, type PoisonSmokePalette } from './poisonSmoke';
 import { poly, type HdDraw, type HdPut, type Paint } from './hd';
+import { oval as paintOval, shape, wash } from './forestEnemies/paint';
 
 export const TOAD_BOMB_FRAMES = Array.from({ length: 8 }, (_, frame) => frame);
 export const TOAD_SMOKE_FRAMES = Array.from({ length: 80 }, (_, frame) => frame);
 export const TOAD_BOMB_FRAME_MS = 75;
+
+const VENOM_COLORS = [
+  { light: '#fff1a1', body: '#e4af54', base: '#a05a55' },
+  { light: '#f0f5b4', body: '#aebf67', base: '#527653' },
+] as const;
+
+export const TOAD_VENOM_TRAIL = [
+  [0xe4af54, 0xbc8054, 0xf3d580],
+  [0xa8bd6b, 0x83a163, 0xbdd485],
+] as const;
+
+export function toadBombTextureKey(variant: number, frame: number): string {
+  return `toad_bomb_${variant}_${frame}`;
+}
+
+export function makeToadVenomFrame(frame: number, variant: number): HTMLCanvasElement {
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = 32;
+  const ctx = canvas.getContext('2d')!;
+  const { light, body, base } = VENOM_COLORS[variant];
+  const turn = frame * Math.PI * 2 / TOAD_BOMB_FRAMES.length;
+  const wobble = Math.sin(turn * 2);
+  ctx.translate(16, 16);
+  ctx.lineCap = ctx.lineJoin = 'round';
+  shape(ctx, wash(ctx, -8, 8, [[0, light], [.45, body], [1, base]]), 2.5, p => {
+    p.moveTo(-9, 1);
+    p.quadraticCurveTo(-8, -7, -1, -7 + wobble);
+    p.bezierCurveTo(6, -9, 11 - wobble, -4, 10, 2);
+    p.bezierCurveTo(9, 8 + wobble, 2, 9, -3, 7);
+    p.quadraticCurveTo(-9, 6, -9, 1);
+  });
+  paintOval(ctx, -2 + Math.cos(turn) * 2.4, -3 + Math.sin(turn) * 1.1, 3.4, 1.45, light, -.27);
+  paintOval(ctx, 4 - Math.cos(turn) * 1.6, 2, 1.7, 1.35, body, .25);
+  return canvas;
+}
 
 type Point = readonly [number, number];
 type Pen = { put: HdPut; angle: number };

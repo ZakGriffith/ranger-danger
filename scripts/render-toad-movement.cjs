@@ -1,6 +1,6 @@
 const {createCanvas}=require('canvas');const fs=require('fs'),path=require('path');
 const ROOT=path.resolve(__dirname,'..'),OUT=path.join(__dirname,'out','toad-movement');globalThis.document={createElement:()=>createCanvas(1,1)};
-(async()=>{const {runnerImport}=await import('vite');const config={root:ROOT,logLevel:'error'};const load=async file=>(await runnerImport(file,config)).module;const {makeHD}=await load('/src/assets/art/hd.ts');const art=await load('/src/assets/art/toad.ts');const {CFG}=await load('/src/config.ts');
+(async()=>{const {runnerImport}=await import('vite');const config={root:ROOT,logLevel:'error'};const load=async file=>(await runnerImport(file,config)).module;const {makeHD}=await load('/src/assets/art/hd.ts');const art=await load('/scripts/sprite-tries/toad-legacy.ts');const {CFG}=await load('/src/config.ts');
 const frames=art.TOAD_HOP_FRAMES.map(f=>makeHD(64,art.drawToad(f),{outline:false}).toDataURL()),idle=makeHD(64,art.drawToad('idle0'),{outline:false}).toDataURL();
 const next={name:'Option 2',speed:CFG.enemy.toad.speed,hop:CFG.infected.toadHopDuration,rest:CFG.infected.toadHopInterval};
 if(next.speed*next.hop/1000!==42)throw Error('Unexpected hop distance');

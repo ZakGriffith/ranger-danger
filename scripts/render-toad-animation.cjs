@@ -203,13 +203,12 @@ async function main() {
   const config = { root: ROOT, logLevel: 'error', plugins: [{ name: 'phaser-stub', resolveId: id => id === 'phaser' ? '\0phaser-stub' : null, load: id => id === '\0phaser-stub' ? 'export default {};' : null }] };
   const load = async file => (await runnerImport(file, config)).module;
   const hd = await load('/src/assets/art/hd.ts');
-  const toad = await load('/src/assets/art/toad.ts');
+  const toad = await load('/scripts/sprite-tries/toad-legacy.ts');
   const { CFG } = await load('/src/config.ts');
   Object.assign(timing, { idleFps: toad.TOAD_IDLE_FPS, hopDuration: CFG.infected.toadHopDuration, hopRest: CFG.infected.toadHopInterval, attackFps: toad.TOAD_ATTACK_FPS, release: toad.TOAD_ATTACK_RELEASE_MS });
   const poison = await load('/src/assets/art/toadPoison.ts');
   const approved = await load('/scripts/sprite-tries/toad-spore.ts');
-  const source = fs.readFileSync(path.join(ROOT, 'src/entities/Enemy.ts'), 'utf8');
-  const gameScale = Number(source.match(/applyEntityVisual\(this, 'toad', 'move', ([0-9.]+)/)[1]);
+  const gameScale = 0.55;
   Object.assign(projectile, { mouth: toad.TOAD_SPIT_ORIGIN, gameScale, speed: CFG.infected.toadBombSpeed, arcHeight: CFG.infected.toadBombArcHeight, frameMs: poison.TOAD_BOMB_FRAME_MS });
   const names = { idle: toad.TOAD_IDLE_FRAMES, hop: toad.TOAD_HOP_FRAMES, attack: toad.TOAD_ATTACK_FRAMES };
   const frames = {}, measurements = [];

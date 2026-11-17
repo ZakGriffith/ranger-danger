@@ -1,7 +1,8 @@
-import { ink, line, oval, shape, wash } from '../../src/assets/art/forestEnemies/paint';
+import { line, oval, shape, wash } from '../../src/assets/art/forestEnemies/paint';
+import { rollingJellyOptions } from '../../src/assets/art/infectedBlob';
 
 type Motion = 'move' | 'attack';
-type BlobStyle = 'jelly' | 'colony' | 'tar';
+type BlobStyle = 'colony' | 'tar';
 
 const TAU = Math.PI * 2;
 
@@ -21,7 +22,7 @@ function blobPose(style: BlobStyle, motion: Motion, phase: number) {
   const lunge = ease(.24, .55, phase) * (1 - ease(.55, 1, phase));
   const hop = ease(.23, .38, phase) * (1 - ease(.39, .58, phase));
   const impact = ease(.50, .58, phase) * (1 - ease(.60, .84, phase));
-  const lift = style === 'jelly' ? 27 : style === 'colony' ? 23 : 19;
+  const lift = style === 'colony' ? 23 : 19;
   return {
     x: -6 * preload + 18 * lunge,
     lift: lift * hop,
@@ -34,77 +35,6 @@ function blobPose(style: BlobStyle, motion: Motion, phase: number) {
 
 function glint(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, paint: string, angle = -.28) {
   oval(ctx, x, y, r, r * .31, paint, angle);
-}
-
-const JELLY_BUBBLES = [
-  [-27, -7, 5.1], [-17, -20, 6.6], [-5, -19, 3.1], [-7, -3, 4.3],
-  [18, -16, 5.3], [24, 4, 7.6], [4, 17, 8.2], [-20, 16, 4.2], [12, 26, 3.6],
-] as const;
-
-function jellyBubbles(ctx: CanvasRenderingContext2D, turn: number) {
-  const cos = Math.cos(turn);
-  const sin = Math.sin(turn);
-  for (const [localX, localY, r] of JELLY_BUBBLES) {
-    const x = localX * cos - localY * sin;
-    const y = -35 + (localX * sin + localY * cos) * .78;
-    oval(ctx, x, y, r + .75, r * .88 + .75, '#367763b0', -.24);
-    oval(ctx, x, y - .35, r - .2, r * .86, '#9bca848a', -.24);
-    glint(ctx, x - r * .27, y - r * .47, r * .49, '#f0f4bbd9', -.43);
-  }
-}
-
-function jadeShell(ctx: CanvasRenderingContext2D, turn: number) {
-  const bulge = Math.sin(turn) * 3.6;
-  const body = wash(ctx, -68, 1, [[0, '#cce69b'], [.24, '#8bbf76'], [.59, '#4f9a65'], [.83, '#327c62'], [1, '#285e53']]);
-  shape(ctx, body, 3, p => {
-    p.moveTo(-21, -1);
-    p.bezierCurveTo(-39, -2, -48, -15, -47, -32);
-    p.bezierCurveTo(-47, -52, -29 + bulge, -66, -5 + bulge, -67);
-    p.bezierCurveTo(19 + bulge, -70, 43, -55, 45, -38);
-    p.bezierCurveTo(51, -21, 38, -4, 21, -1);
-    p.quadraticCurveTo(2, 1, -21, -1);
-  });
-
-  ctx.save();
-  ctx.clip();
-  shape(ctx, '#306e61ab', 0, p => {
-    p.moveTo(-44, -15); p.quadraticCurveTo(-34, -18, -19, -12);
-    p.bezierCurveTo(4, -4, 31, -12, 47, -26);
-    p.lineTo(55, 4); p.lineTo(-49, 4);
-  });
-  jellyBubbles(ctx, turn);
-  shape(ctx, '#d7ecaa66', 0, p => {
-    p.moveTo(-39, -40);
-    p.bezierCurveTo(-35, -53, -19, -61, -3, -61);
-    p.quadraticCurveTo(1, -60, 4, -57); p.quadraticCurveTo(-17, -57, -27, -44);
-    p.quadraticCurveTo(-33, -36, -39, -40);
-  });
-  line(ctx, '#edf3bd', 2.6, p => {
-    p.moveTo(-25, -50); p.quadraticCurveTo(-18, -56, -10, -57);
-    p.moveTo(-3, -58); p.quadraticCurveTo(1, -59, 4, -58);
-  });
-  ctx.restore();
-}
-
-function jadeRollPose(phase: number) {
-  const flight = Math.max(0, Math.min(1, (phase - .22) / .55));
-  const bounce = 4 * flight * (1 - flight);
-  const compress = ease(.05, .16, phase) * (1 - ease(.16, .22, phase));
-  const land = ease(.77, .84, phase) * (1 - ease(.84, 1, phase));
-  const squash = .085 * compress + .12 * land - .045 * bounce;
-  return { x: Math.sin(phase * TAU) * 2.4, lift: 6.4 * bounce, xScale: 1 + squash, yScale: 1 - squash, roll: phase * TAU };
-}
-
-function drawJadeJelly(ctx: CanvasRenderingContext2D, motion: Motion, phase: number) {
-  const pose = motion === 'move' ? jadeRollPose(phase) : blobPose('jelly', motion, phase);
-  const height = motion === 'attack' && pose.yScale > 1 ? 1 + (pose.yScale - 1) * .25 : pose.yScale;
-  ctx.save();
-  ctx.translate(pose.x, -pose.lift);
-  ctx.scale(pose.xScale, height);
-  ctx.transform(1, 0, -.071, 1, 0, 0);
-  ctx.lineJoin = ctx.lineCap = 'round';
-  jadeShell(ctx, pose.roll);
-  ctx.restore();
 }
 
 function blister(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, pulse: number, hot = false) {
@@ -235,12 +165,10 @@ function drawBlob(ctx: CanvasRenderingContext2D, style: Exclude<BlobStyle, 'jell
   ctx.restore();
 }
 
+const [jade, ...jellyVariants] = rollingJellyOptions;
+
 export const blobOptions = [
-  {
-    name: 'Jade Jelly',
-    description: 'A bubbly jade gel with a small bounce in its roll and a bigger jump strike.',
-    draw: drawJadeJelly,
-  },
+  jade,
   {
     name: 'Boil Colony',
     description: 'A lopsided stack of purple and amber sacs that swell before the leap.',
@@ -251,4 +179,5 @@ export const blobOptions = [
     description: 'A dark tar mound carrying cracked yellow mineral plates.',
     draw: (ctx: CanvasRenderingContext2D, motion: Motion, phase: number) => drawBlob(ctx, 'tar', motion, phase),
   },
+  ...jellyVariants,
 ] as const;

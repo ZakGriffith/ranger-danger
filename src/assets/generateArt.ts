@@ -15,7 +15,6 @@ import { POISON_SMOKE_VARIANTS, POISON_SMOKE_FRAME_MS } from './art/poisonSmoke'
 import {
   EFrame, EFrame6,
   drawEnemyBasic, drawEnemyHeavy,
-  drawEnemyInfectedBasic,
   drawEnemyCrow, drawEnemyBat, drawEnemyDragonfly,
   drawEnemyMosquito, drawMosquitoDart, drawBirdPoop,
   drawEnemySkeleton, drawEnemyWarlock, drawEnemyGolem, drawEnemyShadowImp,
@@ -25,12 +24,9 @@ import {
 import { MEADOW_FRAMES, MEADOW_MOVE_FRAMES, MEADOW_ATK_FRAMES } from './art/meadow';
 import { generateMeadowEnemyTextures } from './art/meadowEnemies/textures';
 import { SPIDER_SMOKE_FRAMES, drawSpiderSmoke } from './art/spiderPoison';
-import { INFECTED_SPIDER_FRAMES, INFECTED_SPIDER_MOVE_FRAMES, INFECTED_SPIDER_ATTACK_FRAMES, INFECTED_SPIDER_MOVE_FPS, INFECTED_SPIDER_ATTACK_FPS, drawInfectedSpider } from './art/infectedSpider';
 import { drawRat, RAT_VARIANTS } from './art/rat';
-import { TOAD_FRAMES, TOAD_IDLE_FRAMES, TOAD_HOP_FRAMES, TOAD_ATTACK_FRAMES, TOAD_IDLE_FPS, TOAD_ATTACK_FPS, drawToad } from './art/toad';
-import { TOAD_BOMB_FRAMES, TOAD_SMOKE_FRAMES, drawToadBomb, drawToadSmoke } from './art/toadPoison';
-import { BLOB_VARIANTS, BLOB_FRAMES, BLOB_MOVE_FRAMES, BLOB_ATTACK_FRAMES, BLOB_ATTACK_FRAME_MS, makeInfectedBlobFrame } from './art/infectedBlob';
-import { IRONCAP_SIZE, IRONCAP_FRAMES, IRONCAP_MOVE_FRAMES, IRONCAP_ATTACK_FRAMES, IRONCAP_MOVE_FPS, IRONCAP_ATTACK_FPS, drawIroncap } from './art/ironcap';
+import { TOAD_SMOKE_FRAMES, drawToadSmoke } from './art/toadPoison';
+import { generateInfectedTextures, registerInfectedAnimations } from './art/infectedEnemies/textures';
 import {
   Put, PutRGB, P, S,
   pxIdx, pxEq, pxCopy, scale2x, makeCanvas, mirrorX,
@@ -38,9 +34,9 @@ import {
 } from './art/canvas';
 import { generateForestEnemyTextures, registerForestAnimations } from './art/forestEnemies/textures';
 import {
-  BossFrame, RamFrame, riverBossFrames, infectedBossFrames,
+  BossFrame, RamFrame, riverBossFrames,
   phantomQueenFrames, castleDragonFrames,
-  drawFogPhantom, drawBoss, drawInfectedBoss,
+  drawFogPhantom, drawBoss,
   drawPhantomQueen, drawCastleDragon, drawDesertBoss,
   drawQueenOrb, drawDragonFireball, drawDragonFireExplosion,
 } from './art/bosses';
@@ -92,23 +88,10 @@ export function generateAllArt(scene: Phaser.Scene) {
   for (let v = 0; v < RAT_VARIANTS; v++) {
     for (const frame of MEADOW_FRAMES) add(scene, `ecrat${v}_${frame}`, makeHD(64, drawRat(frame, v)));
   }
-  for (const frame of INFECTED_SPIDER_FRAMES) {
-    add(scene, `eir_${frame}`, makeHD(64, drawInfectedSpider(frame), { outline: false }));
-  }
-  for (const f of e6Frames) add(scene, `eib_${f}`, makeCanvas(32, drawEnemyInfectedBasic(f)));
-  for (let variant = 0; variant < BLOB_VARIANTS; variant++) {
-    for (const frame of BLOB_FRAMES) add(scene, `eiblob${variant}_${frame}`, makeInfectedBlobFrame(frame, variant));
-  }
-  for (const f of IRONCAP_FRAMES) {
-    add(scene, `eih_${f}`, makeHD(IRONCAP_SIZE, drawIroncap(f), { outline: false, flash: f === 'hit' }));
-  }
-  for (const f of TOAD_FRAMES) {
-    add(scene, `etd_${f}`, makeHD(64, drawToad(f), { outline: false }));
-  }
+  generateInfectedTextures(scene);
   for (let variant = 0; variant < POISON_SMOKE_VARIANTS; variant++) for (const frame of SPIDER_SMOKE_FRAMES) {
     add(scene, `spider_smoke_${variant}_${frame}`, makeHD(128, drawSpiderSmoke(frame * POISON_SMOKE_FRAME_MS, variant), { outline: false }));
   }
-  for (const f of TOAD_BOMB_FRAMES) add(scene, `toad_bomb_${f}`, makeHD(32, drawToadBomb(f), { outline: false }));
   for (let variant = 0; variant < POISON_SMOKE_VARIANTS; variant++) for (const f of TOAD_SMOKE_FRAMES) {
     add(scene, `toad_smoke_${variant}_${f}`, makeHD(128, drawToadSmoke(f * POISON_SMOKE_FRAME_MS, CFG.infected.toadPoisonLifetime, variant), { outline: false }));
   }
@@ -311,9 +294,6 @@ export function generateAllArt(scene: Phaser.Scene) {
   // Ram gets extra in-between frames on top of the shared boss set
   const ramFrames: RamFrame[] = [...bossFrames, 'idle2', 'idle3', 'move4', 'move5', 'atk2', 'atk3'];
   for (const f of ramFrames) add(scene, `ram_${f}`, createMeadowRamFrame(f));
-  // Infected boss gets extra idle + windup frames on top of the shared set
-  for (const f of infectedBossFrames) add(scene, `iboss_${f}`, makeCanvas(64, drawInfectedBoss(f)));
-
   // River boss (Fog Phantom) textures
   // River boss gets extra idle + windup frames on top of the shared boss set
   for (const f of riverBossFrames) add(scene, `rboss_${f}`, makeCanvas(64, drawFogPhantom(f)));
@@ -387,32 +367,7 @@ export function registerAnimations(scene: Phaser.Scene) {
   mk('eder-move', mv('eder'), 12, -1);
   mk('eder-atk',  ak('eder'), 10, -1);
 
-  mk('eir-move', INFECTED_SPIDER_MOVE_FRAMES.map(frame => `eir_${frame}`), INFECTED_SPIDER_MOVE_FPS, -1);
-  mk('eir-atk', INFECTED_SPIDER_ATTACK_FRAMES.map(frame => `eir_${frame}`), INFECTED_SPIDER_ATTACK_FPS, -1);
-
-  // 6-frame three-legged lumber + 4-frame gape-lunge-bite
-  mk('eib-move', ['eib_move0','eib_move1','eib_move2','eib_move3','eib_move4','eib_move5'], 10, -1);
-  mk('eib-atk',  ['eib_atk0','eib_atk1','eib_atk2','eib_atk3'], 10, -1);
-  mk('eib-hit',  ['eib_hit'], 10, 0);
-  mk('eib-die',  ['eib_die0','eib_die1','eib_die2','eib_die3'], 10, 0);
-
-  for (let variant = 0; variant < BLOB_VARIANTS; variant++) {
-    const prefix = `eiblob${variant}`;
-    mk(`${prefix}-move`, BLOB_MOVE_FRAMES.map(frame => `${prefix}_${frame}`), 32, -1);
-    mk(`${prefix}-atk`, BLOB_ATTACK_FRAMES.map(frame => `${prefix}_${frame}`), 1000 / BLOB_ATTACK_FRAME_MS, 0);
-    mk(`${prefix}-hit`, [`${prefix}_hit`], 10, 0);
-  }
-
-  mk('eih-move', IRONCAP_MOVE_FRAMES.map(f => `eih_${f}`), IRONCAP_MOVE_FPS, -1);
-  mk('eih-atk', IRONCAP_ATTACK_FRAMES.map(f => `eih_${f}`), IRONCAP_ATTACK_FPS, 0);
-  mk('eih-hit',  ['eih_hit'], 8, 0);
-
-  // Blighted Toad
-  mk('etd-idle', TOAD_IDLE_FRAMES.map(f => `etd_${f}`), TOAD_IDLE_FPS, -1);
-  mk('etd-hop', TOAD_HOP_FRAMES.map(f => `etd_${f}`), TOAD_HOP_FRAMES.length * 1000 / CFG.infected.toadHopDuration, 0);
-  mk('etd-atk', TOAD_ATTACK_FRAMES.map(f => `etd_${f}`), TOAD_ATTACK_FPS, 0);
-  mk('etd-hit',  ['etd_hit'], 8, 0);
-
+  registerInfectedAnimations(scene);
   registerForestAnimations(scene);
 
   // River flying enemies
@@ -521,22 +476,6 @@ export function registerAnimations(scene: Phaser.Scene) {
   mk('ram-hit',        ['ram_hit'], 10, 0);
   mk('ram-birth',      ['ram_birth0','ram_birth1','ram_birth2','ram_birth3','ram_birth4'], 4, 0);
   mk('ram-die',        ['ram_die0','ram_die1','ram_die2','ram_die3','ram_die4'], 6, 0);
-
-  // Infected boss animations
-  // 4-frame idle/move so the tentacles writhe + lesser eyes blink constantly
-  mk('iboss-idle',       ['iboss_idle0','iboss_idle1','iboss_idle2','iboss_idle3'], 6, -1);
-  mk('iboss-move',       ['iboss_move0','iboss_move1','iboss_move2','iboss_move3'], 8, -1);
-  mk('iboss-atk',        ['iboss_atk0','iboss_atk1'], 4, 0);
-  // Dash windup: plays ONCE (repeat 0) — tentacles whip skyward a single
-  // time (cw0→cw1), then stay raised while the frenzy pulses (cw2-5).
-  mk('iboss-chargewind', [
-    'iboss_chargeWind0','iboss_chargeWind1',
-    'iboss_chargeWind2','iboss_chargeWind3','iboss_chargeWind4','iboss_chargeWind5',
-    'iboss_chargeWind2','iboss_chargeWind3','iboss_chargeWind4','iboss_chargeWind5',
-  ], 8, 0);
-  mk('iboss-hit',        ['iboss_hit'], 10, 0);
-  mk('iboss-birth',      ['iboss_birth0','iboss_birth1','iboss_birth2','iboss_birth3','iboss_birth4'], 4, 0);
-  mk('iboss-die',        ['iboss_die0','iboss_die1','iboss_die2','iboss_die3','iboss_die4'], 6, 0);
 
   // River boss (Fog Phantom)
   // 4-frame idle/move at flicker rates so the blue flames + chest vortex
