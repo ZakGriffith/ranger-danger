@@ -1,6 +1,8 @@
 import { oval, shape } from '../../src/assets/art/forestEnemies/paint';
+import { drawMireSnapper } from '../../src/assets/art/infectedEnemies/mireSnapper';
+import { drawBogclaw } from '../infected-heavy-study/bogclaw';
+import { drawSporebell } from '../infected-heavy-study/sporebell';
 import { blobOptions } from './blob';
-import { ironcapOptions } from './ironcap';
 import { runnerOptions } from './runner';
 import { toadOptions } from './toad';
 import { gulperOption } from './toad-gulper';
@@ -10,7 +12,14 @@ import { blightedOptions } from './blighted';
 
 const roster = [
   { name: 'Blob', actions: 'Roll · Jump strike', options: blobOptions, field: .36, close: 1.50, stride: 1.10, shadow: 40 },
-  { name: 'Ironcap', actions: 'Lumber · Heavy slam', options: ironcapOptions, field: .48, close: 1.24, stride: 1.22, shadow: 44 },
+  {
+    name: 'Infected Heavy', actions: 'Trudge · Melee strike', field: .48, close: 1.24, stride: 1.22, shadow: 44,
+    options: [
+      { name: 'Mire Snapper', description: 'A turtle with a jagged mossy shell and a planted bite.', draw: drawMireSnapper },
+      { name: 'Bogclaw', description: 'A marsh crayfish that slams the ground with its oversized claw.', draw: drawBogclaw },
+      { name: 'Sporebell', description: 'A walking mushroom that shakes loose spores when it stomps.', draw: drawSporebell },
+    ],
+  },
   { name: 'Infected Runner', actions: 'Skitter · Fang lunge', options: runnerOptions, field: .30, close: 1.54, stride: .63, shadow: 42 },
   {
     name: 'Poison Toad', actions: 'Hop · Poison lob',

@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Infected heavy · Ranger Danger</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --background: #171820;
+    --panel: #211f29;
+    --rule: #443d4e;
+    --ink: #f1e7d6;
+    --muted: #beb4c0;
+    --accent: #c8cd90;
+    --mono: ui-monospace, Menlo, Consolas, monospace;
+    font: 15px/1.5 system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: radial-gradient(ellipse at 84% 0%, #4d375766 0, transparent 48rem),
+      radial-gradient(ellipse at 3% 5%, #374b3e55 0, transparent 40rem), var(--background);
+    color: var(--ink);
+  }
+  main { width: min(1240px, 100%); margin: auto; padding: clamp(24px, 4vw, 60px) clamp(16px, 4vw, 52px) 48px; }
+  h1, h2, p { margin: 0; }
+  .eyebrow, .badge, .archetype { font: 700 .76rem/1.4 var(--mono); letter-spacing: .12em; text-transform: uppercase; }
+  .eyebrow, .archetype { color: var(--accent); }
+  h1 { margin-top: 7px; font: 500 clamp(3rem, 7.2vw, 6.1rem)/.98 Georgia, serif; letter-spacing: -.065em; }
+  .intro { color: var(--muted); max-width: 650px; margin: 14px 0 0; }
+  .reserve { color: #d7ceb7; font-size: .85rem; margin: 10px 0 22px; }
+  .controls {
+    border-block: 1px solid var(--rule);
+    display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px;
+    padding: 10px 0; margin-bottom: 18px;
+  }
+  .modes { display: flex; gap: 4px; flex-wrap: wrap; }
+  button, select {
+    min-height: 34px; padding: 5px 10px; background: #2b2733; border-radius: 5px; border: 1px solid #61566a;
+    color: var(--ink); font: 650 .79rem system-ui, sans-serif; cursor: pointer;
+  }
+  button[aria-pressed="true"] { background: var(--accent); color: #262a21; border-color: var(--accent); }
+  button:hover:not([aria-pressed="true"]), select:hover { background: #3a3344; }
+  :is(button, select, input):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  label { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: .8rem; }
+  .scrub { flex: 1 1 140px; }
+  input[type="range"] { min-width: 72px; width: 100%; accent-color: var(--accent); }
+  .cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: clamp(10px, 1.5vw, 18px); }
+  article { min-width: 0; position: relative; background: var(--panel); border: 1px solid var(--rule); border-radius: 9px; overflow: hidden; }
+  .art { display: block; width: 100%; height: auto; }
+  .badge { position: absolute; top: 11px; left: 12px; display: grid; place-items: center; width: 26px; height: 26px;
+    border-radius: 50%; background: #242332db; color: #e0daae; border: 1px solid #66637a; letter-spacing: 0; }
+  .card-body { padding: 12px 14px 16px; border-top: 1px solid var(--rule); }
+  h2 { font: 500 clamp(1.35rem, 3vw, 2.25rem)/1.1 Georgia, serif; letter-spacing: -.035em; margin: 3px 0 8px; }
+  .card-body p { color: var(--muted); font-size: .86rem; line-height: 1.47; }
+  @media (max-width: 670px) {
+    .cards { grid-template-columns: 1fr; }
+    .art { max-height: 280px; object-fit: contain; background: #3d344b; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <p class="eyebrow">Ranger Danger · Fungal Marsh</p>
+    <h1>Infected heavy</h1>
+    <p class="intro">Three creatures to take Ironcap’s place. Each moves slowly and hits up close, with a different shape and attack you can spot in a crowd.</p>
+    <p class="reserve">Ironcap is reserved for the Castle golem.</p>
+  </header>
+  <div class="controls" role="group" aria-label="Animation controls">
+    <div class="modes" role="group" aria-label="Animation mode">
+      <button type="button" data-mode="cycle" aria-pressed="true">Move &amp; attack</button>
+      <button type="button" data-mode="move" aria-pressed="false">Move</button>
+      <button type="button" data-mode="attack" aria-pressed="false">Attack</button>
+    </div>
+    <button id="play" type="button">Pause</button>
+    <label>View <select id="scale"><option value="close">Close-up</option><option value="field">Approx. game scale</option></select></label>
+    <label class="scrub">Pose <input id="pose" type="range" min="0" max="1000" step="1" value="0"></label>
+  </div>
+  <section class="cards" aria-label="Three Infected heavy concepts">
+    <article>
+      <canvas class="art" width="864" height="600" role="img" aria-label="Animated Mire Snapper, a low turtle with a jagged moss-covered shell"></canvas>
+      <span class="badge" aria-hidden="true">A</span>
+      <div class="card-body">
+        <p class="archetype">Trudge · Beak snap</p>
+        <h2>Mire Snapper</h2>
+        <p>A mossy turtle with a jagged shell. It plants its feet, pulls its head back, and lunges into a heavy snap.</p>
+      </div>
+    </article>
+    <article>
+      <canvas class="art" width="864" height="600" role="img" aria-label="Animated Bogclaw, a marsh crayfish with one enormous claw"></canvas>
+      <span class="badge" aria-hidden="true">B</span>
+      <div class="card-body">
+        <p class="archetype">Crawl · Claw slam</p>
+        <h2>Bogclaw</h2>
+        <p>A low marsh crayfish with one enormous pincer. It hauls the claw overhead, then hammers it into the ground.</p>
+      </div>
+    </article>
+    <article>
+      <canvas class="art" width="864" height="600" role="img" aria-label="Animated Sporebell, a bulky walking mushroom that stomps"></canvas>
+      <span class="badge" aria-hidden="true">C</span>
+      <div class="card-body">
+        <p class="archetype">Waddle · Stomp</p>
+        <h2>Sporebell</h2>
+        <p>A walking fungus under a torn bell cap. It rears up and drops its weight into a stomp that shakes loose a puff of spores.</p>
+      </div>
+    </article>
+  </section>
+</main>
+<script type="module" src="./viewer.ts"></script>
+</body>
+</html>

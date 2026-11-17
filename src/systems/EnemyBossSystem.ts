@@ -11,12 +11,15 @@ import { getEvents } from '../core/events';
 import { getRegistry } from '../core/registry';
 import { DEBUG } from '../debug.config';
 import { POISON_SMOKE_DEPTH, POISON_SMOKE_GROUND_Y, POISON_SMOKE_RADIUS } from '../assets/art/poisonSmoke';
+import { MIRE_SNAPPER_IMPACT_FRAME } from '../assets/art/infectedEnemies/mireSnapper';
 import {
   LANTERN_MAW_GAS_FIRST_FRAME, LANTERN_MAW_WAKE_MS,
   LANTERN_MAW_WAKE_SCALE, LANTERN_MAW_WAKE_VARIANTS, lanternMawWakeKey,
 } from '../assets/art/infectedEnemies/lanternMawSmoke';
 
 const BOSS_GAS_RADIUS = 36;
+const MELEE_ENTER_RADIUS = 30;
+const MELEE_EXIT_RADIUS = 40;
 
 /**
  * Combined enemy + boss AI / abilities / projectile lifecycle. EnemySystem
@@ -27,6 +30,7 @@ const BOSS_GAS_RADIUS = 36;
  */
 export class EnemyBossSystem {
   private readonly lanternMawToss: LanternMawTossSystem;
+  private readonly pendingMireSnaps = new WeakSet<Enemy>();
 
   constructor(private scene: GameScene) {
     this.lanternMawToss = new LanternMawTossSystem(scene);
@@ -192,7 +196,12 @@ export class EnemyBossSystem {
         }
       }
 
-      if (e.kind === 'infected_heavy' && e.anims.currentAnim?.key === 'eih-atk' && e.anims.isPlaying) {
+      const snapFrame = this.mireSnapperAttackFrame(e);
+      if (snapFrame) {
+        // Phaser indexes frames from 1; the art identifies the strike by its zero-based texture suffix.
+        if (snapFrame.index > MIRE_SNAPPER_IMPACT_FRAME && this.pendingMireSnaps.delete(e)) {
+          this.resolveMireSnap(e);
+        }
         e.setVelocity(0, 0);
         (e as any)._attacking = true;
         // A planted strike must not count toward terrain-stuck recovery.
@@ -569,7 +578,8 @@ export class EnemyBossSystem {
       // attack every frame, producing visible "spazzing" — sudden stops
       // (setVelocity 0) alternating with chase-velocity motion.
       const wasAttacking = (e as any)._attacking === true;
-      const attackThresh = wasAttacking ? 40 * 40 : 30 * 30;
+      const attackRadius = wasAttacking ? MELEE_EXIT_RADIUS : MELEE_ENTER_RADIUS;
+      const attackThresh = attackRadius * attackRadius;
       if (e.kind !== 'infected_basic' && dist2 < attackThresh) {
         (e as any)._attacking = true;
         e.setVelocity(0, 0);
@@ -583,7 +593,10 @@ export class EnemyBossSystem {
           e.attackCd = time + 800;
           if (e.kind === 'bear') this.playBearAttack(e);
           else if (e.kind === 'wolf') this.playWolfAttack(e);
-          else if (e.kind === 'infected_heavy') this.playIroncapAttack(e);
+          else if (e.kind === 'infected_heavy') {
+            this.startMireSnap(e);
+            return true;
+          }
           scene.player.hurt(e.dmg, scene);
           scene.hud.pushHud();
           if (scene.player.hp <= 0) scene.end.lose();
@@ -1820,10 +1833,28 @@ export class EnemyBossSystem {
     e.play('ew-atk');
   }
 
-  private playIroncapAttack(e: Enemy) {
+  private mireSnapperAttackFrame(e: Enemy): Phaser.Animations.AnimationFrame | null {
+    return e.kind === 'infected_heavy' && e.anims.currentAnim?.key === 'eih-atk' && e.anims.isPlaying
+      ? e.anims.currentFrame : null;
+  }
+
+  private startMireSnap(e: Enemy) {
     e.setVelocity(0, 0);
     e.setFlipX(this.scene.player.x - e.x < 0);
+    this.pendingMireSnaps.add(e);
     e.play('eih-atk');
+  }
+
+  private resolveMireSnap(e: Enemy) {
+    const scene = this.scene;
+    const dx = scene.player.x - e.x;
+    const dy = scene.player.y - e.y;
+    const behindBite = dx * (e.flipX ? -1 : 1) < -4;
+    if (behindBite || dx * dx + dy * dy >= MELEE_EXIT_RADIUS ** 2 || scene.endState.dying || scene.endState.gameOver) return;
+
+    scene.player.hurt(e.dmg, scene);
+    scene.hud.pushHud();
+    if (scene.player.hp <= 0) scene.end.lose();
   }
 
   enemyHitsPlayer(e: Enemy) {
@@ -1833,12 +1864,15 @@ export class EnemyBossSystem {
       scene.infectedBlobs.tryAttack(e);
       return;
     }
-    if (e.kind === 'infected_heavy' && e.anims.currentAnim?.key === 'eih-atk' && e.anims.isPlaying) return;
+    if (this.mireSnapperAttackFrame(e)) return;
     if (scene.vTime > e.attackCd) {
       e.attackCd = scene.vTime + 700;
       if (e.kind === 'bear') this.playBearAttack(e);
       else if (e.kind === 'wolf') this.playWolfAttack(e);
-      else if (e.kind === 'infected_heavy') this.playIroncapAttack(e);
+      else if (e.kind === 'infected_heavy') {
+        this.startMireSnap(e);
+        return;
+      }
       scene.player.hurt(e.dmg, scene);
       scene.hud.pushHud();
       if (scene.player.hp <= 0) scene.end.lose();

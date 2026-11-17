@@ -11,10 +11,6 @@ import {
   infectedSpiderTexturePrefix, makeIllustratedInfectedRunnerFrame,
 } from '../infectedSpider';
 import {
-  IRONCAP_ATTACK_FPS, IRONCAP_ATTACK_FRAMES, IRONCAP_FRAMES, IRONCAP_MOVE_FPS, IRONCAP_MOVE_FRAMES,
-  makeIllustratedIroncapFrame,
-} from '../ironcap';
-import {
   TOAD_ATTACK_FPS, TOAD_ATTACK_FRAMES, TOAD_FRAMES, TOAD_HOP_FRAMES, TOAD_IDLE_FPS, TOAD_IDLE_FRAMES,
   TOAD_VARIANTS, makeIllustratedToadFrame, toadTexturePrefix,
 } from '../toad';
@@ -26,12 +22,16 @@ import {
   LANTERN_MAW_GAS_FIRST_FRAME, LANTERN_MAW_WAKE_FRAMES, LANTERN_MAW_WAKE_VARIANTS,
   lanternMawWakeKey, makeLanternMawWakeFrame,
 } from './lanternMawSmoke';
+import {
+  MIRE_SNAPPER_ATTACK_FPS, MIRE_SNAPPER_ATTACK_FRAMES, MIRE_SNAPPER_FRAMES,
+  MIRE_SNAPPER_MOVE_FPS, MIRE_SNAPPER_MOVE_FRAMES, makeMireSnapperFrame,
+} from './mireSnapper';
 
 export function generateInfectedTextures(scene: Phaser.Scene): void {
   for (let variant = 0; variant < BLOB_VARIANTS; variant++) {
     for (const frame of BLOB_FRAMES) add(scene, `eiblob${variant}_${frame}`, makeInfectedBlobFrame(frame, variant));
   }
-  for (const frame of IRONCAP_FRAMES) add(scene, `eih_${frame}`, makeIllustratedIroncapFrame(frame));
+  for (const frame of MIRE_SNAPPER_FRAMES) add(scene, `eih_${frame}`, makeMireSnapperFrame(frame));
   for (let variant = 0; variant < INFECTED_SPIDER_VARIANTS; variant++) {
     const prefix = infectedSpiderTexturePrefix(variant);
     for (const frame of INFECTED_SPIDER_FRAMES) add(scene, `${prefix}_${frame}`, makeIllustratedInfectedRunnerFrame(frame, variant));
@@ -68,8 +68,8 @@ export function registerInfectedAnimations(scene: Phaser.Scene): void {
     register(prefix, 'atk', BLOB_ATTACK_FRAMES, 1000 / BLOB_ATTACK_FRAME_MS, 0);
     register(prefix, 'hit', ['hit'], 10, 0);
   }
-  register('eih', 'move', IRONCAP_MOVE_FRAMES, IRONCAP_MOVE_FPS, -1);
-  register('eih', 'atk', IRONCAP_ATTACK_FRAMES, IRONCAP_ATTACK_FPS, 0);
+  register('eih', 'move', MIRE_SNAPPER_MOVE_FRAMES, MIRE_SNAPPER_MOVE_FPS, -1);
+  register('eih', 'atk', MIRE_SNAPPER_ATTACK_FRAMES, MIRE_SNAPPER_ATTACK_FPS, 0);
   register('eih', 'hit', ['hit'], 8, 0);
   for (let variant = 0; variant < INFECTED_SPIDER_VARIANTS; variant++) {
     const prefix = infectedSpiderTexturePrefix(variant);

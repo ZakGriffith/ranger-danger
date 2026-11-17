@@ -6,7 +6,7 @@ import { DEBUG } from '../debug.config';
 import { RAT_VARIANTS } from '../assets/art/rat';
 import { BLOB_ORIGIN_Y, BLOB_VARIANTS } from '../assets/art/infectedBlob';
 import { INFECTED_SPIDER_VARIANTS, infectedSpiderTexturePrefix } from '../assets/art/infectedSpider';
-import { IRONCAP_ORIGIN_Y } from '../assets/art/ironcap';
+import { MIRE_SNAPPER_ORIGIN_Y } from '../assets/art/infectedEnemies/mireSnapper';
 import { TOAD_ART, TOAD_VARIANTS, toadTexturePrefix } from '../assets/art/toad';
 import { MEADOW_ENEMY_ART } from '../assets/art/meadowEnemies/textures';
 import { FOREST_BEAR_ART } from '../assets/art/forestEnemies/bear';
@@ -132,7 +132,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
         this.setSize(44, 24).setOffset(26, 76);
         break;
       case 'infected_heavy':
-        this.setScale(0.6).setOrigin(0.5, IRONCAP_ORIGIN_Y);
+        this.setScale(0.6).setOrigin(0.5, MIRE_SNAPPER_ORIGIN_Y);
         this.setSize(32, 32).setOffset(32, 44);
         this.play('eih-move');
         break;
