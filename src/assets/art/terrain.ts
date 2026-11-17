@@ -10,6 +10,8 @@ import {
 } from './canvas';
 import { MEADOW_TILE_PX, drawMeadowChunk } from './groundMeadow';
 import { FOREST_TILE_PX, drawForestChunk } from './groundForest';
+import { INFECTED_TILE_PX, drawInfectedChunk } from './groundInfected';
+import { drawInfectedPlantCanvasHD } from './infectedPlants';
 import { drawTreeClusterCanvasHD } from './forestTrees';
 
 // ==================================================================
@@ -961,110 +963,10 @@ export function drawTreeClusterCanvas(patternIdx: number): HTMLCanvasElement {
   return drawTreeClusterCanvasHD(TREE_PATTERNS[patternIdx], patternIdx);
 }
 
-// Draw infected plant cluster — bulbous, sickly purple/green growths
+// Infected plant cluster — HD "Faithful" pod stacks (infectedPlants.ts).
+// The canvas is at 64 px per tile; ChunkSystem shows it at half scale.
 export function drawInfectedPlantCanvas(patternIdx: number): HTMLCanvasElement {
-  const pattern = TREE_PATTERNS[patternIdx];
-  const T = 32;
-  const pad = 30;
-  const cw = pattern.w * T + pad * 2;
-  const ch = pattern.h * T + pad * 2;
-
-  const canvas = document.createElement('canvas');
-  canvas.width = cw;
-  canvas.height = ch;
-  const ctx = canvas.getContext('2d')!;
-  ctx.imageSmoothingEnabled = false;
-
-  let seed = (patternIdx * 48271 + 99991) >>> 0;
-  const rnd = () => { seed = (seed * 16807 + 1) % 2147483647; return seed / 2147483647; };
-
-  type PlantDef = { cx: number; cy: number; h: number; w: number; variant: number };
-  const plants: PlantDef[] = [];
-
-  for (const t of pattern.tiles) {
-    const tileCx = t.dx * T + T / 2 + pad;
-    const tileCy = t.dy * T + T * 0.85 + pad;
-    const plantsPerTile = 2 + (rnd() > 0.6 ? 1 : 0);
-    for (let i = 0; i < plantsPerTile; i++) {
-      plants.push({
-        cx: tileCx + (rnd() - 0.5) * T * 0.6,
-        cy: tileCy + (rnd() - 0.5) * T * 0.3,
-        h: 30 + Math.floor(rnd() * 20),
-        w: 18 + Math.floor(rnd() * 10),
-        variant: Math.floor(rnd() * 3)
-      });
-    }
-  }
-
-  plants.sort((a, b) => a.cy - b.cy);
-
-  const palettes = [
-    { stem: '#2a1040', dark: '#4a2070', mid: '#6a30a0', light: '#8a48c0', glow: '#50e070' },
-    { stem: '#1a2030', dark: '#2a4038', mid: '#3a6050', light: '#4a8068', glow: '#80ff90' },
-    { stem: '#2a1838', dark: '#5a2880', mid: '#7a38b0', light: '#9a50d0', glow: '#60e880' },
-  ];
-
-  for (const plant of plants) {
-    const p = palettes[plant.variant];
-    const { cx, cy, h, w } = plant;
-
-    // Thick stem
-    const stemW = 3 + Math.floor(rnd() * 2);
-    ctx.fillStyle = p.stem;
-    ctx.fillRect(Math.floor(cx - stemW / 2), Math.floor(cy - h * 0.4), stemW, Math.floor(h * 0.4));
-
-    // Bulbous infected growth — stacked ovals
-    const layers = 2 + Math.floor(rnd() * 2);
-    for (let l = 0; l < layers; l++) {
-      const ly = cy - h * 0.3 - l * h * 0.2;
-      const lw = w * (1 - l * 0.2) / 2;
-      const lh = h * 0.25;
-
-      // Dark outline
-      ctx.fillStyle = p.dark;
-      ctx.beginPath();
-      ctx.ellipse(cx, ly, lw + 1, lh / 2 + 1, 0, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Main body
-      ctx.fillStyle = p.mid;
-      ctx.beginPath();
-      ctx.ellipse(cx, ly, lw, lh / 2, 0, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Highlight
-      ctx.fillStyle = p.light;
-      ctx.beginPath();
-      ctx.ellipse(cx - lw * 0.2, ly - lh * 0.15, lw * 0.5, lh * 0.3, 0, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    // Glowing spore tips
-    const sporeCount = 3 + Math.floor(rnd() * 4);
-    for (let i = 0; i < sporeCount; i++) {
-      const sx = cx + (rnd() - 0.5) * w * 0.8;
-      const sy = cy - h * 0.5 - rnd() * h * 0.4;
-      ctx.fillStyle = p.glow;
-      ctx.fillRect(Math.floor(sx), Math.floor(sy), 2, 2);
-      // Subtle glow around spore
-      ctx.globalAlpha = 0.3;
-      ctx.fillRect(Math.floor(sx) - 1, Math.floor(sy) - 1, 4, 4);
-      ctx.globalAlpha = 1;
-    }
-
-    // Dripping tendrils from bottom
-    const tendrils = 2 + Math.floor(rnd() * 3);
-    for (let i = 0; i < tendrils; i++) {
-      const tx = cx + (rnd() - 0.5) * w * 0.5;
-      const tLen = 4 + Math.floor(rnd() * 8);
-      ctx.fillStyle = rnd() > 0.5 ? '#40c060' : '#6030a0';
-      for (let j = 0; j < tLen; j++) {
-        ctx.fillRect(Math.floor(tx + (rnd() - 0.5) * 2), Math.floor(cy + j), 1, 1);
-      }
-    }
-  }
-
-  return canvas;
+  return drawInfectedPlantCanvasHD(TREE_PATTERNS[patternIdx], patternIdx);
 }
 
 export function drawFoundation(put: Put) {
@@ -1150,6 +1052,7 @@ export function createGroundChunk(scene: Phaser.Scene, chunkX: number, chunkY: n
   // HD biomes: 64 texture px per tile, drawn straight into an RGBA buffer
   const hd = biome === 'grasslands' ? { tilePx: MEADOW_TILE_PX, draw: drawMeadowChunk }
            : biome === 'forest' ? { tilePx: FOREST_TILE_PX, draw: drawForestChunk }
+           : biome === 'infected' ? { tilePx: INFECTED_TILE_PX, draw: drawInfectedChunk }
            : null;
   if (hd) {
     const pxSize = chunkSize * hd.tilePx;
