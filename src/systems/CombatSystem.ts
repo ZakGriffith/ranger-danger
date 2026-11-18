@@ -378,7 +378,7 @@ export class CombatSystem {
         : b.bossKind === 'sun_priest' ? 'sunPriest'
         : b.animPrefix === 'fboss' ? 'wendigo'
         : b.animPrefix === 'iboss' ? 'blighted'
-        : b.animPrefix === 'rboss' ? 'fog'
+        : b.animPrefix === 'rboss' ? 'griffin'
         : 'ram';
       scene.runStats.bossesByKind[bucket] = (scene.runStats.bossesByKind[bucket] ?? 0) + 1;
     }

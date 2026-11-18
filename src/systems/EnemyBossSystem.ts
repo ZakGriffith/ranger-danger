@@ -6,12 +6,14 @@ import { Wall } from '../entities/Wall';
 import { Tower } from '../entities/Tower';
 import { findPath, gridGet, gridSet } from './Pathfinding';
 import { LanternMawTossSystem } from './LanternMawTossSystem';
+import { GaleclawCombat } from './GaleclawCombat';
 import type { GameScene } from '../scenes/GameScene';
 import { getEvents } from '../core/events';
 import { getRegistry } from '../core/registry';
 import { DEBUG } from '../debug.config';
 import { POISON_SMOKE_DEPTH, POISON_SMOKE_GROUND_Y, POISON_SMOKE_RADIUS } from '../assets/art/poisonSmoke';
 import { MIRE_SNAPPER_IMPACT_FRAME } from '../assets/art/infectedEnemies/mireSnapper';
+import { RIVER_MOSQUITO_MUZZLE } from '../assets/art/riverEnemies/textures';
 import {
   LANTERN_MAW_GAS_FIRST_FRAME, LANTERN_MAW_WAKE_MS,
   LANTERN_MAW_WAKE_SCALE, LANTERN_MAW_WAKE_VARIANTS, lanternMawWakeKey,
@@ -30,10 +32,12 @@ const MELEE_EXIT_RADIUS = 40;
  */
 export class EnemyBossSystem {
   private readonly lanternMawToss: LanternMawTossSystem;
+  private readonly galeclawCombat: GaleclawCombat;
   private readonly pendingMireSnaps = new WeakSet<Enemy>();
 
   constructor(private scene: GameScene) {
     this.lanternMawToss = new LanternMawTossSystem(scene);
+    this.galeclawCombat = new GaleclawCombat(scene);
   }
   /** vTime of the last DEBUG_STUCK snapshot. Throttles the per-enemy
    *  state log to once every 3 seconds when the flag is on. */
@@ -392,13 +396,16 @@ export class EnemyBossSystem {
         const mqRange = CFG.river.mosquitoRange;
         const meleeRange = 30;
         const dist = Math.sqrt(dist2);
+        const attack = `${prefix}-atk`;
+        const move = `${prefix}-move`;
         e.setFlipX(tx - e.x < 0);
+        if (e.anims.currentAnim?.key !== attack || !e.anims.isPlaying) e.play(move, true);
 
         if (dist < meleeRange) {
           e.setVelocity(0, 0);
-          if (e.anims.currentAnim?.key !== `${prefix}-atk`) e.play(`${prefix}-atk`);
           if (time > e.attackCd) {
             e.attackCd = time + 700;
+            e.play(attack);
             scene.player.hurt(e.dmg, scene);
             scene.hud.pushHud();
             if (scene.player.hp <= 0) scene.end.lose();
@@ -412,10 +419,12 @@ export class EnemyBossSystem {
           const perpX = -(ty - e.y), perpY = tx - e.x;
           const pLen = Math.hypot(perpX, perpY) || 1;
           e.setVelocity((perpX / pLen) * e.speed * 0.3, (perpY / pLen) * e.speed * 0.3);
-          if (e.anims.currentAnim?.key !== `${prefix}-atk`) e.play(`${prefix}-atk`);
           if (time > e.attackCd && this.enemyOnScreen(e)) {
             e.attackCd = time + CFG.river.mosquitoFireRate;
-            this.spawnMosquitoDart(e.x, e.y, tx, ty);
+            e.play(attack);
+            const muzzleX = e.x + (e.flipX ? -1 : 1) * RIVER_MOSQUITO_MUZZLE.x * e.scaleX;
+            const muzzleY = e.y + RIVER_MOSQUITO_MUZZLE.y * e.scaleY;
+            this.spawnMosquitoDart(muzzleX, muzzleY, tx, ty);
           }
           return true;
         }
@@ -424,7 +433,6 @@ export class EnemyBossSystem {
         const d = dist || 1;
         const rushSpeed = hasLOS ? e.speed : e.speed * 1.5;
         e.setVelocity((dx / d) * rushSpeed, (dy / d) * rushSpeed);
-        if (e.anims.currentAnim?.key !== `${prefix}-move`) e.play(`${prefix}-move`);
         return true;
       }
 
@@ -827,11 +835,18 @@ export class EnemyBossSystem {
       && !scene.bossState.midBoss.dying) {
       this._updateOneBoss(scene.bossState.midBoss, time);
     }
+    this.galeclawCombat.applyPlayerWind(time);
   }
 
   _updateOneBoss(b: Boss, time: number) {
     const scene = this.scene;
     if (!b || !b.active || b.dying) return;
+    if (b.animPrefix === 'rboss') {
+      this.updateGaleclaw(b, time);
+      scene.depthSort.applyAirborneBossDepth(b);
+      b.drawHpBar();
+      return;
+    }
     b.drawHpBar();
 
     if (b.state === 'goo_throw') {
@@ -1048,7 +1063,7 @@ export class EnemyBossSystem {
     if (ap === 'iboss' && onScreen && this.lanternMawToss.tryStart(b, time, px, py, distToPlayer)) return;
     // Boulder throw belongs to every non-castle boss EXCEPT the grasslands
     // ram (intentionally simpler as the tutorial boss). Key off boss identity,
-    // not scene.biome, so the Wendigo/Blighted/Fog Phantom still throw when
+    // not scene.biome, so the Wendigo and Blighted One still throw when
     // they appear on a non-home map in endless mode.
     if (!isCastleBoss && b.animPrefix !== 'ram' && time >= b.nextBoulder && onScreen) {
       const boulderRange = 280;
@@ -1079,7 +1094,7 @@ export class EnemyBossSystem {
     }
 
     let moveX = 0, moveY = 0;
-    // Flying bosses (Fog Phantom, Queen) ignore wall-blocked pathing — they
+    // Flying bosses ignore wall-blocked pathing — they
     // fly straight at the player. Keyed off b.flying so a flying boss in any
     // biome still passes over terrain in endless mode.
     const clear = b.flying || !scene.pathing.lineBlocked(b.x, b.y, px, py);
@@ -1184,6 +1199,26 @@ export class EnemyBossSystem {
       scene.hud.pushHud();
       if (scene.player.hp <= 0) scene.end.lose();
     }
+  }
+
+  private updateGaleclaw(b: Boss, time: number): void {
+    if (this.galeclawCombat.update(b, time)) return;
+
+    if (time >= b.nextBirth) {
+      this.bossBirthSpawn(b);
+      b.nextBirth = time + 3800;
+    }
+    const dx = this.scene.player.x - b.x;
+    const dy = this.scene.player.y - b.y;
+    const distance = Math.hypot(dx, dy);
+    b.setFlipX(dx < 0);
+    if (distance < 60) {
+      b.setVelocity(0, 0);
+      b.play('rboss-idle', true);
+      return;
+    }
+    b.setVelocity(b.speed * dx / distance, b.speed * dy / distance);
+    b.play('rboss-move', true);
   }
 
   fissureStrike(b: Boss, tx: number, ty: number) {
@@ -1886,7 +1921,7 @@ export class EnemyBossSystem {
     const scene = this.scene;
     const dart = scene.physics.add.sprite(x, y, 'mdart_0').setScale(0.7).setDepth(9);
     dart.play('mdart-spin');
-    dart.setSize(12, 12).setOffset(2, 2);
+    dart.setSize(12, 12).setOffset(10, 10);
     scene.enemyDarts.add(dart);
     const angle = Math.atan2(ty - y, tx - x);
     const spd = CFG.river.mosquitoDartSpeed;

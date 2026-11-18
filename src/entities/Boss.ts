@@ -4,6 +4,7 @@ import { CFG } from '../config';
 import { applyEntityVisual } from '../assets/spriteOverrides';
 import { MEADOW_RAM_ART } from '../assets/art/meadowRam';
 import { FOREST_WENDIGO_ART } from '../assets/art/forestEnemies/wendigo';
+import { GALECLAW_CANVAS_SIZE } from '../assets/art/riverEnemies/griffin';
 import { Shadow } from './Shadow';
 import { measureOpaqueBounds } from './spriteBounds';
 import { DEBUG } from '../debug.config';
@@ -34,7 +35,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
   nextGooThrow = 0;
   contactCd = 0;
   dying = false;
-  flying = false;  // queen + fog phantom hover; controls shadow altitude
+  flying = false;
 
   chargeDirX = 1;
   chargeDirY = 0;
@@ -91,11 +92,13 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     // ~22px and bosses keep fitting through 1-tile wall gaps.
     const bodyComp = 0.5 / CFG.bossScale;
     const bw = Math.round(44 * bodyComp);
+    const griffin = prefix === 'rboss';
+    const bodyCenterOffset = Math.round(((griffin ? GALECLAW_CANVAS_SIZE : 128) - bw) / 2);
     applyEntityVisual(
       this, folder, 'move', CFG.bossScale,
       bw, bw,
-      Math.round((128 - bw) / 2),     // recentre horizontally
-      Math.round(96 - bw),            // keep the box anchored at the feet
+      bodyCenterOffset,
+      griffin ? bodyCenterOffset : Math.round(96 - bw),
       prefix === 'ram' ? MEADOW_RAM_ART : prefix === 'fboss' ? FOREST_WENDIGO_ART : undefined,
     );
     this.play(`${prefix}-idle`);

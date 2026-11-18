@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Rivers enemy study · Ranger Danger</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --paper: #e9dec2;
+      --muted: #b1beb3;
+      --gold: #eed99a;
+      --border: #415851;
+      --panel: #223431;
+      --dark: #172623;
+      font: 16px/1.45 Inter, system-ui, sans-serif;
+      background: #172622;
+      color: var(--paper);
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: radial-gradient(ellipse 65% 32rem at 21% 0, #304740, transparent); }
+    main { width: min(1120px, 100% - 3rem); margin: 0 auto; padding: 2.5rem 0 4rem; }
+    h1, h2, h3 { margin: 0; font-family: "Instrument Serif", Georgia, serif; font-weight: normal; line-height: 1.08; }
+    h1 { font-size: clamp(2.75rem, 6vw, 4.6rem); letter-spacing: -.045em; }
+    h2 { font-size: clamp(1.8rem, 4vw, 2.5rem); letter-spacing: -.025em; }
+    header p { color: var(--muted); margin: .6rem 0 1.4rem; }
+    nav { display: flex; flex-wrap: wrap; gap: .35rem 1.1rem; margin-bottom: 1.6rem; }
+    nav a { color: var(--gold); text-decoration-color: #7e805b; text-underline-offset: .28em; }
+    nav a:hover { text-decoration-color: var(--gold); }
+    .controls { position: sticky; top: 0; z-index: 1; display: flex; flex-wrap: wrap; align-items: center; gap: .7rem 1.25rem; border-block: 1px solid var(--border); padding: .8rem .65rem; margin: 0 -.65rem 1.6rem; background: #1e2f2b; }
+    .controls label { display: flex; align-items: center; gap: .5rem; color: var(--muted); font-size: .83rem; }
+    .controls input { min-width: 4rem; width: 7.5rem; accent-color: var(--gold); }
+    button, select { background: #293e37; border: 1px solid #587065; padding: .45rem .65rem; border-radius: .32rem; color: var(--paper); font: inherit; font-size: .88rem; }
+    button, select, input { cursor: pointer; }
+    button:hover, select:hover { border-color: var(--gold); }
+    button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+    #play { min-width: 4.4rem; }
+    section { margin-top: 2.25rem; scroll-margin-top: 4.8rem; }
+    #fog-phantom:target { min-height: calc(100svh - 8.8rem); }
+    section h2 { margin-bottom: .45rem; }
+    .role { margin: 0 0 .8rem; color: var(--muted); }
+    #lineup { margin-top: 0; }
+    .lineup-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: .55rem; }
+    .lineup-item { display: flex; flex-direction: column; min-width: 0; background: var(--panel); border: 1px solid var(--border); border-radius: .45rem; overflow: hidden; }
+    .lineup-item > div { padding: .55rem .7rem .65rem; }
+    .lineup-item h3 { font: 600 .92rem/1.2 system-ui, sans-serif; }
+    .lineup-item p { color: var(--muted); font-size: .76rem; line-height: 1.3; margin: .25rem 0 0; }
+    .variants { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+    .variants.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .card { min-width: 0; overflow: hidden; display: flex; flex-direction: column; margin: 0; border: 1px solid var(--border); border-radius: .55rem; background: var(--panel); }
+    .card.selected { border-color: #b4a069; }
+    canvas { display: block; width: 100%; height: auto; background: #4d6b64; }
+    .card > div { padding: .85rem 1rem 1rem; }
+    .card h3 { font-size: clamp(1.18rem, 3.3vw, 1.65rem); }
+    .three .card h3 { font-size: clamp(1.18rem, 2.4vw, 1.5rem); }
+    .card p { margin: .5rem 0 0; color: var(--muted); }
+    .card button { float: right; margin-left: .65rem; min-width: 4.5rem; color: var(--gold); }
+    .card button[aria-pressed="true"] { background: #3a4434; border-color: #b4a069; }
+    @media (max-width: 820px) {
+      .lineup-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .controls { position: static; gap: .6rem .9rem; }
+      section { scroll-margin-top: 1.4rem; }
+      .variants.three { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 540px) {
+      main { width: calc(100% - 1.5rem); padding-top: 1.5rem; }
+      .lineup-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .variants, .variants.three { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Rivers enemies</h1>
+      <p>The Rivers enemy lineup and three new animated boss designs.</p>
+      <nav aria-label="Jump to enemy" id="roster-nav"></nav>
+    </header>
+    <div class="controls" aria-label="Animation controls" role="group">
+      <button id="play" type="button">Pause</button>
+      <label>Animation
+        <select id="mode">
+          <option value="cycle">Move &amp; attack</option>
+          <option value="move">Move</option>
+          <option value="attack">Attack</option>
+        </select>
+      </label>
+      <label>Speed
+        <select id="speed">
+          <option value="0.5">½×</option>
+          <option value="1" selected>1×</option>
+          <option value="1.5">1½×</option>
+        </select>
+      </label>
+      <label>Scale
+        <select id="view-scale">
+          <option value="close">Close-up</option>
+          <option value="game">Near game size</option>
+        </select>
+      </label>
+      <label>Scrub <input id="scrub" type="range" min="0" max="1000" value="0"></label>
+    </div>
+    <section id="lineup">
+      <h2>Lineup</h2>
+      <p class="role">Select a design for each enemy to see your picks together.</p>
+      <div id="lineup-grid" class="lineup-grid"></div>
+    </section>
+    <div id="roster"></div>
+    <noscript>This preview needs JavaScript to draw and animate the enemies.</noscript>
+  </main>
+  <script type="module" src="./viewer.ts"></script>
+</body>
+</html>

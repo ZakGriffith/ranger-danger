@@ -2,6 +2,8 @@ import Phaser from 'phaser';
 import { Biome, Difficulty } from '../levels';
 import { measureOpaqueBounds } from '../entities/spriteBounds';
 import { CFG } from '../config';
+import { RIVER_FLIER_SIZE, riverBatTexturePrefix } from './art/riverEnemies/textures';
+import { GALECLAW_CANVAS_SIZE } from './art/riverEnemies/griffin';
 
 /** Campaign-mode roster per biome. Endless ignores this and loads every
  *  folder. Keys in the inner arrays match the `folder` field in BUILTIN /
@@ -10,7 +12,7 @@ const CAMPAIGN_BIOME_FOLDERS: Record<Biome, string[]> = {
   grasslands: ['basic', 'heavy', 'snake', 'rat', 'deer', 'boss_meadow', 'boss_grasslands'],
   forest:     ['bear', 'spider', 'wolf', 'boss_forest'],
   infected:   ['toad', 'infected_basic', 'infected_heavy', 'infected_runner', 'boss_infected'],
-  river:      ['crow', 'bat', 'dragonfly', 'mosquito', 'boss_river'],
+  river:      ['crow', 'river_bat', 'dragonfly', 'mosquito', 'boss_river'],
   castle:     ['skeleton', 'warlock', 'golem', 'shadow_imp', 'bat', 'rat', 'boss_castle_q', 'boss_castle_d'],
   desert:     ['scorpion', 'boss_scorpion', 'scarab', 'sand_mite', 'cactus_hopper', 'dune_strider', 'sand_wraith', 'temple_guardian', 'sun_mote', 'boss_desert_burrower', 'boss_desert_scorpion', 'boss_desert_sandstorm', 'boss_desert_wraith', 'boss_desert_construct', 'boss_desert_sun_priest'],
   // Unimplemented biomes — fall back to loading everything if a future level
@@ -61,7 +63,7 @@ export function biomeFolderFilter(biome: Biome, difficulty: Difficulty): Set<str
 //
 // Names that work in OVERRIDES match the sprite-folder names: basic, heavy,
 // snake, rat, deer, wolf, bear, spider, infected_basic, infected_heavy, crow,
-// bat, dragonfly, mosquito, skeleton, warlock, golem, shadow_imp,
+// bat, river_bat, dragonfly, mosquito, skeleton, warlock, golem, shadow_imp,
 // toad, scorpion, boss_scorpion, scarab, sand_mite, cactus_hopper, dune_strider,
 // sand_wraith, temple_guardian, sun_mote, plus the bosses (boss_grasslands, boss_meadow,
 // boss_infected, boss_forest, boss_river, boss_castle_q, boss_castle_d).
@@ -100,6 +102,7 @@ const OVERRIDES: Record<string, CharacterOverrides> = {
   dragonfly:  { pngScaleMultiplier: 1.2,  anims: { move: { fps: 24 }, atk: { fps: 24 } }  },
   mosquito:  { pngScaleMultiplier: 1.1 },
   bat:  { pngScaleMultiplier: 1.2 },
+  river_bat:  { pngScaleMultiplier: 1.2 },
   shadow_imp:  { anims: { move: { fps: 18 } } },
   toad:  { pngScaleMultiplier: 1.2 },
   infected_basic:  { pngScaleMultiplier: 1.2,  anims: { atk: { fps: 22 } } },
@@ -175,6 +178,10 @@ const bossAnims = (texPrefix: string): AnimSpec[] => [
   { suffix: 'idle',   indexed: true, indexSep: '', animKey: `${texPrefix}-idle`,   derivedFrom: 'move' },
 ];
 
+const galeclawAnims = bossAnims('rboss').map(anim =>
+  anim.suffix === 'atk' ? { ...anim, animKey: 'rboss-buffet' } : anim,
+);
+
 const BUILTIN: CharacterSpec[] = [
   { folder: 'basic',          texPrefix: 'eb',    anims: stdEnemyAnims('eb') },
   { folder: 'heavy',          texPrefix: 'eh',    anims: stdEnemyAnims('eh') },
@@ -186,10 +193,11 @@ const BUILTIN: CharacterSpec[] = [
   { folder: 'infected_basic', texPrefix: 'eiblob0', anims: stdEnemyAnims('eiblob0'), proceduralCanvasSize: 112 },
   { folder: 'infected_runner', texPrefix: 'eir0', anims: stdEnemyAnims('eir0') },
   { folder: 'infected_heavy', texPrefix: 'eih0',  anims: stdEnemyAnims('eih0') },
-  { folder: 'crow',           texPrefix: 'ecr',   anims: stdEnemyAnims('ecr') },
+  { folder: 'crow',           texPrefix: 'ecr',   anims: stdEnemyAnims('ecr'), proceduralCanvasSize: RIVER_FLIER_SIZE },
+  { folder: 'river_bat',      texPrefix: riverBatTexturePrefix(0), anims: stdEnemyAnims(riverBatTexturePrefix(0)), proceduralCanvasSize: RIVER_FLIER_SIZE },
   { folder: 'bat',            texPrefix: 'ebt',   anims: stdEnemyAnims('ebt') },
-  { folder: 'dragonfly',      texPrefix: 'edf',   anims: stdEnemyAnims('edf') },
-  { folder: 'mosquito',       texPrefix: 'emq',   anims: stdEnemyAnims('emq') },
+  { folder: 'dragonfly',      texPrefix: 'edf',   anims: stdEnemyAnims('edf'), proceduralCanvasSize: RIVER_FLIER_SIZE },
+  { folder: 'mosquito',       texPrefix: 'emq',   anims: stdEnemyAnims('emq'), proceduralCanvasSize: RIVER_FLIER_SIZE },
   { folder: 'skeleton',       texPrefix: 'esk',   anims: stdEnemyAnims('esk') },
   { folder: 'warlock',        texPrefix: 'ewl',   anims: stdEnemyAnims('ewl') },
   { folder: 'golem',          texPrefix: 'ego',   anims: stdEnemyAnims('ego') },
@@ -219,7 +227,7 @@ const BUILTIN: CharacterSpec[] = [
   { folder: 'boss_meadow',     texPrefix: 'ram',    anims: bossAnims('ram'),    proceduralCanvasSize: 128 },
   { folder: 'boss_infected',   texPrefix: 'iboss',  anims: bossAnims('iboss'),  proceduralCanvasSize: 128 },
   { folder: 'boss_forest',     texPrefix: 'fboss',  anims: bossAnims('fboss'),  proceduralCanvasSize: 128 },
-  { folder: 'boss_river',      texPrefix: 'rboss',  anims: bossAnims('rboss'),  proceduralCanvasSize: 128 },
+  { folder: 'boss_river',      texPrefix: 'rboss',  anims: galeclawAnims,        proceduralCanvasSize: GALECLAW_CANVAS_SIZE },
   { folder: 'boss_castle_q',   texPrefix: 'cqboss', anims: bossAnims('cqboss'), proceduralCanvasSize: 128 },
   { folder: 'boss_castle_d',   texPrefix: 'cdboss', anims: bossAnims('cdboss'), proceduralCanvasSize: 128 },
   { folder: 'boss_desert_scorpion',   texPrefix: 'dsboss', anims: bossAnims('dsboss'), proceduralCanvasSize: 128 },

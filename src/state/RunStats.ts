@@ -112,9 +112,9 @@ export class RunStats {
   bossesKilled = 0;
 
   /** Per-kind boss kill breakdown. Keys match the boss "title" buckets:
-   *  ram, wendigo, blighted, fog, queen, dragon. */
+   *  ram, wendigo, blighted, griffin, queen, dragon. */
   bossesByKind: Record<string, number> = {
-    ram: 0, wendigo: 0, blighted: 0, fog: 0, queen: 0, dragon: 0,
+    ram: 0, wendigo: 0, blighted: 0, griffin: 0, queen: 0, dragon: 0,
   };
 
   enemiesKilled = 0;
@@ -145,7 +145,7 @@ export class RunStats {
   reset() {
     this.wavesCleared = 0;
     this.bossesKilled = 0;
-    this.bossesByKind = { ram: 0, wendigo: 0, blighted: 0, fog: 0, queen: 0, dragon: 0 };
+    this.bossesByKind = { ram: 0, wendigo: 0, blighted: 0, griffin: 0, queen: 0, dragon: 0 };
     this.enemiesKilled = 0;
     this.coinsCollected = 0;
     this.coinsSpent = 0;

@@ -255,17 +255,6 @@ export const P = {
   emberD:  '#8a1408',
   emberL:  '#ff9a30',
 
-  // Fog Phantom (river boss)
-  fog:     '#324060',
-  fogD:    '#1a2840',
-  fogM:    '#283450',
-  fogL:    '#506888',
-  // river phantom blue-flame ramp (dark edge → white-hot core)
-  bfire:   '#2848d8',
-  bfireD:  '#18246e',
-  bfireL:  '#5aa0ff',
-  bfireC:  '#d8eeff',
-
   // Phantom Queen ghost-blue ramp + spectral skin
   queen:   '#2a4ab8',
   queenD:  '#16246e',
@@ -278,10 +267,7 @@ export const P = {
   dragD:   '#241b2e',
   dragM:   '#372a40',
   dragL:   '#675a72',
-  fogGlow: '#64c8ff',
-  fogGlowD:'#3090c0',
-  fogCore: '#405878',
-  fogWisp: '#283a58'
+  fogGlow: '#64c8ff'
 };
 
 // ------------------------------------------------------------------

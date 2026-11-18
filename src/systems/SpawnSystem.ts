@@ -75,7 +75,7 @@ export function endlessBossTitle(def: InfBossDef): string {
   if (def.kind === 'sun_priest') return 'SUN PRIEST';
   if (def.biome === 'forest') return 'WENDIGO';
   if (def.biome === 'infected') return 'BLIGHTED ONE';
-  if (def.biome === 'river') return 'FOG PHANTOM';
+  if (def.biome === 'river') return 'GALECLAW GRIFFIN';
   return 'ANCIENT RAM';
 }
 
@@ -338,7 +338,7 @@ export class SpawnSystem {
     SFX.play('bossSpawn');
     const bossTitle = scene.biome === 'forest' ? 'THE WENDIGO'
                     : scene.biome === 'infected' ? 'THE BLIGHTED ONE'
-                    : scene.biome === 'river' ? 'THE FOG PHANTOM'
+                    : scene.biome === 'river' ? 'GALECLAW GRIFFIN'
                     : 'THE ANCIENT RAM';
     scene.countdownMsg = `${bossTitle} APPROACHES`;
     scene.countdownColor = '#ff5050';
@@ -536,8 +536,10 @@ export class SpawnSystem {
     const onStructureHit = () => {
       if (b.state === 'charging') b.stateEnd = 0;
     };
-    scene.physics.add.collider(b, scene.wallGroup, onStructureHit);
-    scene.physics.add.collider(b, scene.towerGroup, onStructureHit);
+    if (b.animPrefix !== 'rboss') {
+      scene.physics.add.collider(b, scene.wallGroup, onStructureHit);
+      scene.physics.add.collider(b, scene.towerGroup, onStructureHit);
+    }
 
     if (slotIdx === 0) {
       getEvents(scene.game.events).emit('boss-spawn', { hp: b.hp, maxHp: b.maxHp, biome: def.biome, bossKind: def.kind });
@@ -683,7 +685,7 @@ export class SpawnSystem {
         } else {
           bossName = scene.biome === 'forest' ? 'WENDIGO'
                        : scene.biome === 'infected' ? 'BLIGHTED ONE'
-                       : scene.biome === 'river' ? 'FOG PHANTOM'
+                       : scene.biome === 'river' ? 'GALECLAW GRIFFIN'
                        : scene.biome === 'castle' && scene.bossState.castlePhase === 0 ? 'PHANTOM QUEEN'
                        : scene.biome === 'castle' && scene.bossState.castlePhase === 2 ? 'CASTLE DRAGON'
                        : scene.biome === 'desert' && scene.levelId === 6 && scene.bossState.desertPhase === 0 ? 'FISSURE BURROWER'

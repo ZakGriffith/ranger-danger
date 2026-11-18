@@ -652,7 +652,7 @@ export class UIScene extends Phaser.Scene {
                    : s?.bossKind === 'sun_priest' ? 'THE SUN PRIEST'
                    : s?.biome === 'forest' ? 'THE WENDIGO'
                    : s?.biome === 'infected' ? 'THE BLIGHTED ONE'
-                   : s?.biome === 'river' ? 'THE FOG PHANTOM'
+                   : s?.biome === 'river' ? 'GALECLAW GRIFFIN'
                    : 'THE ANCIENT RAM';
     this.bossLabel = this.add.text(W / 2, y - this.p(16), bossName, {
       fontFamily: 'monospace', fontSize: this.fs(14), color: '#ff6a6a',

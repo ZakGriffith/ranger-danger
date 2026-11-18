@@ -1,5 +1,6 @@
 import { Projectile } from '../entities/Projectile';
 import { Tower } from '../entities/Tower';
+import type { Boss } from '../entities/Boss';
 import type { GameScene } from '../scenes/GameScene';
 
 /**
@@ -21,6 +22,10 @@ export class DepthSortSystem {
     const d = DepthSortSystem.yDepth(t.y);
     t.setDepth(d);
     t.top.setDepth(d + 0.2);
+  }
+
+  applyAirborneBossDepth(boss: Boss): void {
+    boss.setDepth(DepthSortSystem.yDepth(boss.y + 80));
   }
 
   update() {

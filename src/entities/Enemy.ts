@@ -10,6 +10,10 @@ import { MIRE_SNAPPER_ORIGIN_Y, MIRE_SNAPPER_PALETTES, mireSnapperTexturePrefix 
 import { TOAD_ART, TOAD_VARIANTS, toadTexturePrefix } from '../assets/art/toad';
 import { MEADOW_ENEMY_ART } from '../assets/art/meadowEnemies/textures';
 import { FOREST_BEAR_ART } from '../assets/art/forestEnemies/bear';
+import {
+  RIVER_BAT_COUNT, RIVER_DRAGONFLY_COUNT, RIVER_FLIER_ART, RIVER_FLIER_SIZE,
+  riverBatTexturePrefix, riverDragonflyTexturePrefix,
+} from '../assets/art/riverEnemies/textures';
 import type { GameScene } from '../scenes/GameScene';
 
 export type EnemyKind = 'basic' | 'heavy' | 'runner' | 'snake' | 'rat' | 'deer' | 'wolf' | 'bear' | 'spider' | 'infected_basic' | 'infected_heavy' | 'infected_runner' | 'toad' | 'crow' | 'bat' | 'dragonfly' | 'mosquito' | 'skeleton' | 'warlock' | 'golem' | 'shadow_imp' | 'castle_bat' | 'castle_rat' | 'scorpion' | 'boss_scorpion' | 'scarab' | 'sand_mite' | 'cactus_hopper' | 'dune_strider' | 'sand_wraith' | 'temple_guardian' | 'sun_mote';
@@ -147,25 +151,17 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
         this.play(`${texPrefix}-idle`);
         break;
       case 'crow':
-        applyEntityVisual(this, 'crow', 'move', 0.5, 24, 24, 20, 20);
-        this.play('ecr-move');
-        this.flying = true;
-        break;
       case 'bat':
-        applyEntityVisual(this, 'bat', 'move', 0.5, 26, 26, 19, 19);
-        this.play('ebt-move');
-        this.flying = true;
-        break;
       case 'dragonfly':
-        applyEntityVisual(this, 'dragonfly', 'move', 0.45, 20, 20, 22, 22);
-        this.play('edf-move');
+      case 'mosquito': {
+        const { scale, bodySize, folder } = RIVER_FLIER_ART[kind];
+        const offset = (RIVER_FLIER_SIZE - bodySize) / 2;
+        if (variant === 0) applyEntityVisual(this, folder, 'move', scale, bodySize, bodySize, offset, offset);
+        else this.setScale(scale).setSize(bodySize, bodySize).setOffset(offset, offset);
+        this.play(`${texPrefix}-move`);
         this.flying = true;
         break;
-      case 'mosquito':
-        applyEntityVisual(this, 'mosquito', 'move', 0.45, 20, 20, 22, 22);
-        this.play('emq-move');
-        this.flying = true;
-        break;
+      }
       // Castle enemies
       case 'skeleton':
         applyEntityVisual(this, 'skeleton', 'move', 0.5, 24, 24, 20, 24);
@@ -188,7 +184,6 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
         this.play('esi-move');
         break;
       case 'castle_bat':
-        // castle_bat reuses the bat character wholesale (own stats, same art)
         applyEntityVisual(this, 'bat', 'move', 0.45, 20, 20, 22, 22);
         this.play('ebt-move');
         this.flying = true;
@@ -261,6 +256,8 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     if (kind === 'infected_heavy') return Phaser.Math.Between(0, MIRE_SNAPPER_PALETTES.length - 1);
     if (kind === 'infected_runner') return Phaser.Math.Between(0, INFECTED_SPIDER_VARIANTS - 1);
     if (kind === 'toad') return Phaser.Math.Between(0, TOAD_VARIANTS - 1);
+    if (kind === 'bat') return Phaser.Math.Between(0, RIVER_BAT_COUNT - 1);
+    if (kind === 'dragonfly') return Phaser.Math.Between(0, RIVER_DRAGONFLY_COUNT - 1);
     return kind === 'castle_rat' ? Phaser.Math.Between(0, RAT_VARIANTS - 1) : 0;
   }
 
@@ -278,14 +275,14 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
       case 'bear': return 'ear'; // default to right-facing
       case 'spider': return 'es';
       case 'crow': return 'ecr';
-      case 'bat': return 'ebt';
-      case 'dragonfly': return 'edf';
+      case 'bat': return riverBatTexturePrefix(variant);
+      case 'dragonfly': return riverDragonflyTexturePrefix(variant);
       case 'mosquito': return 'emq';
       case 'skeleton': return 'esk';
       case 'warlock': return 'ewl';
       case 'golem': return 'ego';
       case 'shadow_imp': return 'esi';
-      case 'castle_bat': return 'ebt'; // shares the bat's textures/anims
+      case 'castle_bat': return 'ebt';
       case 'castle_rat': return `ecrat${variant}`;
       case 'scorpion': return 'escp';
       case 'boss_scorpion': return 'ebsc';

@@ -8,6 +8,8 @@ import { MEADOW_RAM_ART } from '../assets/art/meadowRam';
 import { FOREST_BEAR_ART } from '../assets/art/forestEnemies/bear';
 import { registerForestAnimations } from '../assets/art/forestEnemies/textures';
 import { registerInfectedAnimations } from '../assets/art/infectedEnemies/textures';
+import { registerRiverEnemyAnimations, RIVER_FLIER_ART } from '../assets/art/riverEnemies/textures';
+import { registerGaleclawAnimations } from '../assets/art/riverEnemies/griffin';
 import { FOREST_WENDIGO_ART } from '../assets/art/forestEnemies/wendigo';
 import { ARROW_TOWER_PROJECTILE_TEXTURE, createArrowTowerArcher } from '../assets/art/arrowTower/rig';
 import { CANNON_TOWER_GALLERY_KEYS, generateCannonTowerGalleryTextures } from '../assets/art/cannonTower/gallery';
@@ -57,6 +59,7 @@ const ENTITY_PROC_SCALES: Record<string, number> = {
   boss_meadow: CFG.bossScale,
   boss_forest: CFG.bossScale,
   boss_infected: CFG.bossScale,
+  boss_river: CFG.bossScale,
   basic: 0.5,
   heavy: 0.5,
   snake: MEADOW_ENEMY_ART.snake.spriteScale,
@@ -69,10 +72,11 @@ const ENTITY_PROC_SCALES: Record<string, number> = {
   infected_runner: 0.425,
   infected_heavy: 0.6,
   toad: 0.55,
-  crow: 0.5,
-  bat: 0.5,
-  dragonfly: 0.45,
-  mosquito: 0.45,
+  crow: RIVER_FLIER_ART.crow.scale,
+  river_bat: RIVER_FLIER_ART.bat.scale,
+  bat: 0.45,
+  dragonfly: RIVER_FLIER_ART.dragonfly.scale,
+  mosquito: RIVER_FLIER_ART.mosquito.scale,
   skeleton: 0.5,
   warlock: 0.5,
   golem: 0.55,
@@ -217,6 +221,8 @@ export class DebugGalleryScene extends Phaser.Scene {
     generateCannonTowerGalleryTextures(this);
     registerForestAnimations(this);
     registerInfectedAnimations(this);
+    registerRiverEnemyAnimations(this);
+    registerGaleclawAnimations(this);
     registerRangerGalleryArt(this);
     applySpriteOverrides(this);
     reregisterSpriteOverrideAnimations(this);

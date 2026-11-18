@@ -15,8 +15,7 @@ import { POISON_SMOKE_VARIANTS, POISON_SMOKE_FRAME_MS } from './art/poisonSmoke'
 import {
   EFrame, EFrame6,
   drawEnemyBasic, drawEnemyHeavy,
-  drawEnemyCrow, drawEnemyBat, drawEnemyDragonfly,
-  drawEnemyMosquito, drawMosquitoDart, drawBirdPoop,
+  drawEnemyBat, drawBirdPoop,
   drawEnemySkeleton, drawEnemyWarlock, drawEnemyGolem, drawEnemyShadowImp,
   drawWarlockBolt,
   drawEnemyDesert, drawSunBolt,
@@ -33,10 +32,12 @@ import {
   rect, disc, ring, line, ellipse, flashOverlay, hexToRgb, add,
 } from './art/canvas';
 import { generateForestEnemyTextures, registerForestAnimations } from './art/forestEnemies/textures';
+import { generateRiverEnemyTextures, registerRiverEnemyAnimations } from './art/riverEnemies/textures';
+import { registerGaleclawTextures, registerGaleclawAnimations } from './art/riverEnemies/griffin';
 import {
-  BossFrame, RamFrame, riverBossFrames,
+  BossFrame, RamFrame,
   phantomQueenFrames, castleDragonFrames,
-  drawFogPhantom, drawBoss,
+  drawBoss,
   drawPhantomQueen, drawCastleDragon, drawDesertBoss,
   drawQueenOrb, drawDragonFireball, drawDragonFireExplosion,
 } from './art/bosses';
@@ -96,23 +97,11 @@ export function generateAllArt(scene: Phaser.Scene) {
     add(scene, `toad_smoke_${variant}_${f}`, makeHD(128, drawToadSmoke(f * POISON_SMOKE_FRAME_MS, CFG.infected.toadPoisonLifetime, variant), { outline: false }));
   }
   generateForestEnemyTextures(scene);
-  // River flying enemies
-  // Crow uses the extended frame set (6-frame wingbeat, 4-frame dive)
-  for (const f of e6Frames) add(scene, `ecr_${f}`, makeCanvas(32, drawEnemyCrow(f)));
-  // Bat uses the extended frame set (6-frame wingbeat, 4-frame screech-bite).
-  // castle_bat enemies share these textures — there is no separate ecb set.
-  for (const f of e6Frames) add(scene, `ebt_${f}`, makeCanvas(32, drawEnemyBat(f)));
-  // Dragonfly uses the extended frame set (6-frame hover, 4-frame fang dart)
-  for (const f of e6Frames) add(scene, `edf_${f}`, makeCanvas(32, drawEnemyDragonfly(f)));
-  // Mosquito uses the extended frame set (6-frame hover, 4-frame needle jab)
-  for (const f of e6Frames) add(scene, `emq_${f}`, makeCanvas(32, drawEnemyMosquito(f)));
-  // Mosquito dart projectile
-  add(scene, 'mdart_0', makeCanvas(16, drawMosquitoDart('dart0')));
-  add(scene, 'mdart_1', makeCanvas(16, drawMosquitoDart('dart1')));
-  // Bird poop splat
+  generateRiverEnemyTextures(scene);
   add(scene, 'bird_poop', makeCanvas(16, drawBirdPoop()));
 
   // Castle enemies
+  for (const f of e6Frames) add(scene, `ebt_${f}`, makeCanvas(32, drawEnemyBat(f)));
   // Skeleton uses the extended frame set (6-frame shamble, 4-frame sword slash)
   for (const f of e6Frames) add(scene, `esk_${f}`, makeCanvas(32, drawEnemySkeleton(f)));
   // Warlock uses the extended frame set (6-frame glide, 4-frame staff cast)
@@ -294,9 +283,7 @@ export function generateAllArt(scene: Phaser.Scene) {
   // Ram gets extra in-between frames on top of the shared boss set
   const ramFrames: RamFrame[] = [...bossFrames, 'idle2', 'idle3', 'move4', 'move5', 'atk2', 'atk3'];
   for (const f of ramFrames) add(scene, `ram_${f}`, createMeadowRamFrame(f));
-  // River boss (Fog Phantom) textures
-  // River boss gets extra idle + windup frames on top of the shared boss set
-  for (const f of riverBossFrames) add(scene, `rboss_${f}`, makeCanvas(64, drawFogPhantom(f)));
+  registerGaleclawTextures(scene);
 
   // Castle boss (Phantom Queen) textures
   // Queen gets extra idle frames (flowing hair/gown) on top of the shared set
@@ -370,35 +357,14 @@ export function registerAnimations(scene: Phaser.Scene) {
   registerInfectedAnimations(scene);
   registerForestAnimations(scene);
 
-  // River flying enemies
-  // 6-frame wingbeat + 4-frame scream-and-dive strike
-  mk('ecr-move', ['ecr_move0','ecr_move1','ecr_move2','ecr_move3','ecr_move4','ecr_move5'], 12, -1);
-  mk('ecr-atk',  ['ecr_atk0','ecr_atk1','ecr_atk2','ecr_atk3'], 10, -1);
-  mk('ecr-hit',  ['ecr_hit'], 10, 0);
-  mk('ecr-die',  ['ecr_die0','ecr_die1','ecr_die2','ecr_die3'], 10, 0);
+  registerRiverEnemyAnimations(scene);
 
-  // 6-frame full wingbeat + 4-frame screech-lunge-snap (shared by castle_bat)
+  // Castle enemies
   mk('ebt-move', ['ebt_move0','ebt_move1','ebt_move2','ebt_move3','ebt_move4','ebt_move5'], 12, -1);
   mk('ebt-atk',  ['ebt_atk0','ebt_atk1','ebt_atk2','ebt_atk3'], 10, -1);
   mk('ebt-hit',  ['ebt_hit'], 8, 0);
   mk('ebt-die',  ['ebt_die0','ebt_die1','ebt_die2','ebt_die3'], 8, 0);
 
-  // 6-frame darting hover + 4-frame rear-and-dart fang strike
-  mk('edf-move', ['edf_move0','edf_move1','edf_move2','edf_move3','edf_move4','edf_move5'], 14, -1);
-  mk('edf-atk',  ['edf_atk0','edf_atk1','edf_atk2','edf_atk3'], 12, -1);
-  mk('edf-hit',  ['edf_hit'], 10, 0);
-  mk('edf-die',  ['edf_die0','edf_die1','edf_die2','edf_die3'], 10, 0);
-
-  // 6-frame buzzing hover + 4-frame rear-and-jab dart shot
-  mk('emq-move', ['emq_move0','emq_move1','emq_move2','emq_move3','emq_move4','emq_move5'], 14, -1);
-  mk('emq-atk',  ['emq_atk0','emq_atk1','emq_atk2','emq_atk3'], 12, -1);
-  mk('emq-hit',  ['emq_hit'], 10, 0);
-  mk('emq-die',  ['emq_die0','emq_die1','emq_die2','emq_die3'], 10, 0);
-
-  // Mosquito dart
-  mk('mdart-spin', ['mdart_0','mdart_1'], 8, -1);
-
-  // Castle enemies
   // 6-frame shamble + 4-frame raise-and-slash
   mk('esk-move', ['esk_move0','esk_move1','esk_move2','esk_move3','esk_move4','esk_move5'], 10, -1);
   mk('esk-atk',  ['esk_atk0','esk_atk1','esk_atk2','esk_atk3'], 10, -1);
@@ -477,23 +443,7 @@ export function registerAnimations(scene: Phaser.Scene) {
   mk('ram-birth',      ['ram_birth0','ram_birth1','ram_birth2','ram_birth3','ram_birth4'], 4, 0);
   mk('ram-die',        ['ram_die0','ram_die1','ram_die2','ram_die3','ram_die4'], 6, 0);
 
-  // River boss (Fog Phantom)
-  // 4-frame idle/move at flicker rates so the blue flames + chest vortex
-  // never sit still
-  mk('rboss-idle',       ['rboss_idle0','rboss_idle1','rboss_idle2','rboss_idle3'], 6, -1);
-  mk('rboss-move',       ['rboss_move0','rboss_move1','rboss_move2','rboss_move3'], 8, -1);
-  mk('rboss-atk',        ['rboss_atk0','rboss_atk1'], 4, 0);
-  // Dash windup: plays ONCE (repeat 0) over the 1.2s charge_wind state —
-  // the claw arm rises a single time (cw0→cw1), then stays locked overhead
-  // while the peak frames (cw2-5, flame phases 0-3) keep the inferno pulsing.
-  mk('rboss-chargewind', [
-    'rboss_chargeWind0','rboss_chargeWind1',
-    'rboss_chargeWind2','rboss_chargeWind3','rboss_chargeWind4','rboss_chargeWind5',
-    'rboss_chargeWind2','rboss_chargeWind3','rboss_chargeWind4','rboss_chargeWind5',
-  ], 8, 0);
-  mk('rboss-hit',        ['rboss_hit'], 10, 0);
-  mk('rboss-birth',      ['rboss_birth0','rboss_birth1','rboss_birth2','rboss_birth3','rboss_birth4'], 4, 0);
-  mk('rboss-die',        ['rboss_die0','rboss_die1','rboss_die2','rboss_die3','rboss_die4'], 6, 0);
+  registerGaleclawAnimations(scene);
 
   // Castle boss (Phantom Queen) animations
   // 4-frame idle/move so the hair + gown never stop flowing
