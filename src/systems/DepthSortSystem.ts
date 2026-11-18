@@ -1,13 +1,12 @@
 import { Projectile } from '../entities/Projectile';
 import { Tower } from '../entities/Tower';
 import type { Boss } from '../entities/Boss';
+import type { Wall } from '../entities/Wall';
 import type { GameScene } from '../scenes/GameScene';
 
 /**
- * Per-frame depth sorting for the player, enemies, and arrow projectiles, plus
- * the one-shot tower depth applied at placement. Towers + coins are sorted
- * once at spawn (see applyTowerDepth + Coin constructor's hardcoded formula)
- * and skipped each frame.
+ * Per-frame depth sorting for the player, enemies, and projectiles.
+ * Walls, towers, and coins get their depth when placed or spawned.
  */
 export class DepthSortSystem {
   /**
@@ -22,6 +21,10 @@ export class DepthSortSystem {
     const d = DepthSortSystem.yDepth(t.y);
     t.setDepth(d);
     t.top.setDepth(d + 0.2);
+  }
+
+  applyWallDepth(wall: Wall) {
+    wall.setDepth(DepthSortSystem.yDepth(wall.y));
   }
 
   applyAirborneBossDepth(boss: Boss): void {
@@ -53,8 +56,5 @@ export class DepthSortSystem {
       if (!p.active) continue;
       p.setDepth(yD(p.y) + 5);
     }
-
-    // Towers + coins are static — depth is set once at spawn (see
-    // applyTowerDepth + Coin constructor) and skipped here every frame.
   }
 }

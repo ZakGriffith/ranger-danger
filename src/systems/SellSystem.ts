@@ -40,7 +40,7 @@ export class SellSystem {
       return;
     }
     SFX.play('click');
-    const gfx = scene.add.graphics().setDepth(200);
+    const gfx = scene.add.graphics().setDepth(Math.max(200, target.depth + 1));
     scene.sellTimers.set(target, { startTime: scene.vTime, duration: 3000, gfx });
     // Paint at 100% remaining immediately so the marker is visible even
     // when the click happens during a paused build menu — updateSellTimers

@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { CFG } from '../config';
 import { DEBUG } from '../debug.config';
 import { WALL_ART_SCALE, wallTextureKey } from '../assets/art/fieldstone';
+import type { GameScene } from '../scenes/GameScene';
 
 export class Wall extends Phaser.Physics.Arcade.Sprite {
   hp = CFG.wall.hp;
@@ -10,7 +11,7 @@ export class Wall extends Phaser.Physics.Arcade.Sprite {
   tileY: number;
   neighborMask = 0; // N=1, E=2, S=4, W=8
 
-  constructor(scene: Phaser.Scene, tileX: number, tileY: number) {
+  constructor(scene: GameScene, tileX: number, tileY: number) {
     const wx = tileX * CFG.tile + CFG.tile / 2;
     const wy = tileY * CFG.tile + CFG.tile / 2;
     super(scene, wx, wy, wallTextureKey());
@@ -24,7 +25,7 @@ export class Wall extends Phaser.Physics.Arcade.Sprite {
     body.position.set(wx - wallBody / 2, wy - wallBody / 2);
     this.tileX = tileX;
     this.tileY = tileY;
-    this.setDepth(5);
+    scene.depthSort.applyWallDepth(this);
   }
 
   hurt(amount: number) {
