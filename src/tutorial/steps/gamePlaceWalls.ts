@@ -26,11 +26,11 @@ export class GamePlaceWallsStep implements Step {
 
   render(ctx: StepContext) {
     const { W, H, p } = ctx;
-    const exitHint = ctx.isMobile
+    const controlsHint = ctx.isMobile
       ? 'Tip: tap the wall icon to leave build mode.'
-      : 'Tip: right-click or ESC to leave build mode.';
+      : 'Drag to draw walls. Hold Shift to erase.\nRelease the mouse to build.\nTip: right-click or ESC to leave build mode.';
     ctx.showPrompt(
-      `Place walls to funnel enemies past your tower! (${this.wallsPlaced}/3)\nEnemies will pathfind around walls.\n${exitHint}`,
+      `Place walls to funnel enemies past your tower! (${this.wallsPlaced}/3)\nEnemies will pathfind around walls.\n${controlsHint}`,
       p(150),
     );
     ctx.overlay.fillStyle(0x000000, 0.15);
