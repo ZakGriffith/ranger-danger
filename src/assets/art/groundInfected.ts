@@ -116,14 +116,14 @@ const MOSS_TONE_SCALE = 900;
 const PROP_MARGIN = 48;
 
 const MOSS: readonly Rgb[] = [hex('#2b2340'), hex('#33294b'), hex('#3b3057')];
-const FRINGE: readonly Rgb[] = [hex('#3e3c3d'), hex('#41443a')];
-const GRASS: readonly Rgb[] = [hex('#414a36'), hex('#49563b'), hex('#505d3e'), hex('#586646')];
+const FRINGE: readonly Rgb[] = [hex('#3d3549'), hex('#403e46')];
+const GRASS: readonly Rgb[] = [hex('#414247'), hex('#484c4b'), hex('#4e554e'), hex('#565e54')];
 const MOSS_BLADE = hex('#5a4a86'), MOSS_BLADE_DARK = hex('#211a35');
-const GRASS_BLADE = hex('#8b9965'), GRASS_BLADE_DARK = hex('#333e2f');
+const GRASS_BLADE = hex('#898096'), GRASS_BLADE_DARK = hex('#35333e');
 const CRACK = hex('#566e4b');
 
 const MOSS_TUFT = { dark: hex('#241c38'), mid: hex('#4a3a70'), light: hex('#7a62a8') };
-const GRASS_TUFT = { dark: hex('#363f2f'), mid: hex('#697a50'), light: hex('#8e9b6a') };
+const GRASS_TUFT = { dark: hex('#373340'), mid: hex('#6d6377'), light: hex('#90839d') };
 const MUSH_SHADE = hex('#1e1420');
 const MUSH_GREEN = { cap: hex('#58c468'), capLight: hex('#b6ffb0'), stalk: hex('#d6cce0'), glow: hex('#a8ff9a') };
 const MUSH_PURPLE = { cap: hex('#7a46a8'), capLight: hex('#c494e8'), stalk: hex('#d6cce0'), glow: hex('#a8ff9a') };

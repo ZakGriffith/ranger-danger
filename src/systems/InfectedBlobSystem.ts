@@ -1,6 +1,6 @@
 import type Phaser from 'phaser';
 import {
-  BLOB_MOVE_FRAMES, BLOB_ATTACK_FRAMES, BLOB_ATTACK_FRAME_MS,
+  BLOB_MOVE_FRAMES, BLOB_ATTACK_FRAMES, BLOB_ATTACK_FRAME_MS, BLOB_SPRITE_SCALE,
   BLOB_ATTACK_DURATION_MS, BLOB_WINDUP_MS, BLOB_FLIGHT_MS, BLOB_IMPACT_MS,
 } from '../assets/art/infectedBlob';
 import type { Enemy } from '../entities/Enemy';
@@ -11,7 +11,7 @@ import { InfectedBlobState } from '../state/InfectedBlobState';
 const ATTACK_RANGE = 30;
 const IMPACT_RANGE = 22;
 const MAX_LUNGE = 32;
-const ROLL_RADIUS = 12;
+const ROLL_RADIUS = 24 * BLOB_SPRITE_SCALE;
 
 export class InfectedBlobSystem {
   private states = new Map<Enemy, InfectedBlobState>();

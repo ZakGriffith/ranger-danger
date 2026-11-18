@@ -8,6 +8,7 @@ import { MEADOW_RAM_ART } from '../assets/art/meadowRam';
 import { FOREST_BEAR_ART } from '../assets/art/forestEnemies/bear';
 import { registerForestAnimations } from '../assets/art/forestEnemies/textures';
 import { registerInfectedAnimations } from '../assets/art/infectedEnemies/textures';
+import { BLOB_SPRITE_SCALE } from '../assets/art/infectedBlob';
 import { registerRiverEnemyAnimations, RIVER_FLIER_ART } from '../assets/art/riverEnemies/textures';
 import { registerGaleclawAnimations } from '../assets/art/riverEnemies/griffin';
 import { FOREST_WENDIGO_ART } from '../assets/art/forestEnemies/wendigo';
@@ -68,7 +69,7 @@ const ENTITY_PROC_SCALES: Record<string, number> = {
   wolf: 0.54,
   bear: FOREST_BEAR_ART.spriteScale,
   spider: 0.40,
-  infected_basic: 0.5,
+  infected_basic: BLOB_SPRITE_SCALE,
   infected_runner: 0.425,
   infected_heavy: 0.6,
   toad: 0.55,

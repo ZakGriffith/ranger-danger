@@ -4,7 +4,7 @@ import { applyEntityVisual } from '../assets/spriteOverrides';
 import { Shadow } from './Shadow';
 import { DEBUG } from '../debug.config';
 import { RAT_VARIANTS } from '../assets/art/rat';
-import { BLOB_ORIGIN_Y, BLOB_VARIANTS } from '../assets/art/infectedBlob';
+import { BLOB_FOOT_Y, BLOB_ORIGIN_Y, BLOB_SPRITE_SCALE, BLOB_VARIANTS } from '../assets/art/infectedBlob';
 import { INFECTED_SPIDER_VARIANTS, infectedSpiderTexturePrefix } from '../assets/art/infectedSpider';
 import { MIRE_SNAPPER_ORIGIN_Y, MIRE_SNAPPER_PALETTES, mireSnapperTexturePrefix } from '../assets/art/infectedEnemies/mireSnapper';
 import { TOAD_ART, TOAD_VARIANTS, toadTexturePrefix } from '../assets/art/toad';
@@ -132,7 +132,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
         this.play('es-move');
         break;
       case 'infected_basic':
-        this.setScale(0.5).setOrigin(0.5, BLOB_ORIGIN_Y);
+        this.setScale(BLOB_SPRITE_SCALE).setOrigin(0.5, BLOB_ORIGIN_Y);
         this.setSize(44, 24).setOffset(26, 76);
         break;
       case 'infected_heavy':
@@ -239,7 +239,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     // skip the shadow entirely.
     if (kind !== 'snake') {
       this.shadow = kind === 'infected_basic'
-        ? new Shadow(scene, 27, 8)
+        ? new Shadow(scene, 54 * BLOB_SPRITE_SCALE, (BLOB_FOOT_Y - this.displayOriginY) * BLOB_SPRITE_SCALE)
         : kind === 'infected_heavy'
           ? new Shadow(scene, 27, 9.6)
           : Shadow.fromSprite(scene, this, this.texture.key, { flying: this.flying });

@@ -15,6 +15,7 @@ export const BLOB_FLIGHT_MS = 320;
 export const BLOB_IMPACT_MS = BLOB_WINDUP_MS + BLOB_FLIGHT_MS;
 export const BLOB_FRAME_WIDTH = 96;
 export const BLOB_FRAME_HEIGHT = 112;
+export const BLOB_SPRITE_SCALE = 0.325;
 export const BLOB_FOOT_Y = 104;
 export const BLOB_ORIGIN_Y = 88 / BLOB_FRAME_HEIGHT;
 export const BLOB_AIR_HEIGHT = 32;
