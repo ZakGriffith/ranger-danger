@@ -126,7 +126,12 @@ export class UIScene extends Phaser.Scene {
     }
   };
   private readonly onBuildMode = (active: boolean, kind?: string, towerKind?: string) => {
-    this.buildHintText.setVisible(active);
+    const hint = this.isMobile
+      ? 'Tap selected item again to leave build menu'
+      : kind === 'wall'
+        ? 'Drag to preview • Shift-drag to erase • Release to build • Esc to cancel'
+        : 'Right-click, B, or ESC to leave build menu';
+    this.buildHintText.setText(hint).setVisible(active);
     if (!active) this.buildErrorText.setVisible(false);
     this.btnTower.setSelected?.(active && kind === 'tower' && towerKind === 'arrow');
     this.btnCannon.setSelected?.(active && kind === 'tower' && towerKind === 'cannon');
@@ -526,10 +531,7 @@ export class UIScene extends Phaser.Scene {
     const activeKind = game.buildState.kind;
     const activeTowerKind = game.buildState.towerKind;
     if (activeKind && activeKind !== 'none') {
-      this.btnTower.setSelected?.(activeKind === 'tower' && activeTowerKind === 'arrow');
-      this.btnCannon.setSelected?.(activeKind === 'tower' && activeTowerKind === 'cannon');
-      this.btnWall.setSelected?.(activeKind === 'wall');
-      this.buildHintText.setVisible(true);
+      this.onBuildMode(true, activeKind, activeTowerKind);
     }
 
     // GameScene runs setGameSize during its create() and immediately

@@ -6,8 +6,28 @@ import { wallTextureKey } from '../assets/art/fieldstone';
 import { Tower, TowerKind } from '../entities/Tower';
 import { Wall } from '../entities/Wall';
 import { SFX } from '../audio/sfx';
-import { gridGet, gridSet } from './Pathfinding';
+import { gridGet, gridKey, gridSet } from './Pathfinding';
 import type { GameScene, BuildKind } from '../scenes/GameScene';
+
+type Tile = { x: number; y: number };
+type WallDraft = {
+  lastTile: Tile;
+  moved: boolean;
+  tiles: Map<string, { tile: Tile; ghost: Phaser.GameObjects.Sprite }>;
+};
+
+function* wallStroke(from: Tile, to: Tile): Generator<Tile> {
+  const dx = Math.abs(to.x - from.x), dy = Math.abs(to.y - from.y);
+  const sx = Math.sign(to.x - from.x), sy = Math.sign(to.y - from.y);
+  let x = from.x, y = from.y;
+  let ix = 0, iy = 0;
+  // Step one axis at a time so a diagonal sweep builds connected walls.
+  while (ix < dx || iy < dy) {
+    if ((2 * ix + 1) * dy <= (2 * iy + 1) * dx) { x += sx; ix++; }
+    else { y += sy; iy++; }
+    yield { x, y };
+  }
+}
 
 /**
  * Build-mode state machine: choose tower / cannon / mage / wall, position
@@ -19,6 +39,7 @@ export class BuildSystem {
   /** Last build-error string emitted — skip the per-frame event re-emit
    *  when the message didn't change so UIScene doesn't churn its toast. */
   private lastBuildErr = '';
+  private wallDraft?: WallDraft;
 
   // Last camera scroll tile + zoom we drew the grid overlay against —
   // skip the redraw entirely when nothing relevant changed (which is
@@ -37,6 +58,20 @@ export class BuildSystem {
 
   constructor(private scene: GameScene) {}
 
+  bindInput() {
+    const { input, game, events } = this.scene;
+    input.on('pointerdown', this.handleClick, this);
+    input.on('pointermove', this.moveWallDraft, this);
+    input.on('pointerup', this.finishWallDraft, this);
+    input.on('pointerupoutside', this.cancelWallDraft, this);
+    input.on('gameout', this.cancelWallDraft, this);
+    game.events.on(Phaser.Core.Events.BLUR, this.cancelWallDraft, this);
+    events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      game.events.off(Phaser.Core.Events.BLUR, this.cancelWallDraft, this);
+      this.cancelWallDraft();
+    });
+  }
+
   toggleBuild(k: BuildKind, towerKind?: TowerKind) {
     const scene = this.scene;
     // If same build mode is already active, cancel it (toggle off)
@@ -53,6 +88,7 @@ export class BuildSystem {
 
   setBuild(k: BuildKind, towerKind?: TowerKind) {
     const scene = this.scene;
+    this.cancelWallDraft();
     scene.buildState.setKind(k, towerKind);
     scene.ghost.setVisible(k !== 'none');
     if (scene.deleteIcon) scene.deleteIcon.setVisible(false);
@@ -112,7 +148,7 @@ export class BuildSystem {
     return ok;
   }
 
-  handleClick(p: Phaser.Input.Pointer) {
+  private handleClick(p: Phaser.Input.Pointer) {
     const scene = this.scene;
     if (scene.endState.gameOver) return;
 
@@ -198,41 +234,161 @@ export class BuildSystem {
       return;
     }
 
-    // wall
-    // Click on an existing wall while in wall build mode = start the
-    // sell countdown instead of trying (and failing) to place. Skip
-    // during tutorial since we don't allow selling there.
-    if (!getRegistry(scene.game).get('tutorialActive')) {
-      const wHit = scene.walls.find(w => w.tileX === tx && w.tileY === ty);
-      if (wHit) {
-        scene.sell.startSellTimer(wHit);
-        return;
-      }
+    const tile = { x: tx, y: ty };
+    if (p.wasTouch) {
+      if (!this.sellWallAt(tile)) this.placeWalls([tile]);
+    } else if ('button' in p.event && p.event.button === 0) {
+      this.cancelWallDraft();
+      const draft = { lastTile: tile, moved: p.event.shiftKey, tiles: new Map() };
+      this.wallDraft = draft;
+      if (!p.event.shiftKey) this.paintWallTiles(draft, [tile]);
     }
-    // Tutorial caps placements at 3 walls.
-    if (getRegistry(scene.game).get('tutorialActive') && scene.walls.length >= 3) return;
-    if (gridGet(scene.grid, tx, ty) !== 0) return;
-    if (scene.player.money < CFG.wall.cost) return;
-    const pt = scene.pathing.worldToTile(scene.player.x, scene.player.y);
-    // Check placing this wall won't reduce reachable spawn directions below minimum
-    const beforeReach = scene.pathing.countReachableDirections(pt.x, pt.y);
+  }
+
+  private moveWallDraft(p: Phaser.Input.Pointer) {
+    const draft = this.wallDraft;
+    if (!draft || p.wasTouch) return;
+    if (!p.leftButtonDown()) {
+      this.cancelWallDraft();
+      return;
+    }
+    this.extendWallDraft(draft, p);
+  }
+
+  private extendWallDraft(draft: WallDraft, p: Phaser.Input.Pointer) {
+    const tile = this.scene.pathing.worldToTile(p.worldX, p.worldY);
+    const last = draft.lastTile;
+    if (!p.event.shiftKey && tile.x === last.x && tile.y === last.y) return;
+    draft.moved = true;
+    draft.lastTile = tile;
+    if (p.event.shiftKey) {
+      for (const cell of [last, ...wallStroke(last, tile)]) {
+        const key = gridKey(cell.x, cell.y);
+        draft.tiles.get(key)?.ghost.destroy();
+        draft.tiles.delete(key);
+      }
+      this.showBuildError('');
+    } else {
+      this.paintWallTiles(draft, wallStroke(last, tile));
+    }
+  }
+
+  private finishWallDraft(p: Phaser.Input.Pointer) {
+    const draft = this.wallDraft;
+    if (!draft || p.wasTouch || !('button' in p.event) || p.event.button !== 0) return;
+    if (this.scene.endState.gameOver) {
+      this.cancelWallDraft();
+      return;
+    }
+    this.extendWallDraft(draft, p);
+    const tiles = Array.from(draft.tiles.values(), ({ tile }) => tile);
+    this.cancelWallDraft();
+    if (!draft.moved && !p.event.shiftKey && this.sellWallAt(draft.lastTile)) return;
+    this.placeWalls(tiles);
+  }
+
+  cancelWallDraft() {
+    if (!this.wallDraft) return;
+    for (const { ghost } of this.wallDraft.tiles.values()) ghost.destroy();
+    this.wallDraft = undefined;
+    this.showBuildError('');
+  }
+
+  private paintWallTiles({ tiles }: WallDraft, candidates: Iterable<Tile>) {
+    const scene = this.scene;
+    const limit = this.wallPlacementLimit();
+    const pending = Array.from(candidates).filter(({ x, y }) => !tiles.has(gridKey(x, y)));
+    if (!pending.length) return;
+
+    const temporaryWalls: Tile[] = [];
+    const markTemporaryWall = (tile: Tile) => {
+      gridSet(scene.grid, tile.x, tile.y, 1);
+      temporaryWalls.push(tile);
+    };
+    let error = '';
+    try {
+      for (const { tile } of tiles.values()) {
+        if (gridGet(scene.grid, tile.x, tile.y) === 0) markTemporaryWall(tile);
+      }
+      const playerTile = scene.pathing.worldToTile(scene.player.x, scene.player.y);
+      const minReach = this.minimumWallReach(playerTile);
+      for (const tile of pending) {
+        const { x, y } = tile;
+        if (gridGet(scene.grid, x, y) !== 0) { error = 'Blocked'; continue; }
+        if (tiles.size >= limit) {
+          error = (tiles.size + 1) * CFG.wall.cost > scene.player.money ? 'Not enough gold' : '';
+          break;
+        }
+        if (!this.wallPreservesPaths(x, y, playerTile, minReach)) { error = 'Blocks path'; continue; }
+        markTemporaryWall(tile);
+        const ghost = scene.add.sprite((x + 0.5) * CFG.tile, (y + 0.5) * CFG.tile, wallTextureKey())
+          .setDepth(800).setScale(0.5).setAlpha(0.55).setTint(0x88ff88);
+        tiles.set(gridKey(x, y), { tile, ghost });
+        error = '';
+      }
+    } finally {
+      for (const { x, y } of temporaryWalls) gridSet(scene.grid, x, y, 0);
+    }
+    this.showBuildError(error);
+  }
+
+  private sellWallAt({ x, y }: Tile): boolean {
+    const scene = this.scene;
+    if (getRegistry(scene.game).get('tutorialActive')) return false;
+    const wall = scene.walls.find(w => w.tileX === x && w.tileY === y);
+    if (!wall) return false;
+    scene.sell.startSellTimer(wall);
+    return true;
+  }
+
+  private wallPlacementLimit(): number {
+    const scene = this.scene;
+    const affordable = Math.floor(scene.player.money / CFG.wall.cost);
+    return getRegistry(scene.game).get('tutorialActive') ? Math.min(affordable, 3 - scene.walls.length) : affordable;
+  }
+
+  private minimumWallReach(playerTile: Tile): number {
+    return Math.min(this.scene.pathing.countReachableDirections(playerTile.x, playerTile.y), 2);
+  }
+
+  private wallPreservesPaths(tx: number, ty: number, playerTile: Tile, minReach: number): boolean {
+    const scene = this.scene;
     gridSet(scene.grid, tx, ty, 1);
-    const afterReach = scene.pathing.countReachableDirections(pt.x, pt.y);
-    gridSet(scene.grid, tx, ty, 0);
-    if (afterReach < Math.min(beforeReach, 2)) return;
-    scene.player.money -= CFG.wall.cost;
-    scene.runStats.coinsSpent += CFG.wall.cost;
-    scene.runStats.wallsBuilt++;
-    const w = new Wall(scene, tx, ty);
-    scene.walls.push(w);
-    scene.wallGroup.add(w);
-    gridSet(scene.grid, tx, ty, 1);
-    scene.pathing.syncWallTile(tx, ty, true);
-    scene.sell.updateWallNeighbors(tx, ty);
+    try {
+      return scene.pathing.countReachableDirections(playerTile.x, playerTile.y) >= minReach;
+    } finally {
+      gridSet(scene.grid, tx, ty, 0);
+    }
+  }
+
+  private placeWalls(tiles: Tile[]) {
+    const scene = this.scene;
+    const limit = this.wallPlacementLimit();
+    if (!tiles.length || limit <= 0) return;
+    const playerTile = scene.pathing.worldToTile(scene.player.x, scene.player.y);
+    const minReach = this.minimumWallReach(playerTile);
+    let placed = 0;
+    for (const { x, y } of tiles) {
+      if (placed >= limit) break;
+      if (gridGet(scene.grid, x, y) !== 0 || !this.wallPreservesPaths(x, y, playerTile, minReach)) continue;
+      const wall = new Wall(scene, x, y);
+      scene.walls.push(wall);
+      scene.wallGroup.add(wall);
+      gridSet(scene.grid, x, y, 1);
+      scene.pathing.syncWallTile(x, y, true);
+      scene.sell.updateWallNeighbors(x, y);
+      placed++;
+    }
+    if (!placed) return;
+    scene.player.money -= placed * CFG.wall.cost;
+    scene.runStats.coinsSpent += placed * CFG.wall.cost;
+    scene.runStats.wallsBuilt += placed;
     scene.gridVersion++; scene._wallCheckCache.clear(); scene.pathing.rebuildGapBlockers();
     scene.hud.pushHud();
     SFX.play('wallPlace');
-    if (getRegistry(scene.game).get('tutorialActive')) getEvents(scene.game.events).emit('tutorial-wall-placed');
+    if (getRegistry(scene.game).get('tutorialActive')) {
+      for (let i = 0; i < placed; i++) getEvents(scene.game.events).emit('tutorial-wall-placed');
+    }
   }
 
   /**
@@ -243,6 +399,14 @@ export class BuildSystem {
   updateGhost() {
     const scene = this.scene;
     if (scene.buildState.kind === 'none') return;
+    if (this.wallDraft) {
+      if (scene.input.mousePointer.leftButtonDown()) {
+        scene.ghost.setVisible(false);
+        scene.deleteIcon.setVisible(false);
+        return;
+      }
+      this.cancelWallDraft();
+    }
     const p = scene.input.activePointer;
     // Don't snap the ghost onto the joystick when the player's thumb is on
     // the stick — keep it at its last position until they tap elsewhere.
@@ -321,11 +485,7 @@ export class BuildSystem {
               this._beforeReachKey = beforeKey;
               this._beforeReach = scene.pathing.countReachableDirections(pt.x, pt.y);
             }
-            const beforeReach = this._beforeReach;
-            gridSet(scene.grid, tx, ty, 1);
-            const afterReach = scene.pathing.countReachableDirections(pt.x, pt.y);
-            gridSet(scene.grid, tx, ty, 0);
-            valid = afterReach >= Math.min(beforeReach, 2);
+            valid = this.wallPreservesPaths(tx, ty, pt, Math.min(this._beforeReach, 2));
             scene._wallCheckCache.set(cacheKey, valid);
           }
         }
@@ -343,10 +503,13 @@ export class BuildSystem {
         scene.ghost.setTint(valid && canAffordWall ? 0x88ff88 : 0xff8888);
       }
     }
-    if (buildErr !== this.lastBuildErr) {
-      this.lastBuildErr = buildErr;
-      getEvents(scene.game.events).emit('build-error', buildErr);
-    }
+    this.showBuildError(buildErr);
+  }
+
+  private showBuildError(message: string) {
+    if (message === this.lastBuildErr) return;
+    this.lastBuildErr = message;
+    getEvents(this.scene.game.events).emit('build-error', message);
   }
 
   redrawGridOverlay() {

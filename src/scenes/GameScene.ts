@@ -614,7 +614,7 @@ export class GameScene extends Phaser.Scene {
     this.input.keyboard!.on('keydown-B', () => {
       if (this.buildState.kind !== 'none') this.build.setBuild('none');
     });
-    this.input.on('pointerdown', (p: Phaser.Input.Pointer) => this.build.handleClick(p));
+    this.build.bindInput();
     this.input.mouse!.disableContextMenu();
 
     // build ghost
@@ -919,6 +919,7 @@ export class GameScene extends Phaser.Scene {
 
   private pauseForMenu() {
     if (this.endState.gameOver || this.menuPaused) return;
+    this.build.cancelWallDraft();
     this.menuPaused = true;
     this.physics.pause();
     this.tweens.pauseAll();
