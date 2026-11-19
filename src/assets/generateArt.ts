@@ -15,7 +15,7 @@ import { POISON_SMOKE_VARIANTS, POISON_SMOKE_FRAME_MS } from './art/poisonSmoke'
 import {
   EFrame, EFrame6,
   drawEnemyBasic, drawEnemyHeavy,
-  drawEnemyBat, drawBirdPoop,
+  drawEnemyBat,
   drawEnemySkeleton, drawEnemyWarlock, drawEnemyGolem, drawEnemyShadowImp,
   drawWarlockBolt,
   drawEnemyDesert, drawSunBolt,
@@ -98,7 +98,6 @@ export function generateAllArt(scene: Phaser.Scene) {
   }
   generateForestEnemyTextures(scene);
   generateRiverEnemyTextures(scene);
-  add(scene, 'bird_poop', makeCanvas(16, drawBirdPoop()));
 
   // Castle enemies
   for (const f of e6Frames) add(scene, `ebt_${f}`, makeCanvas(32, drawEnemyBat(f)));

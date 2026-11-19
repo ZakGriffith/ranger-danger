@@ -224,7 +224,6 @@ export class GameScene extends Phaser.Scene {
   boulders: { sprite: Phaser.GameObjects.Sprite; shadow: Phaser.GameObjects.Sprite; sx: number; sy: number; tx: number; ty: number; totalDist: number; speed: number; dmg: number; splashRadius: number; born: number }[] = [];
   webs: { x: number; y: number; sprite: Phaser.GameObjects.Sprite; expireAt: number }[] = [];
   gasClouds: { x: number; y: number; sprites: (Phaser.GameObjects.Arc | Phaser.GameObjects.Sprite)[]; expireAt: number; dmgCd: number }[] = [];
-  birdPoops: { sprite: Phaser.GameObjects.Image; expireAt: number; dmgCd: number }[] = [];
   treeSprites: Phaser.GameObjects.GameObject[] = [];
   treeChunksGenerated = new Set<string>();
   // Castle-only floor-spike obstacles. Same chunk-level deterministic
@@ -313,7 +312,6 @@ export class GameScene extends Phaser.Scene {
     this.boulders = [];
     this.webs = [];
     this.gasClouds = [];
-    this.birdPoops = [];
     this.treeSprites = [];
     this.treeChunksGenerated = new Set();
     this.spikeSprites = [];
@@ -1004,7 +1002,6 @@ export class GameScene extends Phaser.Scene {
     if (this.biome === 'desert') this.updateDesertEnemyHazards(time);
     this.enemyBoss.updateBoss(time);
     this.enemyBoss.updateGasClouds(time);
-    this.enemyBoss.updateBirdPoops(time);
     this.combat.updateProjectiles(time);
     this.enemyBoss.updateEnemyDarts();
     this.enemyBoss.updateBoulders(time);

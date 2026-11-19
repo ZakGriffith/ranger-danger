@@ -27,7 +27,7 @@ const MELEE_EXIT_RADIUS = 40;
  * Combined enemy + boss AI / abilities / projectile lifecycle. EnemySystem
  * (basic enemies, mosquito darts, toad globs, web slow) and BossSystem
  * (boss AI, abilities, charge / slam / boulder, castle queen+dragon
- * projectiles, gas clouds, bird poop) were planned as two systems but share
+ * projectiles, gas clouds) were planned as two systems but share
  * so much surface area that a single class keeps the call graph readable.
  */
 export class EnemyBossSystem {
@@ -386,10 +386,6 @@ export class EnemyBossSystem {
         e.pathIdx = 0;
         e.lastMovingAt = time;
         return true;
-      }
-
-      if ((e.kind === 'crow' || e.kind === 'bat') && Math.random() < 0.0006 && this.enemyOnScreen(e)) {
-        this.spawnBirdPoop(e.x, e.y);
       }
 
       if (e.kind === 'mosquito') {
@@ -1596,55 +1592,6 @@ export class EnemyBossSystem {
           scene.player.hurt(dmg, scene);
           scene.hud.pushHud();
           gc.dmgCd = time + 500;
-          if (scene.player.hp <= 0) scene.end.lose();
-        }
-      }
-    }
-  }
-
-  spawnBirdPoop(x: number, y: number) {
-    const scene = this.scene;
-    for (const bp of scene.birdPoops) {
-      if (Phaser.Math.Distance.Between(x, y, bp.sprite.x, bp.sprite.y) < 24) return;
-    }
-    if (scene.birdPoops.length >= 30) return;
-    const spr = scene.add.image(x, y + 12, 'bird_poop').setScale(0.5).setDepth(2).setAlpha(0);
-    scene.tweens.add({
-      targets: spr,
-      alpha: 0.85,
-      scaleX: 0.6,
-      scaleY: 0.45,
-      duration: 300,
-      ease: 'Bounce.Out'
-    });
-    scene.birdPoops.push({
-      sprite: spr,
-      expireAt: scene.vTime + 12000,
-      dmgCd: 0
-    });
-  }
-
-  updateBirdPoops(time: number) {
-    const scene = this.scene;
-    for (let i = scene.birdPoops.length - 1; i >= 0; i--) {
-      const bp = scene.birdPoops[i];
-      if (time >= bp.expireAt) {
-        scene.tweens.add({
-          targets: bp.sprite, alpha: 0, duration: 800,
-          onComplete: () => bp.sprite.destroy()
-        });
-        scene.birdPoops.splice(i, 1);
-        continue;
-      }
-      if (bp.expireAt - time < 2000 && bp.sprite.alpha > 0.3) {
-        bp.sprite.setAlpha(0.3 + 0.55 * ((bp.expireAt - time) / 2000));
-      }
-      if (time > bp.dmgCd) {
-        const dist = Phaser.Math.Distance.Between(scene.player.x, scene.player.y, bp.sprite.x, bp.sprite.y);
-        if (dist < 16) {
-          scene.player.hurt(4, scene);
-          scene.hud.pushHud();
-          bp.dmgCd = time + 800;
           if (scene.player.hp <= 0) scene.end.lose();
         }
       }

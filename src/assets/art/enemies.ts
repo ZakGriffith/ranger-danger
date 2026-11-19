@@ -722,30 +722,6 @@ export function drawEnemyBat(f: EFrame6) {
 }
 
 // ==================================================================
-//  BIRD POOP (16x16) — white splat with dark speckles
-// ==================================================================
-export function drawBirdPoop() {
-  return (put: Put) => {
-    // White irregular blob
-    disc(put, 8, 8, 4, '#e8e8e0');
-    disc(put, 8, 8, 3, '#f4f4ec');
-    disc(put, 7, 9, 2, '#e0e0d8');
-    disc(put, 9, 7, 2, '#f0f0e8');
-    // Splat edges — irregular
-    put(4, 8, '#deded6'); put(12, 8, '#deded6');
-    put(8, 4, '#deded6'); put(8, 12, '#deded6');
-    put(5, 6, '#e8e8e0'); put(11, 10, '#e8e8e0');
-    put(6, 11, '#e0e0d8'); put(10, 5, '#e0e0d8');
-    // Dark speckles
-    put(7, 7, '#3a3a30'); put(9, 9, '#2a2a20');
-    put(6, 8, '#3a3a30'); put(10, 7, '#2a2a20');
-    put(8, 10, '#444438');
-    // Slight highlight
-    put(7, 6, '#ffffff'); put(8, 7, '#fafaf4');
-  };
-}
-
-// ==================================================================
 //  SKELETON SOLDIER (32x32) — bone-white warrior with rusty sword
 // ==================================================================
 export function drawEnemySkeleton(f: EFrame6) {
