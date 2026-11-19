@@ -18,9 +18,13 @@ const QUERY_REACH = 200;                      // samples farther than this (per 
 const SPAWN_CLEAR = 4.5 * TILE;               // rivers steer clear of this radius at the origin
 const RIVER_COUNT = 3;
 const RIVER_GAP = 14 * TILE;                  // a river this close to another's bank turns in and joins it
-const SELF_GAP = 14 * TILE;                   // a river keeps this far from its own earlier course
-const MAX_TURN = 0.28;                        // radians per step, so a bend is never tighter than about 4.5 tiles
-const MAX_DEVIATION = 1.1;                    // radians off its course, so a river meanders but never doubles back
+const SELF_GAP = 8 * TILE;                    // a river keeps this far from its own earlier course (an oxbow neck)
+const MEANDER_WAVE = 56;                      // steps per meander, about 70 tiles, so an oxbow loop is 20-odd tiles across
+const MEANDER_MAX = 1.8;                      // peak heading swing in radians; past about 1.6 a bend loops back like an oxbow
+const MAX_CURV = 0.2;                         // steering curvature, radians per step: a steered bend is never tighter than 6 tiles
+const CURV_RATE = 0.05;                       // how fast steering can tighten or ease, per step
+const SELF_TOUCH = 4.5 * TILE;                // closer than this to its own course, a river ends short rather than cross itself
+const LOOKAHEAD = 5;                          // steps ahead that steering looks
 const OTHERS_CLEAR = 24 * TILE;               // the other rivers keep out of this radius, so only the spawn river crosses the spawn clearing
 const ANCHOR_CLEAR = RIVER_GAP * 1.5;         // the other rivers start at least this far from water
 const BRIDGE_SPACING = 12 * TILE;             // least distance between any two bridges
@@ -490,57 +494,69 @@ export class RiverNet {
 }
 
 /**
- * Walk a river out from an anchor in both directions. The heading drifts with
- * smooth noise and relaxes back toward its base so the river meanders without
- * coiling, and it steers away from the spawn clearing at the origin.
+ * Walk a river out from an anchor in both directions. Its heading is the
+ * course plus a meander wave whose amplitude drifts with noise, so most bends
+ * are gentle and now and then one swells into an oxbow loop. Everything that
+ * has to push the river about (the spawn, other rivers, its own earlier
+ * course) does so through a curvature that can only change slowly, looking a
+ * few steps ahead, so the river never kinks.
  */
 function walkRiver(anchor: Pt, baseHeading: number, seed: number, net: RiverNet, clear: number): Pt[] {
   const half = (dir: number, s: number, others: Pt[]): Pt[] => {
     const pts: Pt[] = [];
-    let x = anchor.x, y = anchor.y, heading = baseHeading + dir;
-    // every deflection (off the spawn, off another river, off itself) also turns the
-    // course the river relaxes back toward, so it carries on along its new line
-    // instead of hugging whatever pushed it
-    let drift = 0;
-    const deflect = (toward: number, w: number, carry: boolean) => {
-      const delta = Math.atan2(Math.sin(toward - heading), Math.cos(toward - heading)) * w;
-      heading += delta; if (carry) drift += delta;
-    };
+    let x = anchor.x, y = anchor.y;
+    let drift = 0, curv = 0, heading = baseHeading + dir;
+    const wave = MEANDER_WAVE * (0.8 + noise1(0, s + 5) * 0.4), phase = noise1(0, s + 9) * Math.PI * 2;
     const limit = (RIVER_MAP_HALF_TILES + 8) * TILE;
+    const turnTo = (toward: number) => Math.atan2(Math.sin(toward - heading), Math.cos(toward - heading));
     for (let k = 0; k < 2000; k++) {
       pts.push({ x, y });
       if (Math.abs(x) > limit || Math.abs(y) > limit) break;
-      const h0 = heading;
-      const wander = (noise1(k / 8, s) - 0.5) * 0.34 + (noise1(k / 2.5, s + 7) - 0.5) * 0.1;
-      const target = baseHeading + dir + drift + (noise1(k / 30, s + 13) - 0.5) * 1.6;
-      // steer around the spawn clearing
-      const dist = Math.hypot(x, y);
-      if (dist < clear + 2.5 * TILE) deflect(Math.atan2(y, x), 0.3, true);
-      // a river that reaches water already placed joins it there, as a tributary.
-      // Within RIVER_GAP of another river, one heading squarely at it turns in and
-      // joins cleanly; one running alongside is pushed off to keep the gap
+      // a river that reaches water already placed joins it there, as a tributary
       if (k > 4) {
         const q = net.nearWater(x, y, RIVER_GAP);
+        if (q && q.d > 0) { pts.push({ x: x + Math.cos(heading) * STEP, y: y + Math.sin(heading) * STEP }); break; }
+      }
+      // one about to cross its own course ends short of it instead, as a headwater
+      let touch = false;
+      for (let i = 0; i < pts.length - 12 && !touch; i++) touch = Math.hypot(x - pts[i].x, y - pts[i].y) < SELF_TOUCH;
+      for (let i = 0; i < others.length - 12 && !touch; i++) touch = Math.hypot(x - others[i].x, y - others[i].y) < SELF_TOUCH;
+      if (touch) { pts.length = Math.max(1, pts.length - 4); break; }
+      // steering: each term asks for a turn, the sum becomes a curvature demand
+      let want = 0;
+      const ax = x + Math.cos(heading) * STEP * LOOKAHEAD, ay = y + Math.sin(heading) * STEP * LOOKAHEAD;
+      // off the spawn clearing, which outranks joining the river that runs through it
+      const nearSpawn = Math.hypot(ax, ay) < clear + 2.5 * TILE;
+      if (nearSpawn) want += turnTo(Math.atan2(ay, ax));
+      // within RIVER_GAP of another river: heading squarely at it, turn in and join cleanly;
+      // running alongside, turn off to keep the gap
+      if (k > 4 && !nearSpawn) {
+        const q = net.nearWater(ax, ay, RIVER_GAP);
         if (q) {
-          if (q.d > 0) { pts.push({ x: q.sx, y: q.sy }); break; }
-          const toward = Math.atan2(q.sy - y, q.sx - x);
-          const turn = Math.atan2(Math.sin(toward - heading), Math.cos(toward - heading));
-          if (Math.abs(turn) < Math.PI * 0.35) deflect(toward, 0.35, true);
-          else if (Math.abs(turn) < Math.PI * 0.75) deflect(toward + Math.PI, 0.4 * (1 + q.d / RIVER_GAP), true);
+          const toward = Math.atan2(q.sy - ay, q.sx - ax), turn = turnTo(toward);
+          if (Math.abs(turn) < Math.PI * 0.35) want += turn * 0.5;
+          else if (Math.abs(turn) < Math.PI * 0.75) want += turnTo(toward + Math.PI) * 0.5 * (1 + q.d / RIVER_GAP);
         }
       }
-      // and it steers away from its own earlier course so it never loops back on itself
+      // off its own earlier course, so a meander never cuts through the last one
       let selfD = SELF_GAP, sx = 0, sy = 0;
-      const consider = (p: Pt) => { const d = Math.hypot(x - p.x, y - p.y); if (d < selfD) { selfD = d; sx = p.x; sy = p.y; } };
-      for (let i = 0; i < pts.length - 16; i++) consider(pts[i]);
-      for (let i = 0; i < others.length - 16; i++) consider(others[i]);
-      if (selfD < SELF_GAP) deflect(Math.atan2(y - sy, x - sx), 0.6 * (1 - selfD / SELF_GAP), false);
-      heading += wander + Math.atan2(Math.sin(target - heading), Math.cos(target - heading)) * 0.08;
-      const turned = Math.atan2(Math.sin(heading - h0), Math.cos(heading - h0));
-      heading = h0 + Math.max(-MAX_TURN, Math.min(MAX_TURN, turned));
-      const course = baseHeading + dir + drift;
-      const dev = Math.atan2(Math.sin(heading - course), Math.cos(heading - course));
-      if (Math.abs(dev) > MAX_DEVIATION) heading = course + Math.sign(dev) * MAX_DEVIATION;
+      const consider = (p: Pt) => { const d = Math.hypot(ax - p.x, ay - p.y); if (d < selfD) { selfD = d; sx = p.x; sy = p.y; } };
+      for (let i = 0; i < pts.length - 12; i++) consider(pts[i]);
+      for (let i = 0; i < others.length - 12; i++) consider(others[i]);
+      if (selfD < SELF_GAP) want += turnTo(Math.atan2(ay - sy, ax - sx)) * 0.6 * (1 - selfD / SELF_GAP);
+      const curvWant = Math.max(-MAX_CURV, Math.min(MAX_CURV, want * 0.3));
+      curv += Math.max(-CURV_RATE, Math.min(CURV_RATE, curvWant - curv));
+      drift += curv;
+      // the meander wave rides on the steered course, which itself wanders slowly;
+      // the wave stays gentle except where the noise peaks, where it swells into oxbows
+      const n = noise1(k / 45, s + 3), t = Math.max(0, Math.min(1, (n - 0.62) / 0.3));
+      // no oxbows in the spawn clearing or beside another river, where a loop would swing into the gap
+      const near = k > 4 ? net.nearWater(x, y, RIVER_GAP * 1.5) : null;
+      const calm = Math.min(Math.max(0, Math.min(1, (Math.hypot(x, y) - 24 * TILE) / (16 * TILE))),
+                            near ? Math.max(0, Math.min(1, (-near.d - RIVER_GAP * 0.5) / RIVER_GAP)) : 1);
+      const amp = MEANDER_MAX * (0.15 + 0.85 * t * t * (3 - 2 * t) * calm);
+      const wanderAngle = (noise1(k / 40, s + 13) - 0.5) * 1.4;
+      heading = baseHeading + dir + drift + wanderAngle + amp * Math.sin((2 * Math.PI * k) / wave + phase);
       x += Math.cos(heading) * STEP; y += Math.sin(heading) * STEP;
     }
     return pts;
