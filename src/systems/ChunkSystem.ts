@@ -383,7 +383,7 @@ export class ChunkSystem {
         continue;
       }
       // follow the current, quicker in white water, with a gentle wander across the flow
-      const sp = sq.speed * (1 + 0.9 * q.rapids);
+      const sp = sq.speed * (1 + 0.35 * q.rapids);
       const wob = sq.kind === STREAK || sq.kind === SHADE || sq.kind === WISP ? 0.012 * Math.sin(sq.age * 0.004 + sq.phase) : 0;
       sq.dx = q.tx * sp - q.ty * wob; sq.dy = q.ty * sp + q.tx * wob;
       sq.sprite.setRotation(Math.atan2(q.ty, q.tx));

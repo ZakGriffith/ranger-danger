@@ -10,7 +10,11 @@ import Phaser from 'phaser';
  * 256 px, so the noise is made periodic in it and the wrap never shows.
  */
 const FRAG = `
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
 precision mediump float;
+#endif
 uniform sampler2D uMainSampler;
 uniform float uTime;
 varying vec2 outTexCoord;
@@ -31,7 +35,7 @@ void main() {
   float across = m.g * 510.0;    // px from the centreline
   float rp = m.b;                // white water 0..1
   // streaks: about 64 px long and 12 px wide, sliding downstream and quicker in white water
-  float u = along - uTime * (0.4 + 0.5 * rp);
+  float u = along - uTime * (0.4 + 0.2 * rp);
   float n = 0.65 * vnoise(vec2(u * 4.0, across / 12.0), 4.0) + 0.35 * vnoise(vec2(u * 8.0 + 0.5, across / 6.0 + 3.0), 8.0);
   vec3 col = vec3(0.0);
   float a = 0.0;
@@ -41,8 +45,8 @@ void main() {
   a = pale * (0.34 + 0.25 * rp) + dark * 0.18;
   // white water: a finer, faster churn whose coverage grows with the strength
   if (rp > 0.02) {
-    float u2 = along - uTime * (0.9 + 0.7 * rp);
-    float f = 0.6 * vnoise(vec2(u2 * 26.0, across / 5.0), 26.0) + 0.4 * vnoise(vec2(u2 * 52.0 + 0.37, across / 2.5 + 0.3 * across), 52.0);
+    float u2 = along - uTime * (0.25 + 0.1 * rp);
+    float f = 0.6 * vnoise(vec2(u2 * 16.0, across / 6.0), 16.0) + 0.4 * vnoise(vec2(u2 * 32.0 + 0.37, across / 3.0 + 0.3 * across), 32.0);
     float th = 0.76 - 0.14 * rp;
     float fa = smoothstep(th, th + 0.07, f) * 0.8 * min(1.0, rp * 1.4);
     col = mix(col, vec3(0.94, 0.98, 0.97), fa);
@@ -58,7 +62,9 @@ export class RiverFlowPipeline extends Phaser.Renderer.WebGL.Pipelines.SinglePip
     super({ game, name: RiverFlowPipeline.KEY, fragShader: FRAG });
   }
   onPreRender(): void {
-    this.set1f('uTime', this.game.loop.time / 1000);
+    // Every speed below is a multiple of 0.05 periods/s, so the pattern repeats
+    // exactly every 20 s; wrapping keeps the uniform small and precise.
+    this.set1f('uTime', (this.game.loop.time / 1000) % 20);
   }
 }
 
