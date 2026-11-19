@@ -10,6 +10,8 @@ import {
 } from '../assets/generateArt';
 import { RIVER_TILE_BRIDGE, RIVER_TILE_WATER, RIVER_TILE_WOODS } from '../assets/art/riverGeometry';
 import { drawRiverWoodsChunk } from '../assets/art/riverWoods';
+import { drawRiverFlowChunk } from '../assets/art/groundRiver';
+import { RiverFlowPipeline, ensureRiverFlowPipeline } from './RiverFlowPipeline';
 import { canReachFromSpawnDirections, gridGet, gridSet } from './Pathfinding';
 import { TREE_CLUSTER_CONFIG } from '../assets/treeOverrides';
 import { INFECTED_PLANT_CLUSTER_CONFIG } from '../assets/infectedPlantOverrides';
@@ -18,7 +20,7 @@ import type { GameScene } from '../scenes/GameScene';
 
 type ClusterPattern = { tiles: { dx: number; dy: number }[]; w: number; h: number };
 /** A ground chunk image, with the River biome's woods overlay riding along so both are culled together. */
-type ChunkImage = Phaser.GameObjects.Image & { _woods?: Phaser.GameObjects.Image };
+type ChunkImage = Phaser.GameObjects.Image & { _woods?: Phaser.GameObjects.Image; _flow?: Phaser.GameObjects.Image };
 
 /**
  * Streamed ground-chunk generation, plus the per-biome decoration passes
@@ -77,6 +79,7 @@ export class ChunkSystem {
       const [kcx, kcy] = key.split(',').map(Number);
       if (Math.abs(kcx - cx) > cullRadius || Math.abs(kcy - cy) > cullRadius) {
         (img as ChunkImage)._woods?.destroy();
+        (img as ChunkImage)._flow?.destroy();
         img.destroy();
         scene.chunkImages.delete(key);
       }
@@ -87,6 +90,7 @@ export class ChunkSystem {
         const texKey = `gnd_chunk_${terrainKey}_${kcx}_${kcy}`;
         if (scene.textures.exists(texKey)) scene.textures.remove(texKey);
         if (scene.textures.exists(`${texKey}_woods`)) scene.textures.remove(`${texKey}_woods`);
+        if (scene.textures.exists(`${texKey}_flow`)) scene.textures.remove(`${texKey}_flow`);
         scene.generatedChunks.delete(key);
       }
     }
@@ -156,6 +160,20 @@ export class ChunkSystem {
         img._woods = scene.add.image(wx, wy, woodsKey)
           .setDisplaySize(chunkPx, chunkPx)
           .setDepth(100 + (ccy + 1) * chunkPx * 0.1);
+      }
+      // the animated water surface: a flow map the shader slides streaks and foam along
+      if (ensureRiverFlowPipeline(scene)) {
+        const flowKey = `${texKey}_flow`;
+        if (!scene.textures.exists(flowKey)) {
+          const canvas = drawRiverFlowChunk(scene.riverNet, ccx, ccy, CFG.chunkSize);
+          if (canvas) scene.textures.addCanvas(flowKey, canvas);
+        }
+        if (scene.textures.exists(flowKey)) {
+          img._flow = scene.add.image(wx, wy, flowKey)
+            .setDisplaySize(chunkPx, chunkPx)
+            .setDepth(-999.5)
+            .setPipeline(RiverFlowPipeline.KEY);
+        }
       }
     }
     scene.chunkImages.set(`${ccx},${ccy}`, img);
@@ -247,37 +265,71 @@ export class ChunkSystem {
     // force all enemies to recalculate paths on every chunk load.
   }
 
-  // ---------- RIVER FLOW (streaks sliding downstream, foam in the rapids) ----------
-  /** Makes the two small FX textures once: a pale streak and a soft foam puff, drawn at HD and shown at half scale. */
+  // ---------- RIVER FLOW (streaks sliding downstream, foam in the rapids, glints and ripples on calm water) ----------
+  /** Makes the small FX textures once, drawn at HD and shown at half scale. */
   private ensureRiverFlowTextures(): void {
     const scene = this.scene;
     if (scene.textures.exists('river_flow_streak')) return;
-    const streak = document.createElement('canvas');
-    streak.width = 32; streak.height = 6;
-    const sc = streak.getContext('2d')!;
-    sc.strokeStyle = '#ffffff'; sc.lineCap = 'round';
-    sc.lineWidth = 2; sc.globalAlpha = 1;
-    sc.beginPath(); sc.moveTo(2, 2.5); sc.lineTo(30, 2.5); sc.stroke();
-    sc.lineWidth = 1; sc.globalAlpha = 0.6;
-    sc.beginPath(); sc.moveTo(6, 4.5); sc.lineTo(24, 4.5); sc.stroke();
-    scene.textures.addCanvas('river_flow_streak', streak);
-    const foam = document.createElement('canvas');
-    foam.width = 14; foam.height = 14;
-    const fc = foam.getContext('2d')!;
-    const grad = fc.createRadialGradient(7, 7, 1, 7, 7, 7);
-    grad.addColorStop(0, 'rgba(255,255,255,1)');
-    grad.addColorStop(0.6, 'rgba(255,255,255,0.7)');
-    grad.addColorStop(1, 'rgba(255,255,255,0)');
-    fc.fillStyle = grad;
-    fc.fillRect(0, 0, 14, 14);
-    scene.textures.addCanvas('river_flow_foam', foam);
+    const make = (key: string, w: number, h: number, draw: (c: CanvasRenderingContext2D) => void) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      draw(canvas.getContext('2d')!);
+      scene.textures.addCanvas(key, canvas);
+    };
+    // a pale streak with a fainter second line
+    make('river_flow_streak', 32, 6, c => {
+      c.strokeStyle = '#ffffff'; c.lineCap = 'round';
+      c.lineWidth = 2; c.beginPath(); c.moveTo(2, 2.5); c.lineTo(30, 2.5); c.stroke();
+      c.lineWidth = 1; c.globalAlpha = 0.6; c.beginPath(); c.moveTo(6, 4.5); c.lineTo(24, 4.5); c.stroke();
+    });
+    // a short soft wisp that fades at both ends, for the slack water by the banks
+    make('river_flow_wisp', 24, 4, c => {
+      const g = c.createLinearGradient(0, 0, 24, 0);
+      g.addColorStop(0, 'rgba(255,255,255,0)'); g.addColorStop(0.5, 'rgba(255,255,255,1)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+      c.strokeStyle = g; c.lineWidth = 2; c.lineCap = 'round';
+      c.beginPath(); c.moveTo(1, 2); c.lineTo(23, 2); c.stroke();
+    });
+    // a soft foam puff
+    make('river_flow_foam', 14, 14, c => {
+      const g = c.createRadialGradient(7, 7, 1, 7, 7, 7);
+      g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.6, 'rgba(255,255,255,0.7)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+      c.fillStyle = g; c.fillRect(0, 0, 14, 14);
+    });
+    // a four-point glint
+    make('river_flow_glint', 9, 9, c => {
+      c.fillStyle = '#ffffff';
+      c.fillRect(4, 0, 1, 9); c.fillRect(0, 4, 9, 1);
+      c.globalAlpha = 0.7; c.fillRect(3, 3, 3, 3);
+    });
+    // a thin ring, for a ripple spreading on still water
+    make('river_flow_ring', 22, 22, c => {
+      c.strokeStyle = '#ffffff'; c.lineWidth = 1.5;
+      c.beginPath(); c.arc(11, 11, 9.5, 0, Math.PI * 2); c.stroke();
+    });
+  }
+
+  /** The river samples in view, refreshed when the camera has moved a chunk's worth or half a second has passed. */
+  private riverSamplesInView(camL: number, camT: number, camR: number, camB: number, now: number): number[] {
+    const scene = this.scene, net = scene.riverNet!, v = scene.riverViewSamples;
+    const cx = (camL + camR) / 2, cy = (camT + camB) / 2;
+    if (now - v.at < 500 && Math.abs(cx - v.cx) < 64 && Math.abs(cy - v.cy) < 64) return v.list;
+    v.list.length = 0; v.at = now; v.cx = cx; v.cy = cy;
+    const ss = net.samples;
+    for (let i = 0; i < ss.length; i++) {
+      const s = ss[i];
+      if (s.x >= camL && s.x <= camR && s.y >= camT && s.y <= camB) v.list.push(i);
+    }
+    return v.list;
   }
 
   /**
-   * Ambient flow over the water: short pale streaks spawn on river samples
-   * in view and slide downstream, re-reading the current each frame so they
-   * follow the bends; white foam puffs pulse in the rapids. Everything is
-   * tinted to the water palette and sits just above the ground.
+   * Ambient movement over the water. Sprites spawn on river samples in view
+   * and ride the current, re-reading it each frame so they follow the bends:
+   * pale and dark streaks that wander a little across the flow and quicken in
+   * white water, foam puffs that pulse in the rapids, slow wisps in the slack water
+   * by the banks, and on calm water sun glints that twinkle and ripple rings
+   * that spread and fade. Everything is tinted to the water palette, sits
+   * just above the ground, and hides under a bridge deck.
    */
   updateRiverFlow(delta: number) {
     const scene = this.scene;
@@ -287,24 +339,35 @@ export class ChunkSystem {
     const cam = scene.cameras.main;
     const camL = cam.scrollX - 40, camR = cam.scrollX + cam.width + 40;
     const camT = cam.scrollY - 40, camB = cam.scrollY + cam.height + 40;
-    const MAX = 36, SPEED = 0.045; // world px per ms downstream
+    const MAX = 120, SPEED = 0.045; // world px per ms downstream
+    const STREAK = 0, FOAM = 1, GLINT = 2, RING = 3, WISP = 4, SHADE = 5;
+    const now = scene.time.now;
+    const inView = this.riverSamplesInView(camL, camT, camR, camB, now);
 
     scene.squiggleTimer -= delta;
-    if (scene.squiggleTimer <= 0 && scene.riverSquiggles.length < MAX) {
-      scene.squiggleTimer = 70;
-      for (let tries = 0; tries < 6; tries++) {
-        const s = net.samples[Math.floor(Math.random() * net.samples.length)];
-        if (s.x < camL || s.x > camR || s.y < camT || s.y > camB) continue;
-        const lane = (Math.random() - 0.5) * 1.5 * s.hw;
-        const x = s.x - s.ty * lane, y = s.y + s.tx * lane;
-        const foam = s.rapids && Math.random() < 0.5;
-        const sprite = scene.add.image(x, y, foam ? 'river_flow_foam' : 'river_flow_streak')
-          .setDepth(-999).setAlpha(0).setRotation(Math.atan2(s.ty, s.tx))
-          .setScale(foam ? 0.4 + Math.random() * 0.4 : 0.5)
-          .setTint(foam || s.rapids ? 0xeef7f5 : 0x8fcfd6);
-        scene.riverSquiggles.push({ sprite, age: 0, life: 1800 + Math.random() * 1400, dx: s.tx * SPEED, dy: s.ty * SPEED });
-        break;
-      }
+    if (scene.squiggleTimer <= 0 && inView.length > 0 && scene.riverSquiggles.length < MAX) {
+      // the more water in view, the faster things appear on it
+      scene.squiggleTimer = 8 + 40 * Math.max(0, 1 - inView.length / 500);
+      const s = net.samples[inView[Math.floor(Math.random() * inView.length)]];
+      const r = s.rapids, u = Math.random();
+      const kind = u < 0.55 * r ? FOAM
+        : u < 0.55 * r + 0.14 * (1 - r) ? GLINT
+        : u < 0.55 * r + 0.14 * (1 - r) + 0.04 * (1 - r) ? RING
+        : Math.random() < 0.3 ? WISP : Math.random() < 0.35 ? SHADE : STREAK;
+      const lane = kind === WISP
+        ? (Math.random() < 0.5 ? 1 : -1) * (s.hw - 8 - Math.random() * 8)
+        : (Math.random() - 0.5) * 1.5 * s.hw;
+      const x = s.x - s.ty * lane, y = s.y + s.tx * lane;
+      const key = kind === FOAM ? 'river_flow_foam' : kind === GLINT ? 'river_flow_glint' : kind === RING ? 'river_flow_ring' : kind === WISP ? 'river_flow_wisp' : 'river_flow_streak';
+      const sprite = scene.add.image(x, y, key).setDepth(-999).setAlpha(0).setRotation(Math.atan2(s.ty, s.tx));
+      let life = 1800 + Math.random() * 1400, speed = SPEED * (0.8 + 0.5 * Math.random());
+      if (kind === STREAK) sprite.setScale(0.6 + Math.random() * 0.7, 0.7).setTint(0xe4f4f6);
+      else if (kind === SHADE) sprite.setScale(0.7 + Math.random() * 0.8, 0.8).setTint(0x27527a);
+      else if (kind === FOAM) { sprite.setScale(0.4 + Math.random() * 0.4).setTint(0xeef7f5); life = 900 + Math.random() * 700; speed = SPEED * 1.3; }
+      else if (kind === GLINT) { sprite.setScale(0.5).setTint(0xffffff).setBlendMode(Phaser.BlendModes.ADD); life = 350 + Math.random() * 350; speed = SPEED * 0.3; }
+      else if (kind === RING) { sprite.setScale(0.15).setTint(0xd8eef0); life = 900 + Math.random() * 500; speed = SPEED * 0.6; }
+      else { sprite.setScale(0.7, 0.6).setTint(0xb9dde0); life = 2500 + Math.random() * 1500; speed = SPEED * 0.35; }
+      scene.riverSquiggles.push({ sprite, kind, age: 0, life, dx: s.tx * speed, dy: s.ty * speed, speed, phase: Math.random() * Math.PI * 2, lane });
     }
 
     for (let i = scene.riverSquiggles.length - 1; i >= 0; i--) {
@@ -314,19 +377,28 @@ export class ChunkSystem {
       sq.sprite.y += sq.dy * delta;
       const sx = sq.sprite.x, sy = sq.sprite.y;
       const q = net.query(sx, sy);
-      if (sq.age >= sq.life || q.d < 3 || sx < camL - 80 || sx > camR + 80 || sy < camT - 80 || sy > camB + 80) {
+      if (sq.age >= sq.life || q.d < 2 || sx < camL - 80 || sx > camR + 80 || sy < camT - 80 || sy > camB + 80) {
         sq.sprite.destroy();
         scene.riverSquiggles.splice(i, 1);
         continue;
       }
-      // follow the current
-      sq.dx = q.tx * SPEED; sq.dy = q.ty * SPEED;
+      // follow the current, quicker in white water, with a gentle wander across the flow
+      const sp = sq.speed * (1 + 0.9 * q.rapids);
+      const wob = sq.kind === STREAK || sq.kind === SHADE || sq.kind === WISP ? 0.012 * Math.sin(sq.age * 0.004 + sq.phase) : 0;
+      sq.dx = q.tx * sp - q.ty * wob; sq.dy = q.ty * sp + q.tx * wob;
       sq.sprite.setRotation(Math.atan2(q.ty, q.tx));
       const t = sq.age / sq.life;
       const fade = Math.sin(Math.PI * t);
-      const foam = sq.sprite.texture.key === 'river_flow_foam';
-      if (foam) sq.sprite.setScale(0.5 + 0.35 * Math.sin(sq.age * 0.012));
-      sq.sprite.setAlpha(fade * (foam ? 0.85 : q.rapids ? 0.7 : 0.45));
+      let alpha = fade * 0.45;
+      if (sq.kind === FOAM) { sq.sprite.setScale(0.5 + 0.35 * Math.sin(sq.age * 0.012)); alpha = fade * 0.85; }
+      else if (sq.kind === GLINT) { const p = 0.35 + 0.45 * fade; sq.sprite.setScale(p); alpha = fade * 0.9; }
+      else if (sq.kind === RING) { sq.sprite.setScale(0.15 + 1.05 * t); alpha = (1 - t) * 0.6; }
+      else if (sq.kind === WISP) alpha = fade * 0.5;
+      else if (sq.kind === SHADE) alpha = fade * 0.5 * (1 - 0.6 * q.rapids);
+      else alpha = fade * (0.65 + 0.3 * q.rapids);
+      // hidden under a bridge deck
+      const b = net.bridgeAt(sx, sy);
+      sq.sprite.setAlpha(b && b.d > -4 ? 0 : alpha);
     }
   }
 

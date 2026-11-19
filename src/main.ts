@@ -120,6 +120,9 @@ function start() {
     scene: [BootScene, LevelSelectScene, GameScene, UIScene, TutorialScene, DebugGalleryScene]
   });
 
+  // Dev hook so headless screenshots can read scene state.
+  if (import.meta.env.DEV) (window as any).__rdGame = game;
+
   // pixelArt:true makes Phaser pin the canvas to image-rendering:pixelated.
   // The world is rendered at an integer zoom (viewport.ts) and the whole
   // canvas is then scaled to the window by a fractional factor; a uniform

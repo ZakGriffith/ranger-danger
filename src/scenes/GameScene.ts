@@ -246,7 +246,8 @@ export class GameScene extends Phaser.Scene {
   quicksandEnteredAt = 0;
   nextQuicksandDmgAt = 0;
   riverChunksGenerated = new Set<string>();
-  riverSquiggles: { sprite: Phaser.GameObjects.Image; age: number; life: number; dx: number; dy: number }[] = [];
+  riverSquiggles: { sprite: Phaser.GameObjects.Image; kind: number; age: number; life: number; dx: number; dy: number; speed: number; phase: number; lane: number }[] = [];
+  riverViewSamples: { list: number[]; at: number; cx: number; cy: number } = { list: [], at: -1e9, cx: 0, cy: 0 };
   squiggleTimer = 0;
   treeSeed = 0;
   /** The River biome's seeded layout (rivers, woods, bridges); null elsewhere. */

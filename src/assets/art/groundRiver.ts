@@ -102,7 +102,7 @@ class Grid {
 /**
  * The river network sampled every 4 HD px over the chunk plus a margin:
  * signed distance into the water (bilinear through `dist`), and the nearest
- * sample's tangent, arc length, half width, rapids flag and bridge (nearest
+ * sample's tangent, arc length, half width, rapids strength and bridge (nearest
  * cell through `idx`).
  */
 class Field {
@@ -110,7 +110,7 @@ class Field {
   readonly pad = 16;
   readonly gw: number; readonly gh: number; readonly gx0: number; readonly gy0: number;
   readonly d: Float32Array; readonly tx: Float32Array; readonly ty: Float32Array; readonly along: Float32Array; readonly hw: Float32Array;
-  readonly rapids: Uint8Array; readonly bridge: Int16Array;
+  readonly rapids: Float32Array; readonly bridge: Int16Array;
   /** Flow-streak and bank-foam noise in river-local coordinates, evaluated per cell in and near the water. */
   readonly streak: Float32Array; readonly bank: Float32Array;
   constructor(readonly net: RiverNet, x0: number, y0: number, w: number, h: number) {
@@ -118,7 +118,7 @@ class Field {
     this.gw = Math.ceil(w / this.step) + 2 * this.pad + 1; this.gh = Math.ceil(h / this.step) + 2 * this.pad + 1;
     const n = this.gw * this.gh;
     this.d = new Float32Array(n); this.tx = new Float32Array(n); this.ty = new Float32Array(n); this.along = new Float32Array(n); this.hw = new Float32Array(n);
-    this.rapids = new Uint8Array(n); this.bridge = new Int16Array(n).fill(-1);
+    this.rapids = new Float32Array(n); this.bridge = new Int16Array(n).fill(-1);
     this.streak = new Float32Array(n); this.bank = new Float32Array(n);
     this.tx.fill(1);
     // Two passes: an exact query on a lattice every L cells, then the cells
@@ -134,7 +134,7 @@ class Field {
       const q = net.query(wx, wy);
       if (q.river < 0) { this.d[i] = -999; return; }
       const d = q.d * HD, hw = q.hw * HD, along = q.along * HD;
-      this.d[i] = d; this.tx[i] = q.tx; this.ty[i] = q.ty; this.along[i] = along; this.hw[i] = hw; this.rapids[i] = q.rapids ? 1 : 0;
+      this.d[i] = d; this.tx[i] = q.tx; this.ty[i] = q.ty; this.along[i] = along; this.hw[i] = hw; this.rapids[i] = q.rapids;
       if (d > -40) {
         this.streak[i] = fbm(along * 0.8, (Math.max(hw, 24) - d) * 4.5, 36, 90, 2);
         this.bank[i] = fbm(along, 0, 22, 91, 2);
@@ -340,7 +340,7 @@ function rockSites(field: Field, x0: number, y0: number, w: number, h: number): 
     if (d < 16) return;
     const k = field.idx(x, y);
     if (field.bridge[k] >= 0) return;
-    const chance = field.rapids[k] ? 0.2 : 0.055;
+    const chance = 0.055 + 0.145 * field.rapids[k];
     if (rr > chance) return;
     out.push({ x, y, r: 7 + hash2(x, y, 7) * 6, tx: field.tx[k], ty: field.ty[k], i });
   });
@@ -407,9 +407,57 @@ function drawBridge(put: Put, mul: (x: number, y: number, f: number) => void, b:
  * Fills an RGBA buffer of `size`×`size` HD px whose top-left corner sits at
  * HD px (x0, y0), from the river network.
  */
+/** The last field built, so the flow map for the same chunk can reuse it. */
+let lastField: { key: string; field: Field } | null = null;
+function fieldFor(net: RiverNet, x0: number, y0: number, size: number): Field {
+  const key = `${net.seed}:${x0}:${y0}:${size}`;
+  if (lastField && lastField.key === key) return lastField.field;
+  const field = new Field(net, x0, y0, size, size);
+  lastField = { key, field };
+  return field;
+}
+
+/**
+ * The flow map the water shader animates, at half the ground's resolution:
+ * R = distance along the river (wrapping every 256 HD px), G = distance from
+ * the centreline (2 px per step), B = white-water strength, A = a mask that
+ * is 0 off the water, under a bridge deck and at the banks, where it fades in
+ * over 6 px. Null when the chunk has no water.
+ */
+export function drawRiverFlowChunk(net: RiverNet, cx: number, cy: number, chunkTiles: number): HTMLCanvasElement | null {
+  const size = chunkTiles * RIVER_TILE_PX, x0 = cx * size, y0 = cy * size;
+  const field = fieldFor(net, x0, y0, size);
+  const out = size / 2;
+  const buf = new Uint8ClampedArray(out * out * 4);
+  let any = false;
+  for (let py = 0; py < out; py++) {
+    const y = y0 + py * 2 + 1;
+    for (let px = 0; px < out; px++) {
+      const x = x0 + px * 2 + 1;
+      const d = field.dist(x, y);
+      if (d < 1) continue;
+      const b = net.bridgeAt(x / HD, y / HD);
+      if (b && b.d > -3) continue;
+      const k = field.idx(x, y);
+      const along = field.along[k], hw = Math.max(field.hw[k], 24);
+      const i = (py * out + px) * 4;
+      buf[i] = ((along % 256) + 256) % 256;
+      buf[i + 1] = Math.min(255, (hw - d) / 2);
+      buf[i + 2] = field.sample(field.rapids, x, y) * 255;
+      buf[i + 3] = Math.min(1, (d - 1) / 6) * 255;
+      any = true;
+    }
+  }
+  if (!any) return null;
+  const canvas = document.createElement('canvas');
+  canvas.width = out; canvas.height = out;
+  canvas.getContext('2d')!.putImageData(new ImageData(buf, out, out), 0, 0);
+  return canvas;
+}
+
 export function drawRiverChunk(buf: Uint8ClampedArray, size: number, x0: number, y0: number, net: RiverNet): void {
   const w = size, h = size;
-  const field = new Field(net, x0, y0, w, h);
+  const field = fieldFor(net, x0, y0, size);
   const toneBase = new Grid(x0, y0, w, h, 16, 1, (x, y) => fbm(x, y, 900, 23, 1));
   const toneWobble = new Grid(x0, y0, w, h, 8, 1, (x, y) => (fbm(x, y, 34, 25, 2) - 0.5) * 0.04);
   const sandTone = new Grid(x0, y0, w, h, 8, 1, (x, y) => fbm(x, y, 110, 33, 1));
@@ -457,17 +505,19 @@ export function drawRiverChunk(buf: Uint8ClampedArray, size: number, x0: number,
           const ca = depth < 0.5 ? WATER.shallow : WATER.mid, cb = depth < 0.5 ? WATER.mid : WATER.deep, ct = depth < 0.5 ? depth * 2 : (depth - 0.5) * 2;
           r = ca[0] + (cb[0] - ca[0]) * ct; g = ca[1] + (cb[1] - ca[1]) * ct; b = ca[2] + (cb[2] - ca[2]) * ct;
           const blend = (c: Rgb, t: number) => { r += (c[0] - r) * t; g += (c[1] - g) * t; b += (c[2] - b) * t; };
-          const rapids = field.rapids[k] === 1;
-          if (rapids) blend(WATER.rapids, 0.45);
+          // white water: the strength ramps over a few tiles, paling the water and
+          // raising the foam from a few flecks to a churn
+          const rp = field.sample(field.rapids, x, y);
+          if (rp > 0.02) blend(WATER.rapids, 0.45 * rp * (0.4 + 0.6 * rp));
           // flow streaks: noise stretched along the current in river-local coordinates
           if (d > 5) {
             const v = field.sample(field.streak, x, y);
-            if (v > 0.63) blend(WATER.streak, rapids ? 0.45 : 0.28);
-            else if (v < 0.36) blend(WATER.streakDark, 0.18);
-            if (rapids) {
-              const f = fbm(along * 1.4 + across * 0.8, across * 2.2, 9, 94, 2);
-              if (f > 0.72) blend(WATER.foam, 0.7);
-              else if (f > 0.66) blend(WATER.foamSoft, 0.4);
+            if (v > 0.63) blend(WATER.streak, 0.2 + 0.15 * rp);
+            else if (v < 0.36) blend(WATER.streakDark, 0.13);
+            if (rp > 0.05) {
+              const f = fbm(along * 1.4 + across * 0.8, across * 2.2, 9, 94, 2) - 0.3 * (1 - rp);
+              if (f > 0.72) blend(WATER.foam, 0.7 * Math.min(1, rp * 1.3));
+              else if (f > 0.66) blend(WATER.foamSoft, 0.4 * Math.min(1, rp * 1.3));
             }
           }
           // bank foam and the pale wet line along the water's edge

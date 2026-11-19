@@ -42,9 +42,18 @@ async function main() {
     await sleep(Number(waitMs));
     const errs = await send('Runtime.evaluate', { expression: 'JSON.stringify({ overlayHidden: document.getElementById("overlay")?.classList.contains("hidden") })', returnByValue: true });
     console.log('page state', errs.result?.result?.value);
-    const shot = await send('Page.captureScreenshot', { format: 'png' });
-    fs.writeFileSync(out, Buffer.from(shot.result.data, 'base64'));
-    console.log('wrote', out);
+    if (process.env.EVAL) {
+      const r = await send('Runtime.evaluate', { expression: process.env.EVAL, returnByValue: true });
+      console.log('eval:', r.result?.result?.value ?? JSON.stringify(r.result));
+    }
+    const frames = Number(process.env.FRAMES || 1);
+    for (let f = 0; f < frames; f++) {
+      const shot = await send('Page.captureScreenshot', { format: 'png' });
+      const file = frames > 1 ? out.replace(/\.png$/, `-${f + 1}.png`) : out;
+      fs.writeFileSync(file, Buffer.from(shot.result.data, 'base64'));
+      console.log('wrote', file);
+      if (f < frames - 1) await sleep(Number(process.env.FRAME_MS || 300));
+    }
     ws.close();
   } finally {
     chrome.kill('SIGKILL');

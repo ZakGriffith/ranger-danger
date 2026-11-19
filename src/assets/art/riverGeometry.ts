@@ -46,7 +46,7 @@ export type RiverSample = {
   hw: number;              // half width of the water
   tx: number; ty: number;  // unit tangent, pointing downstream
   along: number;           // distance along the river from its source, px
-  rapids: boolean;
+  rapids: number;                             // white-water strength 0..1, ramping in and out over a few tiles
   river: number;
 };
 
@@ -74,7 +74,7 @@ export type RiverQuery = {
   d: number;               // signed distance to the water edge, positive inside the water
   sx: number; sy: number;  // the nearest centreline sample
   tx: number; ty: number;  // tangent of the nearest river
-  along: number; hw: number; rapids: boolean; river: number;
+  along: number; hw: number; rapids: number; river: number;
 };
 
 /** Tile kinds the network reports, matching the grid values GameScene uses (woods = the tree value). */
@@ -242,7 +242,7 @@ export class RiverNet {
 
   // ---------------------------------------------------------------- build --
 
-  addRiver(pts: Pt[], hwAt: (k: number) => number, rapidsAt: (k: number) => boolean): void {
+  addRiver(pts: Pt[], hwAt: (k: number) => number, rapidsAt: (k: number) => number): void {
     const river: RiverSample[] = [];
     const idx = this.rivers.length;
     let along = 0;
@@ -264,6 +264,18 @@ export class RiverNet {
       const a = river[Math.max(i - 1, 0)], b = river[Math.min(i + 1, river.length - 1)];
       const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
       river[i].tx = (b.x - a.x) / len; river[i].ty = (b.y - a.y) / len;
+    }
+    // rapids ramp in and out: a triangular filter over 6 tiles each way, and the
+    // channel narrows with the smoothed strength so the banks pinch in gradually
+    const R = 24, raw = river.map(s => s.rapids);
+    for (let i = 0; i < river.length; i++) {
+      let sum = 0, wsum = 0;
+      for (let j = -R; j <= R; j++) {
+        const k = Math.max(0, Math.min(river.length - 1, i + j)), w = R + 1 - Math.abs(j);
+        sum += raw[k] * w; wsum += w;
+      }
+      river[i].rapids = sum / wsum;
+      river[i].hw *= 1 - 0.2 * river[i].rapids;
     }
     this.rivers.push(river);
     for (const s of river) {
@@ -325,7 +337,7 @@ export class RiverNet {
         if (d > bestD) { bestD = d; best = i; }
       }
     }
-    if (best < 0) return { d: -1e4, sx: 0, sy: 0, tx: 1, ty: 0, along: 0, hw: 0, rapids: false, river: -1 };
+    if (best < 0) return { d: -1e4, sx: 0, sy: 0, tx: 1, ty: 0, along: 0, hw: 0, rapids: 0, river: -1 };
     const s = this.samples[best];
     return { d: bestD, sx: s.x, sy: s.y, tx: s.tx, ty: s.ty, along: s.along, hw: s.hw, rapids: s.rapids, river: s.river };
   }
@@ -436,7 +448,7 @@ export class RiverNet {
       const offset = Math.floor(rng() * SITE_SPACING);
       for (let i = offset + 8; i < river.length - 8; i += SITE_SPACING) {
         const s = river[i];
-        if (s.rapids || s.hw > 70) continue;
+        if (s.rapids > 0.25 || s.hw > 70) continue;
         const a = river[i - 8], b = river[i + 8];
         if (a.tx * b.tx + a.ty * b.ty < 0.9) continue;
         const nx = -s.ty, ny = s.tx;
@@ -590,8 +602,8 @@ export function generateRiverNet(seed: number): RiverNet {
     const pts = walkRiver(anchor, heading, seed * 17 + i * 101, net, i === 0 ? SPAWN_CLEAR : OTHERS_CLEAR);
     const base = 34 + rng() * 20;                          // 1.1–1.7 tiles half width
     const wSeed = Math.floor(rng() * 1e6), rSeed = Math.floor(rng() * 1e6);
-    const rapidsAt = (k: number) => noise1(k / 5, rSeed) > 0.72;
-    const hwAt = (k: number) => base * (0.78 + noise1(k / 11, wSeed) * 0.5) * (rapidsAt(k) ? 0.8 : 1);
+    const rapidsAt = (k: number) => { const t = Math.max(0, Math.min(1, (noise1(k / 5, rSeed) - 0.62) / 0.16)); return t * t * (3 - 2 * t); };
+    const hwAt = (k: number) => base * (0.78 + noise1(k / 11, wSeed) * 0.5);
     net.addRiver(pts, hwAt, rapidsAt);
   }
   net.finish(rng);
