@@ -6,6 +6,7 @@ export const CFG = {
   viewRows: 20,      // viewport height in tiles
   spawnDist: 18,     // tiles from player where enemies spawn
   chunkSize: 16,     // ground chunk size in tiles
+  buildRadius: 192,  // world pixels, six tiles
 
   // Uniform world-space scale for every boss sprite (enemies render at 0.5).
   // One knob so "big = boss" reads consistently across all biomes — bosses

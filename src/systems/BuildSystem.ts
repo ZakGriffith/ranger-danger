@@ -40,6 +40,7 @@ export class BuildSystem {
    *  when the message didn't change so UIScene doesn't churn its toast. */
   private lastBuildErr = '';
   private wallDraft?: WallDraft;
+  private readonly rangeCircle: Phaser.GameObjects.Graphics;
 
   // Last camera scroll tile + zoom we drew the grid overlay against —
   // skip the redraw entirely when nothing relevant changed (which is
@@ -56,7 +57,13 @@ export class BuildSystem {
   private _beforeReach = -1;
   private _beforeReachKey = '';
 
-  constructor(private scene: GameScene) {}
+  constructor(private scene: GameScene) {
+    this.rangeCircle = scene.add.graphics().setDepth(797).setVisible(false);
+    this.rangeCircle.fillStyle(0x8fcfff, 0.035);
+    this.rangeCircle.fillCircle(0, 0, CFG.buildRadius);
+    this.rangeCircle.lineStyle(2, 0x8fcfff, 0.75);
+    this.rangeCircle.strokeCircle(0, 0, CFG.buildRadius);
+  }
 
   bindInput() {
     const { input, game, events } = this.scene;
@@ -90,6 +97,7 @@ export class BuildSystem {
     const scene = this.scene;
     this.cancelWallDraft();
     scene.buildState.setKind(k, towerKind);
+    this.rangeCircle.setPosition(scene.player.x, scene.player.y).setVisible(k !== 'none');
     scene.ghost.setVisible(k !== 'none');
     if (scene.deleteIcon) scene.deleteIcon.setVisible(false);
     if (scene.gridOverlay) scene.gridOverlay.setVisible(k !== 'none');
@@ -132,6 +140,7 @@ export class BuildSystem {
   canPlaceTower(tx: number, ty: number): boolean {
     const scene = this.scene;
     const s = CFG.tower.tiles;
+    if (!this.inBuildRange(tx, ty, s)) return false;
     const pt = scene.pathing.worldToTile(scene.player.x, scene.player.y);
     for (let j = 0; j < s; j++) {
       for (let i = 0; i < s; i++) {
@@ -149,6 +158,13 @@ export class BuildSystem {
     const ok = scene.pathing.countReachableDirections(pt.x, pt.y) >= 2;
     for (let j = 0; j < s; j++) for (let i = 0; i < s; i++) gridSet(scene.grid, tx + i, ty + j, 0);
     return ok;
+  }
+
+  private inBuildRange(tx: number, ty: number, size = 1): boolean {
+    const { x, y } = this.scene.player;
+    const nearestX = Phaser.Math.Clamp(x, tx * CFG.tile, (tx + size) * CFG.tile);
+    const nearestY = Phaser.Math.Clamp(y, ty * CFG.tile, (ty + size) * CFG.tile);
+    return (x - nearestX) ** 2 + (y - nearestY) ** 2 <= CFG.buildRadius ** 2;
   }
 
   private handleClick(p: Phaser.Input.Pointer) {
@@ -317,6 +333,7 @@ export class BuildSystem {
       const minReach = this.minimumWallReach(playerTile);
       for (const tile of pending) {
         const { x, y } = tile;
+        if (!this.inBuildRange(x, y)) { error = 'Out of range'; continue; }
         if (gridGet(scene.grid, x, y) !== 0) { error = 'Blocked'; continue; }
         if (tiles.size >= limit) {
           error = (tiles.size + 1) * CFG.wall.cost > scene.player.money ? 'Not enough gold' : '';
@@ -373,6 +390,7 @@ export class BuildSystem {
     let placed = 0;
     for (const { x, y } of tiles) {
       if (placed >= limit) break;
+      if (!this.inBuildRange(x, y)) continue;
       if (gridGet(scene.grid, x, y) !== 0 || !this.wallPreservesPaths(x, y, playerTile, minReach)) continue;
       const wall = new Wall(scene, x, y);
       scene.walls.push(wall);
@@ -402,10 +420,17 @@ export class BuildSystem {
   updateGhost() {
     const scene = this.scene;
     if (scene.buildState.kind === 'none') return;
+    this.rangeCircle.setPosition(scene.player.x, scene.player.y);
     if (this.wallDraft) {
       if (scene.input.mousePointer.leftButtonDown()) {
-        scene.ghost.setVisible(false);
+        const pointer = scene.input.mousePointer;
+        const tile = scene.pathing.worldToTile(pointer.worldX, pointer.worldY);
+        const outOfRange = !this.inBuildRange(tile.x, tile.y);
+        scene.ghost.setPosition((tile.x + 0.5) * CFG.tile, (tile.y + 0.5) * CFG.tile)
+          .setVisible(outOfRange).setTint(0xff8888);
         scene.deleteIcon.setVisible(false);
+        if (outOfRange) this.showBuildError('Out of range');
+        else if (this.lastBuildErr === 'Out of range') this.showBuildError('');
         return;
       }
       this.cancelWallDraft();
@@ -433,7 +458,8 @@ export class BuildSystem {
       const towerCost = CFG.tower.kinds[scene.buildState.towerKind].cost;
       const canAffordTower = scene.player.money >= towerCost;
       const canPlace = this.canPlaceTower(ox, oy);
-      if (!canAffordTower) buildErr = 'Not enough gold';
+      if (!this.inBuildRange(ox, oy, s)) buildErr = 'Out of range';
+      else if (!canAffordTower) buildErr = 'Not enough gold';
       else if (!canPlace) buildErr = 'Blocked';
       scene.ghost.setTint(canPlace && canAffordTower ? 0x88ff88 : 0xff8888);
     } else {
@@ -469,8 +495,9 @@ export class BuildSystem {
           scene._lastWallCheckPlayerTile = ptKey;
           scene._wallCheckCache.clear();
         }
-        let valid = gridGet(scene.grid, tx, ty) === 0;
-        let tileBlocked = !valid;
+        const inRange = this.inBuildRange(tx, ty);
+        const tileBlocked = gridGet(scene.grid, tx, ty) !== 0;
+        let valid = inRange && !tileBlocked;
         if (valid) {
           // Per-tile cache — cleared on player move and on any grid
           // change. Sweeping the cursor over already-hovered tiles is
@@ -500,7 +527,8 @@ export class BuildSystem {
         // The "Not enough gold" toast still shows since it isn't tied to
         // cursor location.
         const suppressPlacementToast = !!getRegistry(scene.game).get('isMobile');
-        if (!canAffordWall) buildErr = 'Not enough gold';
+        if (!inRange) buildErr = 'Out of range';
+        else if (!canAffordWall) buildErr = 'Not enough gold';
         else if (tileBlocked && !suppressPlacementToast) buildErr = 'Blocked';
         else if (!valid && !suppressPlacementToast) buildErr = 'Blocks path';
         scene.ghost.setTint(valid && canAffordWall ? 0x88ff88 : 0xff8888);
