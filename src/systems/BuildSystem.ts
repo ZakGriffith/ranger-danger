@@ -138,6 +138,9 @@ export class BuildSystem {
         if (gridGet(scene.grid, tx + i, ty + j) !== 0) return false;
       }
     }
+    // Rivers enemies all fly, and its clearings sit inside solid woods, so a
+    // ground-reach test from the player would fail everywhere. Skip it there.
+    if (scene.biome === 'river') return true;
     // Temporarily block tiles and check spawn directions can still reach the
     // player. PathingSystem.countReachableDirections runs a single BFS flood
     // from the player; the legacy canReachFromSpawnDirections did up to ~200

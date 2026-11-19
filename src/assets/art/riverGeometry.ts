@@ -17,6 +17,15 @@ const BUCKET = 128;                           // spatial hash cell for distance 
 const QUERY_REACH = 200;                      // samples farther than this (per axis) are skipped: they read as open land
 const SPAWN_CLEAR = 4.5 * TILE;               // rivers steer clear of this radius at the origin
 const RIVER_COUNT = 3;
+const RIVER_GAP = 14 * TILE;                  // a river this close to another's bank turns in and joins it
+const SELF_GAP = 14 * TILE;                   // a river keeps this far from its own earlier course
+const MAX_TURN = 0.28;                        // radians per step, so a bend is never tighter than about 4.5 tiles
+const MAX_DEVIATION = 1.1;                    // radians off its course, so a river meanders but never doubles back
+const OTHERS_CLEAR = 24 * TILE;               // the other rivers keep out of this radius, so only the spawn river crosses the spawn clearing
+const ANCHOR_CLEAR = RIVER_GAP * 1.5;         // the other rivers start at least this far from water
+const BRIDGE_SPACING = 12 * TILE;             // least distance between any two bridges
+const BRIDGE_SPACING_MIN = 8 * TILE;          // never closer than this, even to reconnect a region
+const SLIVER_TILES = 40;                      // a land region smaller than this is not worth a bridge
 const SITE_SPACING = 6;                       // samples between candidate bridge sites (1.5 tiles)
 const BRIDGE_MIN_GAP = 40 * TILE;             // along a river, never longer than this without a crossing
 const SPAWN_BRIDGE_MAX = 22 * TILE;           // the spawn river gets a bridge at most this far from the origin
@@ -318,6 +327,24 @@ export class RiverNet {
   }
 
   /** True when no river sample lies within a bucket of the point: open land, no query needed. */
+  /** Nearest water within reach of a point: signed distance into it and the centreline point there, or null. */
+  nearWater(wx: number, wy: number, reach: number): { d: number; sx: number; sy: number } | null {
+    const bx0 = Math.floor((wx - reach) / BUCKET), bx1 = Math.floor((wx + reach) / BUCKET);
+    const by0 = Math.floor((wy - reach) / BUCKET), by1 = Math.floor((wy + reach) / BUCKET);
+    let best: RiverSample | null = null, bestD = -Infinity;
+    for (let by = by0; by <= by1; by++)
+      for (let bx = bx0; bx <= bx1; bx++) {
+        const list = this.buckets.get(this.bucketKey(bx, by));
+        if (!list) continue;
+        for (const id of list) {
+          const s = this.samples[id];
+          const d = s.hw - Math.hypot(wx - s.x, wy - s.y);
+          if (d > bestD) { bestD = d; best = s; }
+        }
+      }
+    return best && bestD > -reach ? { d: bestD, sx: best.x, sy: best.y } : null;
+  }
+
   farFromWater(wx: number, wy: number): boolean {
     return !this.ensureIndex().near.has(this.bucketKey(Math.floor(wx / BUCKET), Math.floor(wy / BUCKET)));
   }
@@ -371,17 +398,21 @@ export class RiverNet {
 
     // land regions by flood fill (4-connected, like the player's movement)
     const region = new Int32Array(W * W).fill(-1);
+    const regionSize: number[] = [];
     let regions = 0;
     const stack: number[] = [];
     for (let i = 0; i < W * W; i++) {
       if (this.tiles[i] !== RIVER_TILE_LAND || region[i] >= 0) continue;
       region[i] = regions; stack.push(i);
+      let size = 0;
       while (stack.length) {
         const j = stack.pop()!;
+        size++;
         const x = j % W, y = (j - x) / W;
         const nb = [x > 0 ? j - 1 : -1, x < W - 1 ? j + 1 : -1, y > 0 ? j - W : -1, y < W - 1 ? j + W : -1];
         for (const k of nb) if (k >= 0 && this.tiles[k] === RIVER_TILE_LAND && region[k] < 0) { region[k] = regions; stack.push(k); }
       }
+      regionSize.push(size);
       regions++;
     }
     const regionAt = (wx: number, wy: number): number => {
@@ -410,6 +441,7 @@ export class RiverNet {
         if (this.query(ax, ay).d > -12 || this.query(bx, by).d > -12) continue;
         const ra = regionAt(ax, ay), rb = regionAt(bx, by);
         if (ra < 0 || rb < 0 || ra === rb) continue;
+        if (regionSize[ra] < SLIVER_TILES || regionSize[rb] < SLIVER_TILES) continue;
         sites.push({ s, nx, ny, ra, rb, dist: Math.hypot(s.x, s.y) });
       }
     }
@@ -422,17 +454,22 @@ export class RiverNet {
       this.bridges.push({ x: s.x, y: s.y, nx: site.nx, ny: site.ny, halfLen: s.hw + BRIDGE_SHORE, river: s.river, along: s.along });
       const list = lastAlong.get(s.river) ?? []; list.push(s.along); lastAlong.set(s.river, list);
     };
+    const nearestBridge = (site: Site) => this.bridges.reduce((m, b) => Math.min(m, Math.hypot(b.x - site.s.x, b.y - site.s.y)), Infinity);
     // pass 1: the spawn river gets a crossing close to the player before anything else
     const spawnSite = sites.find(site => site.s.river === 0 && site.dist <= SPAWN_BRIDGE_MAX);
     if (spawnSite) accept(spawnSite);
-    // pass 2: join regions (nearest first), and never leave a long stretch without a crossing
+    // pass 2: join regions (nearest first), and never leave a long stretch without a
+    // crossing, keeping every bridge BRIDGE_SPACING from the others
     for (const site of sites) {
-      if (site === spawnSite) continue;
+      if (site === spawnSite || nearestBridge(site) < BRIDGE_SPACING) continue;
       const joins = find(site.ra) !== find(site.rb);
       const prior = lastAlong.get(site.s.river) ?? [];
       const gap = prior.reduce((m, a) => Math.min(m, Math.abs(a - site.s.along)), Infinity);
       if (joins || gap > BRIDGE_MIN_GAP) accept(site);
     }
+    // pass 3: a region the spacing rule left cut off still gets its bridge, as long as the decks don't touch
+    for (const site of sites)
+      if (find(site.ra) !== find(site.rb) && nearestBridge(site) >= BRIDGE_SPACING_MIN) accept(site);
     // open ground that still cannot be reached from the spawn becomes woods
     const spawnRoot = find(regionAt(16, 16));
     for (let i = 0; i < W * W; i++)
@@ -457,34 +494,59 @@ export class RiverNet {
  * smooth noise and relaxes back toward its base so the river meanders without
  * coiling, and it steers away from the spawn clearing at the origin.
  */
-function walkRiver(anchor: Pt, baseHeading: number, seed: number, net: RiverNet): Pt[] {
-  const half = (dir: number, s: number): Pt[] => {
+function walkRiver(anchor: Pt, baseHeading: number, seed: number, net: RiverNet, clear: number): Pt[] {
+  const half = (dir: number, s: number, others: Pt[]): Pt[] => {
     const pts: Pt[] = [];
     let x = anchor.x, y = anchor.y, heading = baseHeading + dir;
+    // every deflection (off the spawn, off another river, off itself) also turns the
+    // course the river relaxes back toward, so it carries on along its new line
+    // instead of hugging whatever pushed it
+    let drift = 0;
+    const deflect = (toward: number, w: number, carry: boolean) => {
+      const delta = Math.atan2(Math.sin(toward - heading), Math.cos(toward - heading)) * w;
+      heading += delta; if (carry) drift += delta;
+    };
     const limit = (RIVER_MAP_HALF_TILES + 8) * TILE;
     for (let k = 0; k < 2000; k++) {
       pts.push({ x, y });
       if (Math.abs(x) > limit || Math.abs(y) > limit) break;
+      const h0 = heading;
       const wander = (noise1(k / 8, s) - 0.5) * 0.34 + (noise1(k / 2.5, s + 7) - 0.5) * 0.1;
-      let target = baseHeading + dir + (noise1(k / 30, s + 13) - 0.5) * 1.6;
+      const target = baseHeading + dir + drift + (noise1(k / 30, s + 13) - 0.5) * 1.6;
       // steer around the spawn clearing
       const dist = Math.hypot(x, y);
-      if (dist < SPAWN_CLEAR + 2.5 * TILE) {
-        const away = Math.atan2(y, x);
-        heading += Math.atan2(Math.sin(away - heading), Math.cos(away - heading)) * 0.3;
+      if (dist < clear + 2.5 * TILE) deflect(Math.atan2(y, x), 0.3, true);
+      // a river that reaches water already placed joins it there, as a tributary.
+      // Within RIVER_GAP of another river, one heading squarely at it turns in and
+      // joins cleanly; one running alongside is pushed off to keep the gap
+      if (k > 4) {
+        const q = net.nearWater(x, y, RIVER_GAP);
+        if (q) {
+          if (q.d > 0) { pts.push({ x: q.sx, y: q.sy }); break; }
+          const toward = Math.atan2(q.sy - y, q.sx - x);
+          const turn = Math.atan2(Math.sin(toward - heading), Math.cos(toward - heading));
+          if (Math.abs(turn) < Math.PI * 0.35) deflect(toward, 0.35, true);
+          else if (Math.abs(turn) < Math.PI * 0.75) deflect(toward + Math.PI, 0.4 * (1 + q.d / RIVER_GAP), true);
+        }
       }
-      // a river that reaches water already placed joins it there, as a tributary
-      if (k > 4 && !net.farFromWater(x, y)) {
-        const q = net.query(x, y);
-        if (q.d > 0) { pts.push({ x: q.sx, y: q.sy }); break; }
-      }
+      // and it steers away from its own earlier course so it never loops back on itself
+      let selfD = SELF_GAP, sx = 0, sy = 0;
+      const consider = (p: Pt) => { const d = Math.hypot(x - p.x, y - p.y); if (d < selfD) { selfD = d; sx = p.x; sy = p.y; } };
+      for (let i = 0; i < pts.length - 16; i++) consider(pts[i]);
+      for (let i = 0; i < others.length - 16; i++) consider(others[i]);
+      if (selfD < SELF_GAP) deflect(Math.atan2(y - sy, x - sx), 0.6 * (1 - selfD / SELF_GAP), false);
       heading += wander + Math.atan2(Math.sin(target - heading), Math.cos(target - heading)) * 0.08;
+      const turned = Math.atan2(Math.sin(heading - h0), Math.cos(heading - h0));
+      heading = h0 + Math.max(-MAX_TURN, Math.min(MAX_TURN, turned));
+      const course = baseHeading + dir + drift;
+      const dev = Math.atan2(Math.sin(heading - course), Math.cos(heading - course));
+      if (Math.abs(dev) > MAX_DEVIATION) heading = course + Math.sign(dev) * MAX_DEVIATION;
       x += Math.cos(heading) * STEP; y += Math.sin(heading) * STEP;
     }
     return pts;
   };
-  const back = half(Math.PI, seed * 2 + 1).reverse();
-  const fwd = half(0, seed * 2 + 2);
+  const back = half(Math.PI, seed * 2 + 1, []).reverse();
+  const fwd = half(0, seed * 2 + 2, back);
   return back.concat(fwd.slice(1));
 }
 
@@ -499,12 +561,17 @@ export function generateRiverNet(seed: number): RiverNet {
       anchor = { x: Math.cos(a) * r, y: Math.sin(a) * r };
       heading = a + Math.PI / 2 + (rng() - 0.5) * 0.8;
     } else {
-      // the others start inside the clearing too, so every arena is cut by more than one river
-      const a = rng() * Math.PI * 2, r = (i === 1 ? 14 + rng() * 12 : 22 + rng() * 14) * TILE;
-      anchor = { x: Math.cos(a) * r, y: Math.sin(a) * r };
-      heading = rng() * Math.PI * 2;
+      // the others start farther out, well clear of the water already placed, and
+      // run across rather than at the spawn so they skirt it instead of wrapping it
+      anchor = { x: 0, y: 0 }; heading = 0;
+      for (let tries = 0; tries < 24; tries++) {
+        const a = rng() * Math.PI * 2, r = (i === 1 ? 34 + rng() * 16 : 46 + rng() * 24) * TILE;
+        anchor = { x: Math.cos(a) * r, y: Math.sin(a) * r };
+        heading = a + (rng() < 0.5 ? Math.PI / 2 : -Math.PI / 2) + (rng() - 0.5) * 0.8;
+        if (!net.nearWater(anchor.x, anchor.y, ANCHOR_CLEAR)) break;
+      }
     }
-    const pts = walkRiver(anchor, heading, seed * 17 + i * 101, net);
+    const pts = walkRiver(anchor, heading, seed * 17 + i * 101, net, i === 0 ? SPAWN_CLEAR : OTHERS_CLEAR);
     const base = 34 + rng() * 20;                          // 1.1–1.7 tiles half width
     const wSeed = Math.floor(rng() * 1e6), rSeed = Math.floor(rng() * 1e6);
     const rapidsAt = (k: number) => noise1(k / 5, rSeed) > 0.72;
