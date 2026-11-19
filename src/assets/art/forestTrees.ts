@@ -48,7 +48,7 @@ function treePalette(seed: number): TreePal {
 }
 
 /** An RGBA pixel buffer with straight alpha; empty pixels stay transparent. */
-class Raster {
+export class Raster {
   readonly data: Uint8ClampedArray;
   constructor(readonly w: number, readonly h: number) { this.data = new Uint8ClampedArray(w * h * 4); }
   put(x: number, y: number, c: Rgb): void {
@@ -101,7 +101,7 @@ function tier(put: (x: number, y: number, c: Rgb) => void, cx: number, top: numb
   }
 }
 
-function drawPine(r: Raster, cx: number, cy: number, h: number, baseHalf: number, seed: number): void {
+export function drawPine(r: Raster, cx: number, cy: number, h: number, baseHalf: number, seed: number): void {
   const p = treePalette(seed);
   const dabs = 0.64 + hash2(seed, 3, 5) * 0.22; // highlight dab density: sparse to generous
   const b = new Body(r);

@@ -1,7 +1,6 @@
 // Renders the river studies over a 30x20-tile viewport centred on the spawn
 // (seed via SEED, default 1), with the HD ranger overlaid, plus 3x crops of
-// a rapids stretch and of the bridge nearest the spawn, today's river ground
-// for comparison, seeded map overviews, and (ANIM=1) a looping frame set of
+// a rapids stretch and of the bridge nearest the spawn, seeded map overviews, and (ANIM=1) a looping frame set of
 // the flow effects. WIDE=1 adds nine-screen zoomed-out views.
 // Output: scripts/out/river-studies/.
 const { createCanvas, createImageData } = require('canvas');
@@ -22,7 +21,6 @@ async function main() {
   const load = async file => (await runnerImport(file, config)).module;
   const hd = await load('/src/assets/art/hd.ts');
   const player = await load('/src/assets/art/player.ts');
-  const terrain = await load('/src/assets/art/terrain.ts');
   const geo = await load('/src/assets/art/riverGeometry.ts');
   const study = await load('/scripts/river-studies/river.ts');
   const out = path.join(__dirname, 'out', 'river-studies');
@@ -62,19 +60,6 @@ async function main() {
     ctx.fillStyle = '#ff4040'; ctx.fillRect(Hh * S - 3, Hh * S - 3, 6, 6);
     for (const b of n.bridges) { ctx.fillStyle = '#ffd040'; ctx.beginPath(); ctx.arc((b.x / 32 + Hh) * S, (b.y / 32 + Hh) * S, 4, 0, Math.PI * 2); ctx.fill(); }
     fs.writeFileSync(path.join(out, `map-seed${seed}.png`), c.toBuffer('image/png'));
-  }
-
-  if (only.length === 0) {
-    // today's river ground: the fixed two-river layout, drawn by the legacy 32-px drawer
-    const store = {};
-    const fakeScene = { levelId: 4, textures: { exists: () => false, remove() {}, addCanvas: (k, c) => { store[k] = c; } } };
-    const cur = createCanvas(W / 2, H / 2), cctx = cur.getContext('2d');
-    for (let cy = -1; cy <= 0; cy++) for (let cx = -1; cx <= 0; cx++) cctx.drawImage(store[terrain.createGroundChunk(fakeScene, cx, cy, 16, 32, 'river')], cx * 512 + W / 4, cy * 512 + H / 4);
-    const curHD = createCanvas(W, H), hctx = curHD.getContext('2d');
-    hctx.imageSmoothingEnabled = false;
-    hctx.drawImage(cur, 0, 0, W, H);
-    overlay(hctx);
-    fs.writeFileSync(path.join(out, 'river-current.png'), curHD.toBuffer('image/png'));
   }
 
   // crop targets: the rapids run nearest the spawn (wherever it is) and the bridge nearest the spawn

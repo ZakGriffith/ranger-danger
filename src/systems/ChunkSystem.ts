@@ -7,11 +7,9 @@ import {
   SPIKE_VARIANT_COUNT,
   CACTUS_VARIANT_COUNT,
   TEMPLE_BLOCK_VARIANT_COUNT,
-  getRiverTileGrid,
-  riverCenterPx,
-  RIVER_HALF_W,
-  riverHorizontalCenterY,
 } from '../assets/generateArt';
+import { RIVER_TILE_BRIDGE, RIVER_TILE_WATER, RIVER_TILE_WOODS } from '../assets/art/riverGeometry';
+import { drawRiverWoodsChunk } from '../assets/art/riverWoods';
 import { canReachFromSpawnDirections, gridGet, gridSet } from './Pathfinding';
 import { TREE_CLUSTER_CONFIG } from '../assets/treeOverrides';
 import { INFECTED_PLANT_CLUSTER_CONFIG } from '../assets/infectedPlantOverrides';
@@ -19,11 +17,13 @@ import { ClusterConfig } from '../assets/clusterConfig';
 import type { GameScene } from '../scenes/GameScene';
 
 type ClusterPattern = { tiles: { dx: number; dy: number }[]; w: number; h: number };
+/** A ground chunk image, with the River biome's woods overlay riding along so both are culled together. */
+type ChunkImage = Phaser.GameObjects.Image & { _woods?: Phaser.GameObjects.Image };
 
 /**
  * Streamed ground-chunk generation, plus the per-biome decoration passes
  * (river, trees, spikes) that piggyback on the chunk pipeline. Also owns the
- * river-squiggle ambient FX update. Tree-tile destruction lives here too
+ * river flow ambient FX update. Tree-tile destruction lives here too
  * because trees are a chunk-spawned obstacle.
  */
 export class ChunkSystem {
@@ -44,7 +44,7 @@ export class ChunkSystem {
     const tile2 = CFG.tile;
     const chunkPx = cs2 * tile2;
     const radius = 3; // generate around viewport
-    const terrainKey = scene.biome === 'desert' ? `${scene.biome}_${scene.levelId}` : scene.biome;
+    const terrainKey = this.terrainKey();
     for (let dy = -radius; dy <= radius; dy++) {
       for (let dx = -radius; dx <= radius; dx++) {
         const ck = `${cx + dx},${cy + dy}`;
@@ -53,9 +53,7 @@ export class ChunkSystem {
         // Texture already cached from a previous visit? Just create image, no re-render
         const texKey = `gnd_chunk_${terrainKey}_${cx + dx}_${cy + dy}`;
         if (scene.generatedChunks.has(ck) && scene.textures.exists(texKey)) {
-          const img = scene.add.image((cx + dx) * chunkPx + chunkPx / 2, (cy + dy) * chunkPx + chunkPx / 2, texKey)
-            .setDepth(-1000).setDisplaySize(chunkPx, chunkPx);
-          scene.chunkImages.set(ck, img);
+          this.addChunkImages(cx + dx, cy + dy, texKey);
           continue;
         }
         // New chunk — queue for generation
@@ -78,6 +76,7 @@ export class ChunkSystem {
     for (const [key, img] of scene.chunkImages) {
       const [kcx, kcy] = key.split(',').map(Number);
       if (Math.abs(kcx - cx) > cullRadius || Math.abs(kcy - cy) > cullRadius) {
+        (img as ChunkImage)._woods?.destroy();
         img.destroy();
         scene.chunkImages.delete(key);
       }
@@ -87,6 +86,7 @@ export class ChunkSystem {
       if (Math.abs(kcx - cx) > textureCullRadius || Math.abs(kcy - cy) > textureCullRadius) {
         const texKey = `gnd_chunk_${terrainKey}_${kcx}_${kcy}`;
         if (scene.textures.exists(texKey)) scene.textures.remove(texKey);
+        if (scene.textures.exists(`${texKey}_woods`)) scene.textures.remove(`${texKey}_woods`);
         scene.generatedChunks.delete(key);
       }
     }
@@ -110,10 +110,7 @@ export class ChunkSystem {
       if (budgetMs > 0 && performance.now() - start >= budgetMs) break;
       const { cx: ccx, cy: ccy } = scene.pendingChunks.shift()!;
       const texKey = createGroundChunk(scene, ccx, ccy, cs, 32, scene.biome);
-      // HD ground textures are 2 px per world px; display from the world extent so both densities land the same
-      const chunkImg = scene.add.image(ccx * chunkPx + chunkPx / 2, ccy * chunkPx + chunkPx / 2, texKey)
-        .setDepth(-1000).setDisplaySize(chunkPx, chunkPx);
-      scene.chunkImages.set(`${ccx},${ccy}`, chunkImg);
+      this.addChunkImages(ccx, ccy, texKey);
       // Generate trees for this chunk if forest biome
       if (scene.biome === 'forest' || scene.biome === 'infected') this.placeTreesInChunk(ccx, ccy);
       if (scene.biome === 'castle') this.placeSpikesInChunk(ccx, ccy);
@@ -126,6 +123,42 @@ export class ChunkSystem {
       if (scene.biome === 'river') this.placeRiverInChunk(ccx, ccy);
       processed++;
     }
+  }
+
+  /** The biome part of ground texture keys; the River's carries the run's layout seed. */
+  private terrainKey(): string {
+    const scene = this.scene;
+    return scene.biome === 'desert' ? `${scene.biome}_${scene.levelId}`
+         : scene.biome === 'river' ? `river_${scene.riverNet?.seed ?? 0}`
+         : scene.biome;
+  }
+
+  /**
+   * Shows a generated chunk: the ground image, and in the River biome the
+   * chunk's woods overlay above it. HD ground textures are 2 px per world
+   * px; both display from the world extent so every density lands the same.
+   * The overlay sits at the depth of the chunk's bottom edge, so anything on
+   * the ground inside the chunk draws behind the crowns, and flyers (lifted
+   * by DepthSortSystem) draw over them.
+   */
+  private addChunkImages(ccx: number, ccy: number, texKey: string): void {
+    const scene = this.scene;
+    const chunkPx = CFG.chunkSize * CFG.tile;
+    const wx = ccx * chunkPx + chunkPx / 2, wy = ccy * chunkPx + chunkPx / 2;
+    const img = scene.add.image(wx, wy, texKey).setDepth(-1000).setDisplaySize(chunkPx, chunkPx) as ChunkImage;
+    if (scene.biome === 'river' && scene.riverNet) {
+      const woodsKey = `${texKey}_woods`;
+      if (!scene.textures.exists(woodsKey)) {
+        const canvas = drawRiverWoodsChunk(scene.riverNet, ccx, ccy, CFG.chunkSize);
+        if (canvas) scene.textures.addCanvas(woodsKey, canvas);
+      }
+      if (scene.textures.exists(woodsKey)) {
+        img._woods = scene.add.image(wx, wy, woodsKey)
+          .setDisplaySize(chunkPx, chunkPx)
+          .setDepth(100 + (ccy + 1) * chunkPx * 0.1);
+      }
+    }
+    scene.chunkImages.set(`${ccx},${ccy}`, img);
   }
 
   /**
@@ -178,8 +211,17 @@ export class ChunkSystem {
   }
 
   // ---------- RIVER TERRAIN (river biome) ----------
+  /**
+   * Marks the seeded layout's tiles in this chunk: water and woods block
+   * the player (collision tilemap) and ground pathing, bridge decks are
+   * walkable but unbuildable. Flyers ignore all of it. No sprites: the
+   * water and bridges are baked into the ground chunk and the trees into
+   * the chunk's woods overlay.
+   */
   placeRiverInChunk(cx: number, cy: number) {
     const scene = this.scene;
+    const net = scene.riverNet;
+    if (!net) return;
     const chunkKey = `${cx},${cy}`;
     if (scene.riverChunksGenerated.has(chunkKey)) return;
     scene.riverChunksGenerated.add(chunkKey);
@@ -192,13 +234,12 @@ export class ChunkSystem {
       for (let tx = 0; tx < cs; tx++) {
         const gx = chunkTileX + tx;
         const gy = chunkTileY + ty;
-        const gridVal = getRiverTileGrid(gx, gy);
-        if (gridVal === 4) {
-          gridSet(scene.grid, gx, gy, 4);
+        const kind = net.tileKind(gx, gy);
+        if (kind === RIVER_TILE_WATER || kind === RIVER_TILE_WOODS) {
+          gridSet(scene.grid, gx, gy, kind);
           scene.pathing.syncWallTile(gx, gy, true);
-        } else if (gridVal === 5) {
-          gridSet(scene.grid, gx, gy, 5);
-          // No physics blocker — bridges are walkable
+        } else if (kind === RIVER_TILE_BRIDGE) {
+          gridSet(scene.grid, gx, gy, RIVER_TILE_BRIDGE);
         }
       }
     }
@@ -206,62 +247,86 @@ export class ChunkSystem {
     // force all enemies to recalculate paths on every chunk load.
   }
 
-  // ---------- RIVER SQUIGGLES (animated water flow lines) ----------
-  updateRiverSquiggles(delta: number) {
+  // ---------- RIVER FLOW (streaks sliding downstream, foam in the rapids) ----------
+  /** Makes the two small FX textures once: a pale streak and a soft foam puff, drawn at HD and shown at half scale. */
+  private ensureRiverFlowTextures(): void {
     const scene = this.scene;
+    if (scene.textures.exists('river_flow_streak')) return;
+    const streak = document.createElement('canvas');
+    streak.width = 32; streak.height = 6;
+    const sc = streak.getContext('2d')!;
+    sc.strokeStyle = '#ffffff'; sc.lineCap = 'round';
+    sc.lineWidth = 2; sc.globalAlpha = 1;
+    sc.beginPath(); sc.moveTo(2, 2.5); sc.lineTo(30, 2.5); sc.stroke();
+    sc.lineWidth = 1; sc.globalAlpha = 0.6;
+    sc.beginPath(); sc.moveTo(6, 4.5); sc.lineTo(24, 4.5); sc.stroke();
+    scene.textures.addCanvas('river_flow_streak', streak);
+    const foam = document.createElement('canvas');
+    foam.width = 14; foam.height = 14;
+    const fc = foam.getContext('2d')!;
+    const grad = fc.createRadialGradient(7, 7, 1, 7, 7, 7);
+    grad.addColorStop(0, 'rgba(255,255,255,1)');
+    grad.addColorStop(0.6, 'rgba(255,255,255,0.7)');
+    grad.addColorStop(1, 'rgba(255,255,255,0)');
+    fc.fillStyle = grad;
+    fc.fillRect(0, 0, 14, 14);
+    scene.textures.addCanvas('river_flow_foam', foam);
+  }
+
+  /**
+   * Ambient flow over the water: short pale streaks spawn on river samples
+   * in view and slide downstream, re-reading the current each frame so they
+   * follow the bends; white foam puffs pulse in the rapids. Everything is
+   * tinted to the water palette and sits just above the ground.
+   */
+  updateRiverFlow(delta: number) {
+    const scene = this.scene;
+    const net = scene.riverNet;
+    if (!net || net.samples.length === 0) return;
+    this.ensureRiverFlowTextures();
     const cam = scene.cameras.main;
-    const camL = cam.scrollX - 50;
-    const camR = cam.scrollX + cam.width + 50;
-    const camT = cam.scrollY - 50;
-    const camB = cam.scrollY + cam.height + 50;
-    const MAX_SQUIGGLES = 12;
+    const camL = cam.scrollX - 40, camR = cam.scrollX + cam.width + 40;
+    const camT = cam.scrollY - 40, camB = cam.scrollY + cam.height + 40;
+    const MAX = 36, SPEED = 0.045; // world px per ms downstream
 
-    // Spawn new squiggles periodically
     scene.squiggleTimer -= delta;
-    if (scene.squiggleTimer <= 0 && scene.riverSquiggles.length < MAX_SQUIGGLES) {
-      scene.squiggleTimer = 200 + Math.random() * 250;
-      const vertical = Math.random() < 0.5;
-      const texKey = `river_squig_${Math.floor(Math.random() * 5)}`;
-      const speed = 0.005 + Math.random() * 0.006;
-
-      if (vertical) {
-        // Vertical river: spawn at random Y, position on river center X
-        const spawnY = camT + Math.random() * (camB - camT);
-        const cx = riverCenterPx(0, spawnY);
-        if (cx > camL && cx < camR) {
-          const ox = (Math.random() - 0.5) * RIVER_HALF_W * 1.2;
-          const sprite = scene.add.image(cx + ox, spawnY, texKey).setDepth(-999).setAlpha(0);
-          scene.riverSquiggles.push({ sprite, age: 0, life: 1500 + Math.random() * 1000, dx: 0, dy: speed });
-        }
-      } else {
-        // Horizontal river: spawn at random X, position on river center Y
-        const spawnX = camL + Math.random() * (camR - camL);
-        const cy = riverHorizontalCenterY(spawnX);
-        if (cy > camT && cy < camB) {
-          const oy = (Math.random() - 0.5) * RIVER_HALF_W * 1.2;
-          const sprite = scene.add.image(spawnX, cy + oy, texKey).setDepth(-999).setAlpha(0);
-          scene.riverSquiggles.push({ sprite, age: 0, life: 1500 + Math.random() * 1000, dx: speed, dy: 0 });
-        }
+    if (scene.squiggleTimer <= 0 && scene.riverSquiggles.length < MAX) {
+      scene.squiggleTimer = 70;
+      for (let tries = 0; tries < 6; tries++) {
+        const s = net.samples[Math.floor(Math.random() * net.samples.length)];
+        if (s.x < camL || s.x > camR || s.y < camT || s.y > camB) continue;
+        const lane = (Math.random() - 0.5) * 1.5 * s.hw;
+        const x = s.x - s.ty * lane, y = s.y + s.tx * lane;
+        const foam = s.rapids && Math.random() < 0.5;
+        const sprite = scene.add.image(x, y, foam ? 'river_flow_foam' : 'river_flow_streak')
+          .setDepth(-999).setAlpha(0).setRotation(Math.atan2(s.ty, s.tx))
+          .setScale(foam ? 0.4 + Math.random() * 0.4 : 0.5)
+          .setTint(foam || s.rapids ? 0xeef7f5 : 0x8fcfd6);
+        scene.riverSquiggles.push({ sprite, age: 0, life: 1800 + Math.random() * 1400, dx: s.tx * SPEED, dy: s.ty * SPEED });
+        break;
       }
     }
 
-    // Update sprites
     for (let i = scene.riverSquiggles.length - 1; i >= 0; i--) {
       const sq = scene.riverSquiggles[i];
       sq.age += delta;
       sq.sprite.x += sq.dx * delta;
       sq.sprite.y += sq.dy * delta;
-
       const sx = sq.sprite.x, sy = sq.sprite.y;
-      if (sq.age >= sq.life || sx < camL - 80 || sx > camR + 80 || sy < camT - 80 || sy > camB + 80) {
+      const q = net.query(sx, sy);
+      if (sq.age >= sq.life || q.d < 3 || sx < camL - 80 || sx > camR + 80 || sy < camT - 80 || sy > camB + 80) {
         sq.sprite.destroy();
         scene.riverSquiggles.splice(i, 1);
         continue;
       }
-
+      // follow the current
+      sq.dx = q.tx * SPEED; sq.dy = q.ty * SPEED;
+      sq.sprite.setRotation(Math.atan2(q.ty, q.tx));
       const t = sq.age / sq.life;
-      const alpha = t < 0.2 ? t / 0.2 : t > 0.7 ? (1 - t) / 0.3 : 1.0;
-      sq.sprite.setAlpha(alpha * 0.15);
+      const fade = Math.sin(Math.PI * t);
+      const foam = sq.sprite.texture.key === 'river_flow_foam';
+      if (foam) sq.sprite.setScale(0.5 + 0.35 * Math.sin(sq.age * 0.012));
+      sq.sprite.setAlpha(fade * (foam ? 0.85 : q.rapids ? 0.7 : 0.45));
     }
   }
 

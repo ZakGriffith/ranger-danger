@@ -11,6 +11,7 @@ import { Projectile } from '../entities/Projectile';
 import { Coin } from '../entities/Coin';
 import { Boss } from '../entities/Boss';
 import { createSparseGrid, gridGet, gridSet, SparseGrid } from '../systems/Pathfinding';
+import { generateRiverNet, RiverNet } from '../assets/art/riverGeometry';
 import { CoinSystem } from '../systems/CoinSystem';
 import { PathingSystem } from '../systems/PathingSystem';
 import { DepthSortSystem } from '../systems/DepthSortSystem';
@@ -248,6 +249,8 @@ export class GameScene extends Phaser.Scene {
   riverSquiggles: { sprite: Phaser.GameObjects.Image; age: number; life: number; dx: number; dy: number }[] = [];
   squiggleTimer = 0;
   treeSeed = 0;
+  /** The River biome's seeded layout (rivers, woods, bridges); null elsewhere. */
+  riverNet: RiverNet | null = null;
   sf = 1; // native resolution scale factor
   /** Effective spawn/chunk radius in tiles. Always grown to cover the
    *  current camera's visible-corner distance plus a margin so enemies
@@ -332,6 +335,7 @@ export class GameScene extends Phaser.Scene {
     this.riverSquiggles = [];
     this.squiggleTimer = 0;
     this.treeSeed = Math.floor(Math.random() * 2147483647) || 1;
+    this.riverNet = this.biome === 'river' ? generateRiverNet(this.treeSeed) : null;
     // (EndSystem owns dying/winDelayUntil/winCollectedAt — fresh instance
     // each create() means no carry-over across level transitions.)
     this.bossState.castlePhase = 0;
@@ -972,7 +976,7 @@ export class GameScene extends Phaser.Scene {
     this.chunkSystem.processChunkQueue(4);
 
     // River squiggle animation
-    if (this.biome === 'river') this.chunkSystem.updateRiverSquiggles(delta);
+    if (this.biome === 'river') this.chunkSystem.updateRiverFlow(delta);
 
     // Redraw grid overlay around the camera if building
     if (this.buildState.kind !== 'none') this.build.redrawGridOverlay();

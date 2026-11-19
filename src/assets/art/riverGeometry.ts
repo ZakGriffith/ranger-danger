@@ -14,6 +14,7 @@ const TILE = 32;
 const STEP = 40;                              // random-walk step between control points
 const SAMPLE_PX = 8;                          // spline sampling along the centreline
 const BUCKET = 128;                           // spatial hash cell for distance queries
+const QUERY_REACH = 200;                      // samples farther than this (per axis) are skipped: they read as open land
 const SPAWN_CLEAR = 4.5 * TILE;               // rivers steer clear of this radius at the origin
 const RIVER_COUNT = 3;
 const SITE_SPACING = 6;                       // samples between candidate bridge sites (1.5 tiles)
@@ -101,6 +102,13 @@ export class RiverNet {
   /** 400×400 tile kinds (RIVER_TILE_*), row-major from tile (-200, -200). */
   readonly tiles: Uint8Array;
   private readonly buckets = new Map<number, number[]>();
+  /**
+   * Query index, rebuilt lazily after a river is added: the samples as flat
+   * typed arrays, and for every bucket near a river the merged list of the
+   * samples in its 3×3 neighbourhood, so a query is one lookup and one tight
+   * loop over typed arrays.
+   */
+  private index: { x: Float32Array; y: Float32Array; tx: Float32Array; ty: Float32Array; hw: Float32Array; near: Map<number, Int32Array> } | null = null;
 
   constructor(readonly seed: number) {
     this.tiles = new Uint8Array(RIVER_MAP_HALF_TILES * 2 * RIVER_MAP_HALF_TILES * 2);
@@ -252,42 +260,66 @@ export class RiverNet {
       const list = this.buckets.get(key);
       if (list) list.push(id); else this.buckets.set(key, [id]);
     }
+    this.index = null;
   }
 
   private bucketKey(bx: number, by: number): number { return (bx + 32768) * 65536 + (by + 32768); }
 
+  private ensureIndex(): NonNullable<RiverNet['index']> {
+    if (this.index) return this.index;
+    const n = this.samples.length;
+    const x = new Float32Array(n), y = new Float32Array(n), tx = new Float32Array(n), ty = new Float32Array(n), hw = new Float32Array(n);
+    for (let i = 0; i < n; i++) { const s = this.samples[i]; x[i] = s.x; y[i] = s.y; tx[i] = s.tx; ty[i] = s.ty; hw[i] = s.hw; }
+    const near = new Map<number, Int32Array>();
+    for (const key of this.buckets.keys()) {
+      const bx = Math.floor(key / 65536) - 32768, by = (key % 65536) - 32768;
+      for (let oy = -1; oy <= 1; oy++)
+        for (let ox = -1; ox <= 1; ox++) {
+          const k = this.bucketKey(bx + ox, by + oy);
+          if (near.has(k)) continue;
+          const merged: number[] = [];
+          for (let my = -1; my <= 1; my++)
+            for (let mx = -1; mx <= 1; mx++) {
+              const list = this.buckets.get(this.bucketKey(bx + ox + mx, by + oy + my));
+              if (list) for (const id of list) merged.push(id);
+            }
+          near.set(k, Int32Array.from(merged));
+        }
+    }
+    this.index = { x, y, tx, ty, hw, near };
+    return this.index;
+  }
+
   // ---------------------------------------------------------------- query --
 
-  /** Nearest-river query. Cheap enough per frame; the drawer samples it on a grid. */
+  /** Nearest-river query. Cheap enough per frame; the drawer samples it on a grid. Far from any river it returns river -1 and d = -1e4. */
   query(wx: number, wy: number): RiverQuery {
-    const bx = Math.floor(wx / BUCKET), by = Math.floor(wy / BUCKET);
-    let best: RiverSample | null = null, bestD = -1e9, bestDist = 0;
-    for (let oy = -1; oy <= 1; oy++)
-      for (let ox = -1; ox <= 1; ox++) {
-        const list = this.buckets.get(this.bucketKey(bx + ox, by + oy));
-        if (!list) continue;
-        for (let i = 0; i < list.length; i++) {
-          const s = this.samples[list[i]];
-          const dx = wx - s.x, dy = wy - s.y;
-          // distance to the sample's tangent line, clamped to the sample spacing
-          const t = Math.max(-SAMPLE_PX, Math.min(SAMPLE_PX, dx * s.tx + dy * s.ty));
-          const dist = Math.hypot(dx - s.tx * t, dy - s.ty * t);
-          const d = s.hw - dist;
-          if (d > bestD) { bestD = d; best = s; bestDist = dist; }
-        }
+    const idx = this.ensureIndex();
+    const list = idx.near.get(this.bucketKey(Math.floor(wx / BUCKET), Math.floor(wy / BUCKET)));
+    let best = -1, bestD = -1e9;
+    if (list) {
+      const X = idx.x, Y = idx.y, TX = idx.tx, TY = idx.ty, HW = idx.hw;
+      for (let j = 0; j < list.length; j++) {
+        const i = list[j];
+        const dx = wx - X[i], dy = wy - Y[i];
+        // samples beyond QUERY_REACH can only give d < -130 px, which nothing distinguishes from "far"
+        if (dx > QUERY_REACH || dx < -QUERY_REACH || dy > QUERY_REACH || dy < -QUERY_REACH) continue;
+        // distance to the sample's tangent line, clamped to the sample spacing
+        let t = dx * TX[i] + dy * TY[i];
+        if (t > SAMPLE_PX) t = SAMPLE_PX; else if (t < -SAMPLE_PX) t = -SAMPLE_PX;
+        const ex = dx - TX[i] * t, ey = dy - TY[i] * t;
+        const d = HW[i] - Math.sqrt(ex * ex + ey * ey);
+        if (d > bestD) { bestD = d; best = i; }
       }
-    if (!best) return { d: -1e4, sx: 0, sy: 0, tx: 1, ty: 0, along: 0, hw: 0, rapids: false, river: -1 };
-    void bestDist;
-    return { d: bestD, sx: best.x, sy: best.y, tx: best.tx, ty: best.ty, along: best.along, hw: best.hw, rapids: best.rapids, river: best.river };
+    }
+    if (best < 0) return { d: -1e4, sx: 0, sy: 0, tx: 1, ty: 0, along: 0, hw: 0, rapids: false, river: -1 };
+    const s = this.samples[best];
+    return { d: bestD, sx: s.x, sy: s.y, tx: s.tx, ty: s.ty, along: s.along, hw: s.hw, rapids: s.rapids, river: s.river };
   }
 
   /** True when no river sample lies within a bucket of the point: open land, no query needed. */
   farFromWater(wx: number, wy: number): boolean {
-    const bx = Math.floor(wx / BUCKET), by = Math.floor(wy / BUCKET);
-    for (let oy = -1; oy <= 1; oy++)
-      for (let ox = -1; ox <= 1; ox++)
-        if (this.buckets.has(this.bucketKey(bx + ox, by + oy))) return false;
-    return true;
+    return !this.ensureIndex().near.has(this.bucketKey(Math.floor(wx / BUCKET), Math.floor(wy / BUCKET)));
   }
 
   /** The planned tile kind at a tile coordinate (RIVER_TILE_*). */

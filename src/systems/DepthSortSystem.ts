@@ -1,4 +1,5 @@
 import { Projectile } from '../entities/Projectile';
+import type { Enemy } from '../entities/Enemy';
 import { Tower } from '../entities/Tower';
 import type { Boss } from '../entities/Boss';
 import type { Wall } from '../entities/Wall';
@@ -14,6 +15,12 @@ export class DepthSortSystem {
    * the formula ever changes, update it there too.
    */
   private static yDepth(y: number) { return 100 + y * 0.1; }
+  /**
+   * Flyers sort above everything on the ground, including the River's
+   * woods overlays (one per chunk, at that chunk's bottom edge depth), so
+   * they never vanish under a canopy they are flying over.
+   */
+  private static readonly FLYING_LIFT = 1000;
 
   constructor(private scene: GameScene) {}
 
@@ -28,7 +35,7 @@ export class DepthSortSystem {
   }
 
   applyAirborneBossDepth(boss: Boss): void {
-    boss.setDepth(DepthSortSystem.yDepth(boss.y + 80));
+    boss.setDepth(DepthSortSystem.yDepth(boss.y + 80) + DepthSortSystem.FLYING_LIFT);
   }
 
   update() {
@@ -38,10 +45,10 @@ export class DepthSortSystem {
     scene.player.setDepth(yD(scene.player.y));
 
     // Enemies move every frame — keep sorting them.
-    const enemies = scene.enemies.getChildren() as Phaser.Physics.Arcade.Sprite[];
+    const enemies = scene.enemies.getChildren() as Enemy[];
     for (let i = 0; i < enemies.length; i++) {
       const e = enemies[i];
-      if (e.active) e.setDepth(yD(e.y));
+      if (e.active) e.setDepth(yD(e.y) + (e.flying ? DepthSortSystem.FLYING_LIFT : 0));
     }
 
     // Both arrows and cannonballs y-sort. Using the cannonball's CURRENT

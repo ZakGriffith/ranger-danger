@@ -13,6 +13,8 @@ import { FOREST_TILE_PX, drawForestChunk } from './groundForest';
 import { INFECTED_TILE_PX, drawInfectedChunk } from './groundInfected';
 import { drawInfectedPlantCanvasHD } from './infectedPlants';
 import { drawTreeClusterCanvasHD } from './forestTrees';
+import { RIVER_TILE_PX, drawRiverChunk } from './groundRiver';
+import type { RiverNet } from './riverGeometry';
 
 // ==================================================================
 //  GROUND TILE (32x32) — noise speckle
@@ -1046,13 +1048,16 @@ export function drawFoundation(put: Put) {
  */
 export function createGroundChunk(scene: Phaser.Scene, chunkX: number, chunkY: number, chunkSize: number, tileSize: number, biome = 'grasslands'): string {
   const sceneLevelId = (scene as any).levelId ?? 1;
-  const terrainKey = biome === 'desert' ? `${biome}_${sceneLevelId}` : biome;
+  // the River's ground depends on the run's seeded network, so its textures carry the seed
+  const riverNet = (scene as any).riverNet as RiverNet | null | undefined;
+  const terrainKey = biome === 'desert' ? `${biome}_${sceneLevelId}` : biome === 'river' ? `river_${riverNet?.seed ?? 0}` : biome;
   const key = `gnd_chunk_${terrainKey}_${chunkX}_${chunkY}`;
   if (scene.textures.exists(key)) return key;
   // HD biomes: 64 texture px per tile, drawn straight into an RGBA buffer
   const hd = biome === 'grasslands' ? { tilePx: MEADOW_TILE_PX, draw: drawMeadowChunk }
            : biome === 'forest' ? { tilePx: FOREST_TILE_PX, draw: drawForestChunk }
            : biome === 'infected' ? { tilePx: INFECTED_TILE_PX, draw: drawInfectedChunk }
+           : biome === 'river' && riverNet ? { tilePx: RIVER_TILE_PX, draw: (buf: Uint8ClampedArray, size: number, x0: number, y0: number) => drawRiverChunk(buf, size, x0, y0, riverNet) }
            : null;
   if (hd) {
     const pxSize = chunkSize * hd.tilePx;
