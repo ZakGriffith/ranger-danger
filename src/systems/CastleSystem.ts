@@ -1,5 +1,6 @@
 import type Phaser from 'phaser';
 import { CFG } from '../config';
+import { SFX } from '../audio/sfx';
 import { CASTLE_WALL_ORIGIN_Y, type CastleTrapState } from '../assets/art/castleTerrain';
 import {
   castleCell, castleHash, castleProps, castleTileAt, castleTrapAt, castleWallAt,
@@ -8,7 +9,7 @@ import {
 import { gridSet } from './Pathfinding';
 import type { GameScene } from '../scenes/GameScene';
 
-type Trap = { x: number; y: number; offset: number; sprite: Phaser.GameObjects.Image };
+type Trap = { x: number; y: number; offset: number; state: CastleTrapState; sprite: Phaser.GameObjects.Image };
 
 export function castleTrapState(time: number, offset: number): CastleTrapState {
   const phase = (time + offset) % CFG.castle.trapCycle;
@@ -64,7 +65,7 @@ export class CastleSystem {
           const state = castleTrapState(scene.vTime, offset);
           const sprite = scene.add.image(wx, wy, `castle_trap_${state}`)
             .setScale(.5).setOrigin(.5, 56 / 88).setDepth(-10);
-          this.traps.push({ x, y, offset, sprite });
+          this.traps.push({ x, y, offset, state, sprite });
           const blocker = scene.add.zone(wx, wy, t, t);
           scene.physics.add.existing(blocker, true);
           const body = blocker.body as Phaser.Physics.Arcade.StaticBody;
@@ -94,15 +95,21 @@ export class CastleSystem {
     const view = scene.cameras.main.worldView;
     const body = scene.player.body as Phaser.Physics.Arcade.Body;
     let onActiveTrap = false;
+    let spikesRising = false;
     for (const trap of this.traps) {
       const wx = trap.x * CFG.tile, wy = trap.y * CFG.tile;
-      if (wx < view.left - CFG.tile || wx > view.right + CFG.tile || wy < view.top - CFG.tile || wy > view.bottom + CFG.tile) continue;
       const state = castleTrapState(time, trap.offset);
+      const rising = state === 'active' && trap.state !== 'active';
+      trap.state = state;
+      if (wx < view.left - CFG.tile || wx > view.right + CFG.tile || wy < view.top - CFG.tile || wy > view.bottom + CFG.tile) continue;
+      if (rising) spikesRising = true;
       const key = `castle_trap_${state}`;
       if (trap.sprite.texture.key !== key) trap.sprite.setTexture(key);
       if (state === 'active' && body.right > wx + 4 && body.left < wx + CFG.tile - 4
         && body.bottom > wy + 4 && body.top < wy + CFG.tile - 4) onActiveTrap = true;
     }
+    // A whole patch rises together; its tiles share one sound instead of stacking voices.
+    if (spikesRising) SFX.play('spikeRise');
     if (onActiveTrap && time >= this.nextDamageAt) {
       this.nextDamageAt = time + CFG.castle.trapDamageInterval;
       scene.player.hurt(CFG.castle.trapDamage, scene);
