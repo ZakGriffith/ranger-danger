@@ -195,7 +195,7 @@ export class CastleNavigationSystem {
     if (!this.clearSweep(x, y, targetX, targetY, halfW, halfH)) {
       const goal = scene.pathing.worldToTile(targetX, targetY);
       const cached = this.routes.get(actor);
-      if (!cached || cached.goalX !== goal.x || cached.goalY !== goal.y || cached.version !== scene.gridVersion || time >= actor.lastPath + 400) {
+      if (!cached || !actor.path.length || cached.goalX !== goal.x || cached.goalY !== goal.y || cached.version !== scene.gridVersion || time >= actor.lastPath + 400) {
         actor.lastPath = time;
         actor.path = findCastleRoute(this.tileAt, scene.pathing.worldToTile(x, y), goal, halfW, halfH);
         actor.pathIdx = 0;
@@ -207,13 +207,9 @@ export class CastleNavigationSystem {
         if (Math.hypot((node.x + .5) * CFG.tile - x, (node.y + .5) * CFG.tile - y) > .25) break;
         actor.pathIdx++;
       }
-      let corner = actor.path.length - 1;
-      for (let i = Math.max(1, actor.pathIdx); i < actor.path.length - 1; i++) {
-        const prev = actor.path[i - 1], node = actor.path[i], next = actor.path[i + 1];
-        if (node.x - prev.x !== next.x - node.x || node.y - prev.y !== next.y - node.y) { corner = i; break; }
-      }
       let selected = actor.pathIdx;
-      for (let i = corner; i >= actor.pathIdx; i--) {
+      // Grid turns need not become movement turns when the whole body can pass directly.
+      for (let i = actor.path.length - 1; i >= actor.pathIdx; i--) {
         const node = actor.path[i];
         if (this.clearSweep(x, y, (node.x + .5) * CFG.tile, (node.y + .5) * CFG.tile, halfW, halfH)) { selected = i; break; }
       }
@@ -232,7 +228,10 @@ export class CastleNavigationSystem {
   moveEnemy(enemy: Enemy, time: number, delta: number, preserveAttack = false) {
     const velocity = this.velocity(enemy, time, delta);
     enemy.setVelocity(velocity.x, velocity.y);
-    if (velocity.x === 0 && velocity.y === 0 && enemy.path.length && enemy.pathIdx === enemy.path.length - 1) {
+    const finalNode = enemy.path[enemy.path.length - 1];
+    const body = enemy.body as Phaser.Physics.Arcade.Body;
+    if (velocity.x === 0 && velocity.y === 0 && finalNode && enemy.pathIdx === enemy.path.length - 1
+      && Math.hypot((finalNode.x + .5) * CFG.tile - body.center.x, (finalNode.y + .5) * CFG.tile - body.center.y) < .25) {
       enemy.stuckMsec = 0;
       enemy.windowStartedAt = time;
       enemy.lastMovingAt = time;

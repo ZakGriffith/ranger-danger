@@ -307,7 +307,9 @@ export class EnemyBossSystem {
       // clamped to vel=0 — treating that as "stuck" would fire Stage 2
       // perpendicular nudges every 600ms, producing the visible "wolves
       // jiggling in place where the player just was" oscillation.
-      const skipsStuckCheck = e.kind === 'toad' || (e.kind === 'warlock' && commandedSpeed <= MOVING_SPEED_THRESH) || e.flying || (e as any)._attacking === true;
+      const warlockCanCast = e.kind === 'warlock' && dist2 < CFG.castle.warlockRange ** 2
+        && this.enemyOnScreen(e) && scene.pathing.hasLineOfSight(e.x, e.y, tx, ty);
+      const skipsStuckCheck = e.kind === 'toad' || warlockCanCast || e.flying || (e as any)._attacking === true;
       const wasStuckMsec = e.stuckMsec;
       if (!skipsStuckCheck && movedDist < STUCK_MOVE_THRESH) {
         e.stuckMsec += delta;
@@ -362,11 +364,11 @@ export class EnemyBossSystem {
         e.windowStartY = e.y;
       }
 
-      if (dist2 > TELEPORT_DIST_SQ && !DEBUG.disableStuckRecovery) {
+      // Castle detours can legitimately lead away from the ranger before reaching a doorway.
+      if (dist2 > TELEPORT_DIST_SQ && (scene.biome !== 'castle' || e.flying) && !DEBUG.disableStuckRecovery) {
         const dx = e.x - tx, dy = e.y - ty;
         const inv = 1 / Math.sqrt(dx * dx + dy * dy);
         e.setPosition(tx + dx * inv * respawnR, ty + dy * inv * respawnR);
-        if (scene.biome === 'castle' && !e.flying) scene.castleNavigation.alignSpawn(e);
         if (e.body && (e.body as any).enable) e.setVelocity(0, 0);
         e.path = [];
         e.pathIdx = 0;
@@ -510,7 +512,6 @@ export class EnemyBossSystem {
       }
 
       if (e.kind === 'warlock') {
-        const wlRange = CFG.castle.warlockRange;
         const dist = Math.sqrt(dist2);
         e.setFlipX(tx - e.x < 0);
 
@@ -526,7 +527,7 @@ export class EnemyBossSystem {
           return true;
         }
 
-        if (dist < wlRange && scene.pathing.hasLineOfSight(e.x, e.y, tx, ty)) {
+        if (warlockCanCast) {
           e.setVelocity(0, 0);
           // One full cast animation per bolt: the anim starts on the fire
           // decision and the bolt leaves ~200ms later, when the staff levels

@@ -101,10 +101,6 @@ function trap(state: CastleTrapState): HTMLCanvasElement {
       line(ctx, '#e4dcc1', .7, p => { p.moveTo(x - 2, y - 2); p.lineTo(x, y - 18); });
     } else if (state === 'warning') oval(ctx, x, y - 1, 3, 1.8, '#e9a35b');
   }
-  if (state !== 'dormant') {
-    ctx.strokeStyle = state === 'warning' ? '#df9a58' : '#b27b59'; ctx.lineWidth = 2;
-    ctx.strokeRect(5, 5, 54, 54);
-  }
   return canvas;
 }
 

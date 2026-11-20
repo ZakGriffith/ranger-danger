@@ -164,9 +164,9 @@ export const CFG = {
   },
 
   castle: {
-    trapCycle: 4200,
+    trapCycle: 8000,
     trapWarningDuration: 900,
-    trapActiveDuration: 1200,
+    trapActiveDuration: 3000,
     trapDamage: 8,
     trapDamageInterval: 600,
     warlockRange: 220,         // px — distance at which warlock stops and casts
