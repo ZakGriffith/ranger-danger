@@ -10,20 +10,18 @@ import { generateArrowTowerBases } from './art/arrowTower/textures';
 import { generateCannonTowerBases, generateCannonTowerProjectile } from './art/cannonTower/textures';
 import { generateCoinTextures, registerCoinAnimations } from './art/coins';
 import { generateWallTextures } from './art/wallTextures';
+import { generateCastleEnemyTextures, registerCastleEnemyAnimations } from './art/castleEnemies/textures';
 import { makeHD } from './art/hd';
 import { POISON_SMOKE_VARIANTS, POISON_SMOKE_FRAME_MS } from './art/poisonSmoke';
 import {
-  EFrame, EFrame6,
+  EFrame,
   drawEnemyBasic, drawEnemyHeavy,
-  drawEnemyBat,
-  drawEnemySkeleton, drawEnemyWarlock, drawEnemyGolem, drawEnemyShadowImp,
   drawWarlockBolt,
   drawEnemyDesert, drawSunBolt,
 } from './art/enemies';
-import { MEADOW_FRAMES, MEADOW_MOVE_FRAMES, MEADOW_ATK_FRAMES } from './art/meadow';
+import { MEADOW_MOVE_FRAMES, MEADOW_ATK_FRAMES } from './art/meadow';
 import { generateMeadowEnemyTextures } from './art/meadowEnemies/textures';
 import { SPIDER_SMOKE_FRAMES, drawSpiderSmoke } from './art/spiderPoison';
-import { drawRat, RAT_VARIANTS } from './art/rat';
 import { TOAD_SMOKE_FRAMES, drawToadSmoke } from './art/toadPoison';
 import { generateInfectedTextures, registerInfectedAnimations } from './art/infectedEnemies/textures';
 import {
@@ -36,9 +34,8 @@ import { generateRiverEnemyTextures, registerRiverEnemyAnimations } from './art/
 import { registerGaleclawTextures, registerGaleclawAnimations } from './art/riverEnemies/griffin';
 import {
   BossFrame, RamFrame,
-  phantomQueenFrames, castleDragonFrames,
   drawBoss,
-  drawPhantomQueen, drawCastleDragon, drawDesertBoss,
+  drawDesertBoss,
   drawQueenOrb, drawDragonFireball, drawDragonFireExplosion,
 } from './art/bosses';
 import { createMeadowRamFrame } from './art/meadowRam';
@@ -83,12 +80,7 @@ export function generateAllArt(scene: Phaser.Scene) {
   const eFrames: EFrame[] = ['move0','move1','move2','move3','atk0','atk1','hit','die0','die1','die2','die3'];
   for (const f of eFrames) add(scene, `eb_${f}`, makeCanvas(32, drawEnemyBasic(f)));
   for (const f of eFrames) add(scene, `eh_${f}`, makeCanvas(32, drawEnemyHeavy(f)));
-  // Extended frame set (6-frame move, 4-frame atk) shared by the biome enemies below
-  const e6Frames: EFrame6[] = ['move0','move1','move2','move3','move4','move5','atk0','atk1','atk2','atk3','hit','die0','die1','die2','die3'];
   generateMeadowEnemyTextures(scene);
-  for (let v = 0; v < RAT_VARIANTS; v++) {
-    for (const frame of MEADOW_FRAMES) add(scene, `ecrat${v}_${frame}`, makeHD(64, drawRat(frame, v)));
-  }
   generateInfectedTextures(scene);
   for (let variant = 0; variant < POISON_SMOKE_VARIANTS; variant++) for (const frame of SPIDER_SMOKE_FRAMES) {
     add(scene, `spider_smoke_${variant}_${frame}`, makeHD(128, drawSpiderSmoke(frame * POISON_SMOKE_FRAME_MS, variant), { outline: false }));
@@ -99,16 +91,7 @@ export function generateAllArt(scene: Phaser.Scene) {
   generateForestEnemyTextures(scene);
   generateRiverEnemyTextures(scene);
 
-  // Castle enemies
-  for (const f of e6Frames) add(scene, `ebt_${f}`, makeCanvas(32, drawEnemyBat(f)));
-  // Skeleton uses the extended frame set (6-frame shamble, 4-frame sword slash)
-  for (const f of e6Frames) add(scene, `esk_${f}`, makeCanvas(32, drawEnemySkeleton(f)));
-  // Warlock uses the extended frame set (6-frame glide, 4-frame staff cast)
-  for (const f of e6Frames) add(scene, `ewl_${f}`, makeCanvas(32, drawEnemyWarlock(f)));
-  // Golem uses the extended frame set (6-frame stomp, 4-frame punch)
-  for (const f of e6Frames) add(scene, `ego_${f}`, makeCanvas(32, drawEnemyGolem(f)));
-  // Shadow imp uses the extended frame set (6-frame scamper, 4-frame swipe)
-  for (const f of e6Frames) add(scene, `esi_${f}`, makeCanvas(32, drawEnemyShadowImp(f)));
+  generateCastleEnemyTextures(scene);
   // Warlock magic bolt projectile
   add(scene, 'wbolt_0', makeCanvas(32, drawWarlockBolt('bolt0')));
   add(scene, 'wbolt_1', makeCanvas(32, drawWarlockBolt('bolt1')));
@@ -284,12 +267,6 @@ export function generateAllArt(scene: Phaser.Scene) {
   for (const f of ramFrames) add(scene, `ram_${f}`, createMeadowRamFrame(f));
   registerGaleclawTextures(scene);
 
-  // Castle boss (Phantom Queen) textures
-  // Queen gets extra idle frames (flowing hair/gown) on top of the shared set
-  for (const f of phantomQueenFrames) add(scene, `cqboss_${f}`, makeCanvas(64, drawPhantomQueen(f)));
-  // Castle boss (Castle Dragon) textures — extra idle + windup/emit atk frames
-  for (const f of castleDragonFrames) add(scene, `cdboss_${f}`, makeCanvas(64, drawCastleDragon(f)));
-
   for (const f of bossFrames) add(scene, `dfboss_${f}`, makeCanvas(64, drawDesertBoss(f, 'burrower')));
   for (const f of bossFrames) add(scene, `dsboss_${f}`, makeCanvas(64, drawDesertBoss(f, 'scorpion')));
   for (const f of bossFrames) add(scene, `sbboss_${f}`, makeCanvas(64, drawDesertBoss(f, 'sandstorm')));
@@ -345,10 +322,6 @@ export function registerAnimations(scene: Phaser.Scene) {
 
   mk('erat-move', mv('erat'), 20, -1);
   mk('erat-atk',  ak('erat'), 12, -1);
-  for (let v = 0; v < RAT_VARIANTS; v++) {
-    mk(`ecrat${v}-move`, mv(`ecrat${v}`), 20, -1);
-    mk(`ecrat${v}-atk`,  ak(`ecrat${v}`), 12, -1);
-  }
 
   mk('eder-move', mv('eder'), 12, -1);
   mk('eder-atk',  ak('eder'), 10, -1);
@@ -358,37 +331,7 @@ export function registerAnimations(scene: Phaser.Scene) {
 
   registerRiverEnemyAnimations(scene);
 
-  // Castle enemies
-  mk('ebt-move', ['ebt_move0','ebt_move1','ebt_move2','ebt_move3','ebt_move4','ebt_move5'], 12, -1);
-  mk('ebt-atk',  ['ebt_atk0','ebt_atk1','ebt_atk2','ebt_atk3'], 10, -1);
-  mk('ebt-hit',  ['ebt_hit'], 8, 0);
-  mk('ebt-die',  ['ebt_die0','ebt_die1','ebt_die2','ebt_die3'], 8, 0);
-
-  // 6-frame shamble + 4-frame raise-and-slash
-  mk('esk-move', ['esk_move0','esk_move1','esk_move2','esk_move3','esk_move4','esk_move5'], 10, -1);
-  mk('esk-atk',  ['esk_atk0','esk_atk1','esk_atk2','esk_atk3'], 10, -1);
-  mk('esk-hit',  ['esk_hit'], 10, 0);
-  mk('esk-die',  ['esk_die0','esk_die1','esk_die2','esk_die3'], 10, 0);
-
-  // 6-frame gliding walk + 4-frame charge-aim-fire staff cast
-  mk('ewl-move', ['ewl_move0','ewl_move1','ewl_move2','ewl_move3','ewl_move4','ewl_move5'], 10, -1);
-  mk('ewl-atk',  ['ewl_atk0','ewl_atk1','ewl_atk2','ewl_atk3'], 10, 0); // one cycle per cast
-  mk('ewl-hit',  ['ewl_hit'], 10, 0);
-  mk('ewl-die',  ['ewl_die0','ewl_die1','ewl_die2','ewl_die3'], 10, 0);
-
-  // 6-frame stomping walk + 4-frame wind-and-punch
-  mk('ego-move', ['ego_move0','ego_move1','ego_move2','ego_move3','ego_move4','ego_move5'], 9, -1);
-  mk('ego-atk',  ['ego_atk0','ego_atk1','ego_atk2','ego_atk3'], 8, -1);
-  mk('ego-hit',  ['ego_hit'], 8, 0);
-  mk('ego-die',  ['ego_die0','ego_die1','ego_die2','ego_die3'], 8, 0);
-
-  // 6-frame scamper + 4-frame coil-and-rake claw swipe
-  mk('esi-move', ['esi_move0','esi_move1','esi_move2','esi_move3','esi_move4','esi_move5'], 12, -1);
-  mk('esi-atk',  ['esi_atk0','esi_atk1','esi_atk2','esi_atk3'], 10, -1);
-  mk('esi-hit',  ['esi_hit'], 10, 0);
-  mk('esi-die',  ['esi_die0','esi_die1','esi_die2','esi_die3'], 10, 0);
-
-
+  registerCastleEnemyAnimations(scene);
 
   // Warlock bolt
   mk('wbolt-spin', ['wbolt_0','wbolt_1'], 8, -1);
@@ -443,29 +386,6 @@ export function registerAnimations(scene: Phaser.Scene) {
   mk('ram-die',        ['ram_die0','ram_die1','ram_die2','ram_die3','ram_die4'], 6, 0);
 
   registerGaleclawAnimations(scene);
-
-  // Castle boss (Phantom Queen) animations
-  // 4-frame idle/move so the hair + gown never stop flowing
-  mk('cqboss-idle',       ['cqboss_idle0','cqboss_idle1','cqboss_idle2','cqboss_idle3'], 6, -1);
-  mk('cqboss-move',       ['cqboss_move0','cqboss_move1','cqboss_move2','cqboss_move3'], 8, -1);
-  mk('cqboss-atk',        ['cqboss_atk0','cqboss_atk1'], 4, 0);
-  mk('cqboss-chargewind', ['cqboss_chargeWind','cqboss_idle0'], 6, -1);
-  mk('cqboss-hit',        ['cqboss_hit'], 10, 0);
-  mk('cqboss-birth',      ['cqboss_birth0','cqboss_birth1','cqboss_birth2','cqboss_birth3','cqboss_birth4'], 4, 0);
-  mk('cqboss-die',        ['cqboss_die0','cqboss_die1','cqboss_die2','cqboss_die3','cqboss_die4'], 6, 0);
-
-  // Castle boss (Castle Dragon) animations
-  // 4-frame breathing idle + prowling walk
-  mk('cdboss-idle',       ['cdboss_idle0','cdboss_idle1','cdboss_idle2','cdboss_idle3'], 5, -1);
-  mk('cdboss-move',       ['cdboss_move0','cdboss_move1','cdboss_move2','cdboss_move3'], 7, -1);
-  // Fireball attack: windup (rear + throat ignites) for 250ms, then the maw
-  // opens and the jet roars — EnemyBossSystem spawns the fireball at 250ms
-  // to line up with the open-mouth frames.
-  mk('cdboss-atk',        ['cdboss_atk0','cdboss_atk2','cdboss_atk1','cdboss_atk3'], 8, 0);
-  mk('cdboss-chargewind', ['cdboss_chargeWind','cdboss_idle0'], 6, -1);
-  mk('cdboss-hit',        ['cdboss_hit'], 10, 0);
-  mk('cdboss-birth',      ['cdboss_birth0','cdboss_birth1','cdboss_birth2','cdboss_birth3','cdboss_birth4'], 4, 0);
-  mk('cdboss-die',        ['cdboss_die0','cdboss_die1','cdboss_die2','cdboss_die3','cdboss_die4'], 6, 0);
 
   for (const prefix of ['dsboss', 'dwboss', 'dtboss', 'spboss']) {
     mk(`${prefix}-idle`,       [`${prefix}_idle0`,`${prefix}_idle1`], 2, -1);

@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { Biome, Difficulty } from '../levels';
 import { measureOpaqueBounds } from '../entities/spriteBounds';
 import { CFG } from '../config';
+import { IRONCAP_SIZE } from './art/ironcap';
 import { RIVER_FLIER_SIZE, riverBatTexturePrefix } from './art/riverEnemies/textures';
 import { GALECLAW_CANVAS_SIZE } from './art/riverEnemies/griffin';
 
@@ -13,7 +14,7 @@ const CAMPAIGN_BIOME_FOLDERS: Record<Biome, string[]> = {
   forest:     ['bear', 'spider', 'wolf', 'boss_forest'],
   infected:   ['toad', 'infected_basic', 'infected_heavy', 'infected_runner', 'boss_infected'],
   river:      ['crow', 'river_bat', 'dragonfly', 'mosquito', 'boss_river'],
-  castle:     ['skeleton', 'warlock', 'golem', 'shadow_imp', 'bat', 'rat', 'boss_castle_q', 'boss_castle_d'],
+  castle:     ['skeleton', 'warlock', 'golem', 'shadow_imp', 'bat', 'castle_rat', 'boss_castle_q', 'boss_castle_d'],
   desert:     ['scorpion', 'boss_scorpion', 'scarab', 'sand_mite', 'cactus_hopper', 'dune_strider', 'sand_wraith', 'temple_guardian', 'sun_mote', 'boss_desert_burrower', 'boss_desert_scorpion', 'boss_desert_sandstorm', 'boss_desert_wraith', 'boss_desert_construct', 'boss_desert_sun_priest'],
   // Unimplemented biomes — fall back to loading everything if a future level
   // somehow routes here, so a missing entry doesn't ship as broken sprites.
@@ -97,7 +98,7 @@ const OVERRIDES: Record<string, CharacterOverrides> = {
   spider:  { pngScaleMultiplier: 1.2,  anims: { move: { fps: 18 } } },
   wolf:  { anims: { move: { fps: 24 } } },
   bear:  { pngScaleMultiplier: 2.4,  anims: { move: { fps: 18 }, atk: { fps: 24 } } },
-  golem:  { pngScaleMultiplier: 1.3, anims: { atk: { fps: 20 } } },
+  golem:  { pngScaleMultiplier: 1.3 * 64 / IRONCAP_SIZE, anims: { atk: { fps: 20 } } },
   crow:  { pngScaleMultiplier: 1.2,  anims: { move: { fps: 14 }, atk: { fps: 14 } }  },
   dragonfly:  { pngScaleMultiplier: 1.2,  anims: { move: { fps: 24 }, atk: { fps: 24 } }  },
   mosquito:  { pngScaleMultiplier: 1.1 },
@@ -187,6 +188,7 @@ const BUILTIN: CharacterSpec[] = [
   { folder: 'heavy',          texPrefix: 'eh',    anims: stdEnemyAnims('eh') },
   { folder: 'snake',          texPrefix: 'esnk',  anims: stdEnemyAnims('esnk') },
   { folder: 'rat',            texPrefix: 'erat',  anims: stdEnemyAnims('erat') },
+  { folder: 'castle_rat',     texPrefix: 'ecrat0', anims: stdEnemyAnims('ecrat0') },
   { folder: 'deer',           texPrefix: 'eder',  anims: stdEnemyAnims('eder') },
   { folder: 'wolf',           texPrefix: 'ew',    anims: stdEnemyAnims('ew') },
   { folder: 'spider',         texPrefix: 'es',    anims: stdEnemyAnims('es') },
@@ -198,10 +200,10 @@ const BUILTIN: CharacterSpec[] = [
   { folder: 'bat',            texPrefix: 'ebt',   anims: stdEnemyAnims('ebt') },
   { folder: 'dragonfly',      texPrefix: 'edf',   anims: stdEnemyAnims('edf'), proceduralCanvasSize: RIVER_FLIER_SIZE },
   { folder: 'mosquito',       texPrefix: 'emq',   anims: stdEnemyAnims('emq'), proceduralCanvasSize: RIVER_FLIER_SIZE },
-  { folder: 'skeleton',       texPrefix: 'esk',   anims: stdEnemyAnims('esk') },
-  { folder: 'warlock',        texPrefix: 'ewl',   anims: stdEnemyAnims('ewl') },
-  { folder: 'golem',          texPrefix: 'ego',   anims: stdEnemyAnims('ego') },
-  { folder: 'shadow_imp',     texPrefix: 'esi',   anims: stdEnemyAnims('esi') },
+  { folder: 'skeleton',       texPrefix: 'esk',   anims: stdEnemyAnims('esk'), proceduralCanvasSize: 96 },
+  { folder: 'warlock',        texPrefix: 'ewl',   anims: stdEnemyAnims('ewl'), proceduralCanvasSize: 96 },
+  { folder: 'golem',          texPrefix: 'ego',   anims: stdEnemyAnims('ego'), proceduralCanvasSize: IRONCAP_SIZE },
+  { folder: 'shadow_imp',     texPrefix: 'esi',   anims: stdEnemyAnims('esi'), proceduralCanvasSize: 96 },
   { folder: 'scorpion',        texPrefix: 'escp',  anims: stdEnemyAnims('escp') },
   { folder: 'boss_scorpion',   texPrefix: 'ebsc',  anims: stdEnemyAnims('ebsc') },
   { folder: 'scarab',          texPrefix: 'esrb',  anims: stdEnemyAnims('esrb') },

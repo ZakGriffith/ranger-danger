@@ -147,14 +147,6 @@ export const P = {
   wlkG:   '#a040e0',   // staff glow violet
   wlkGL:  '#d090ff',
 
-  // stone golem (warm rock + glowing runes)
-  glm:    '#8a8274',
-  glmD:   '#4e483c',
-  glmM:   '#6a6456',
-  glmL:   '#aaa291',
-  glmR:   '#ff9018',   // rune/eye glow
-  glmRL:  '#ffc850',
-
   // bat (grey-brown fur, plum membrane wings)
   bat2:   '#4e4248',
   bat2D:  '#2a2228',

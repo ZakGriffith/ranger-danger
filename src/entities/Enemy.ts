@@ -3,7 +3,7 @@ import { CFG } from '../config';
 import { applyEntityVisual } from '../assets/spriteOverrides';
 import { Shadow } from './Shadow';
 import { DEBUG } from '../debug.config';
-import { RAT_VARIANTS } from '../assets/art/rat';
+import { CASTLE_RAT_COUNT } from '../assets/art/castleEnemies/textures';
 import { BLOB_FOOT_Y, BLOB_ORIGIN_Y, BLOB_SPRITE_SCALE, BLOB_VARIANTS } from '../assets/art/infectedBlob';
 import { INFECTED_SPIDER_VARIANTS, infectedSpiderTexturePrefix } from '../assets/art/infectedSpider';
 import { MIRE_SNAPPER_ORIGIN_Y, MIRE_SNAPPER_PALETTES, mireSnapperTexturePrefix } from '../assets/art/infectedEnemies/mireSnapper';
@@ -164,23 +164,20 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
       }
       // Castle enemies
       case 'skeleton':
-        applyEntityVisual(this, 'skeleton', 'move', 0.5, 24, 24, 20, 24);
+        applyEntityVisual(this, 'skeleton', 'move', 0.5, 24, 24, 36, 40);
         this.play('esk-move');
         break;
       case 'warlock':
-        applyEntityVisual(this, 'warlock', 'move', 0.5, 24, 24, 20, 24);
+        applyEntityVisual(this, 'warlock', 'move', 0.5, 24, 24, 36, 40);
         this.play('ewl-move');
         break;
       case 'golem':
-        // Wider body than other enemies — needed for the same-kind collider in
-        // GameScene to give visible spacing between golems. Width narrowed to
-        // fit inside the golem PNG silhouette so arrows don't trigger in the
-        // empty pixels beside it.
-        applyEntityVisual(this, 'golem', 'move', 0.55, 38, 50, 13, 14);
-        this.play('ego-move');
+        // The larger canvas shifts the center by 16 source pixels, so offset the body to keep its world position.
+        applyEntityVisual(this, 'golem', 'move', 0.55, 38, 50, 29, 30);
+        this.play(`${texPrefix}-move`);
         break;
       case 'shadow_imp':
-        applyEntityVisual(this, 'shadow_imp', 'move', 0.45, 20, 20, 22, 26);
+        applyEntityVisual(this, 'shadow_imp', 'move', 0.45, 20, 20, 38, 42);
         this.play('esi-move');
         break;
       case 'castle_bat':
@@ -189,7 +186,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
         this.flying = true;
         break;
       case 'castle_rat':
-        applyEntityVisual(this, 'rat', 'move', 0.45, 38, 16, 18, 35);
+        applyEntityVisual(this, 'castle_rat', 'move', 0.45, 38, 16, 18, 35);
         this.play(`${texPrefix}-move`);
         break;
       case 'scorpion':
@@ -258,7 +255,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     if (kind === 'toad') return Phaser.Math.Between(0, TOAD_VARIANTS - 1);
     if (kind === 'bat') return Phaser.Math.Between(0, RIVER_BAT_COUNT - 1);
     if (kind === 'dragonfly') return Phaser.Math.Between(0, RIVER_DRAGONFLY_COUNT - 1);
-    return kind === 'castle_rat' ? Phaser.Math.Between(0, RAT_VARIANTS - 1) : 0;
+    return kind === 'castle_rat' ? Phaser.Math.Between(0, CASTLE_RAT_COUNT - 1) : 0;
   }
 
   static texPrefix(kind: EnemyKind, variant = 0): string {

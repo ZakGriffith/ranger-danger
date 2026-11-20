@@ -9,6 +9,7 @@ import { FOREST_BEAR_ART } from '../assets/art/forestEnemies/bear';
 import { registerForestAnimations } from '../assets/art/forestEnemies/textures';
 import { registerInfectedAnimations } from '../assets/art/infectedEnemies/textures';
 import { BLOB_SPRITE_SCALE } from '../assets/art/infectedBlob';
+import { registerCastleEnemyAnimations } from '../assets/art/castleEnemies/textures';
 import { registerRiverEnemyAnimations, RIVER_FLIER_ART } from '../assets/art/riverEnemies/textures';
 import { registerGaleclawAnimations } from '../assets/art/riverEnemies/griffin';
 import { FOREST_WENDIGO_ART } from '../assets/art/forestEnemies/wendigo';
@@ -65,6 +66,7 @@ const ENTITY_PROC_SCALES: Record<string, number> = {
   heavy: 0.5,
   snake: MEADOW_ENEMY_ART.snake.spriteScale,
   rat: 0.45,
+  castle_rat: 0.45,
   deer: MEADOW_ENEMY_ART.deer.spriteScale,
   wolf: 0.54,
   bear: FOREST_BEAR_ART.spriteScale,
@@ -222,6 +224,7 @@ export class DebugGalleryScene extends Phaser.Scene {
     generateCannonTowerGalleryTextures(this);
     registerForestAnimations(this);
     registerInfectedAnimations(this);
+    registerCastleEnemyAnimations(this);
     registerRiverEnemyAnimations(this);
     registerGaleclawAnimations(this);
     registerRangerGalleryArt(this);
