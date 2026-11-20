@@ -8,6 +8,7 @@ import { Wall } from '../entities/Wall';
 import { SFX } from '../audio/sfx';
 import { gridGet, gridKey, gridSet } from './Pathfinding';
 import type { GameScene, BuildKind } from '../scenes/GameScene';
+import type { Enemy } from '../entities/Enemy';
 
 type Tile = { x: number; y: number };
 type WallDraft = {
@@ -147,6 +148,7 @@ export class BuildSystem {
         if (gridGet(scene.grid, tx + i, ty + j) !== 0) return false;
       }
     }
+    if (this.occupied(tx, ty, s)) return false;
     // Rivers enemies all fly, and its clearings sit inside solid woods, so a
     // ground-reach test from the player would fail everywhere. Skip it there.
     if (scene.biome === 'river') return true;
@@ -167,6 +169,30 @@ export class BuildSystem {
     const nearestX = Phaser.Math.Clamp(x, tx * CFG.tile, (tx + size) * CFG.tile);
     const nearestY = Phaser.Math.Clamp(y, ty * CFG.tile, (ty + size) * CFG.tile);
     return (x - nearestX) ** 2 + (y - nearestY) ** 2 <= CFG.buildRadius ** 2;
+  }
+
+  /**
+   * True when the ranger, a live ground enemy or a grounded boss is standing
+   * on the footprint. Flying creatures pass over structures, so they don't
+   * count. Compares physics bodies, not sprite art, so a tall sprite whose
+   * head overlaps the tile doesn't block it.
+   */
+  private occupied(tx: number, ty: number, size = 1): boolean {
+    const scene = this.scene;
+    const left = tx * CFG.tile, top = ty * CFG.tile, right = left + size * CFG.tile, bottom = top + size * CFG.tile;
+    const onFootprint = (go: Phaser.GameObjects.GameObject) => {
+      const b = go.body as Phaser.Physics.Arcade.Body | null;
+      if (!b) return false;
+      return b.x < right && b.x + b.width > left && b.y < bottom && b.y + b.height > top;
+    };
+    if (onFootprint(scene.player)) return true;
+    for (const e of scene.enemies.getChildren() as Enemy[]) {
+      if (e.active && !e.dying && !e.flying && onFootprint(e)) return true;
+    }
+    for (const b of [scene.bossState.boss, scene.bossState.midBoss]) {
+      if (b && b.active && !b.dying && !b.flying && onFootprint(b)) return true;
+    }
+    return false;
   }
 
   private handleClick(p: Phaser.Input.Pointer) {
@@ -336,7 +362,7 @@ export class BuildSystem {
       for (const tile of pending) {
         const { x, y } = tile;
         if (!this.inBuildRange(x, y)) { error = 'Out of range'; continue; }
-        if (gridGet(scene.grid, x, y) !== 0) { error = 'Blocked'; continue; }
+        if (gridGet(scene.grid, x, y) !== 0 || this.occupied(x, y)) { error = 'Blocked'; continue; }
         if (tiles.size >= limit) {
           error = (tiles.size + 1) * CFG.wall.cost > scene.player.money ? 'Not enough gold' : '';
           break;
@@ -393,7 +419,7 @@ export class BuildSystem {
     for (const { x, y } of tiles) {
       if (placed >= limit) break;
       if (!this.inBuildRange(x, y)) continue;
-      if (gridGet(scene.grid, x, y) !== 0 || !this.wallPreservesPaths(x, y, playerTile, minReach)) continue;
+      if (gridGet(scene.grid, x, y) !== 0 || this.occupied(x, y) || !this.wallPreservesPaths(x, y, playerTile, minReach)) continue;
       const wall = new Wall(scene, x, y);
       scene.walls.push(wall);
       scene.wallGroup.add(wall);
@@ -498,7 +524,7 @@ export class BuildSystem {
           scene._wallCheckCache.clear();
         }
         const inRange = this.inBuildRange(tx, ty);
-        const tileBlocked = gridGet(scene.grid, tx, ty) !== 0;
+        const tileBlocked = gridGet(scene.grid, tx, ty) !== 0 || this.occupied(tx, ty);
         let valid = inRange && !tileBlocked;
         if (valid) {
           // Per-tile cache — cleared on player move and on any grid
