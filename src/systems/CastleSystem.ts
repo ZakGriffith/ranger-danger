@@ -18,11 +18,14 @@ export function castleTrapState(time: number, offset: number): CastleTrapState {
 }
 
 export class CastleSystem {
+  readonly trapBlockers: Phaser.Physics.Arcade.StaticGroup;
   private generatedChunks = new Set<string>();
   private traps: Trap[] = [];
   private nextDamageAt = 0;
 
-  constructor(private scene: GameScene) {}
+  constructor(private scene: GameScene) {
+    this.trapBlockers = scene.physics.add.staticGroup();
+  }
 
   generateChunk(cx: number, cy: number) {
     const key = `${cx},${cy}`;
@@ -62,6 +65,12 @@ export class CastleSystem {
           const sprite = scene.add.image(wx, wy, `castle_trap_${state}`)
             .setScale(.5).setOrigin(.5, 56 / 88).setDepth(-10);
           this.traps.push({ x, y, offset, sprite });
+          const blocker = scene.add.zone(wx, wy, t, t);
+          scene.physics.add.existing(blocker, true);
+          const body = blocker.body as Phaser.Physics.Arcade.StaticBody;
+          body.setSize(t, t);
+          body.position.set(x * t, y * t);
+          this.trapBlockers.add(blocker);
         }
       }
     }
@@ -72,7 +81,7 @@ export class CastleSystem {
         if (prop.x < x0 || prop.x >= x0 + CFG.chunkSize || prop.y < y0 || prop.y >= y0 + CFG.chunkSize) continue;
         const wx = (prop.x + prop.width / 2) * t, wy = (prop.y + prop.height / 2) * t;
         const variant = Math.floor(castleHash(prop.x, prop.y, seed + 227) * 3);
-        scene.add.image(wx, wy, `castle_${prop.kind}_${variant}`).setScale(.5)
+        scene.add.image(wx, wy, `castle_tomb_${variant}`).setScale(.5)
           .setDepth(100 + (prop.y + prop.height) * t * .1);
       }
     }

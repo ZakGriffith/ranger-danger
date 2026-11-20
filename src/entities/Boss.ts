@@ -101,6 +101,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
       griffin ? bodyCenterOffset : Math.round(96 - bw),
       prefix === 'ram' ? MEADOW_RAM_ART : prefix === 'fboss' ? FOREST_WENDIGO_ART : undefined,
     );
+    if ((scene as GameScene).biome === 'castle' && !this.flying) (scene as GameScene).castleNavigation.alignSpawn(this);
     this.play(`${prefix}-idle`);
 
     // Measure where the visible boss ends so the HP bar sits just below the

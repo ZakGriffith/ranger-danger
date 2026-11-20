@@ -22,7 +22,7 @@ const STATIC_TEXTURE_KEYS: string[] = [
   // Infected plant clusters
   ...Array.from({ length: 16 }, (_, i) => `infected_plant_${i}`),
   // Castle floor spikes
-  'castle_wall_0_0', 'castle_tomb_0', 'castle_crypt_0',
+  'castle_wall_0_0', 'castle_tomb_0',
   'castle_trap_dormant', 'castle_trap_warning', 'castle_trap_active',
   // Off-screen indicators (HUD-ish but static art)
   'ind_arrow', 'ind_cannon', 'ind_boss', 'ind_ptr',

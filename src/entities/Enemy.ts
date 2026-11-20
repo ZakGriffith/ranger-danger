@@ -227,6 +227,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
         this.flying = true;
         break;
     }
+    if ((scene as GameScene).biome === 'castle' && !this.flying) (scene as GameScene).castleNavigation.alignSpawn(this);
     this.randomizeCurrentAnimationProgress();
 
     // Shadow size and ground offset come from the visible pixel bounds of

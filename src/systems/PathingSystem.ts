@@ -69,7 +69,7 @@ export class PathingSystem {
         const ni = idx(nx, ny);
         if (visited[ni]) continue;
         const nv = gridGet(grid, nx, ny);
-        if (nv >= 1 && nv !== 5 && nv !== 6) continue; // Bridges and traps are walkable.
+        if (nv >= 1 && nv !== 5) continue; // Bridges are walkable.
         visited[ni] = 1;
         queue.push(ni);
       }
@@ -81,12 +81,12 @@ export class PathingSystem {
         const ni = idx(nx, ny);
         if (visited[ni]) continue;
         const dv = gridGet(grid, nx, ny);
-        if (dv >= 1 && dv !== 5 && dv !== 6) continue;
+        if (dv >= 1 && dv !== 5) continue;
         const c1 = gridGet(grid, cx + dx, cy);
         const c2 = gridGet(grid, cx, cy + dy);
-        const solid1 = c1 === 1 || c1 === 3 || c1 === 4 || c1 === 7 || c1 === 8 || c1 === 9 || c1 === 10;
-        const solid2 = c2 === 1 || c2 === 3 || c2 === 4 || c2 === 7 || c2 === 8 || c2 === 9 || c2 === 10;
-        if (solid1 || solid2 || (c1 >= 1 && c1 !== 6 && c2 >= 1 && c2 !== 6)) continue;
+        const solid1 = c1 === 1 || c1 === 3 || c1 === 4 || c1 === 6 || c1 === 7 || c1 === 8 || c1 === 9 || c1 === 10;
+        const solid2 = c2 === 1 || c2 === 3 || c2 === 4 || c2 === 6 || c2 === 7 || c2 === 8 || c2 === 9 || c2 === 10;
+        if (solid1 || solid2 || (c1 >= 1 && c2 >= 1)) continue;
         visited[ni] = 1;
         queue.push(ni);
       }
@@ -146,7 +146,7 @@ export class PathingSystem {
       for (let ty = minTY; ty <= maxTY; ty++) {
         for (let tx = minTX; tx <= maxTX; tx++) {
           const v = gridGet(grid, tx, ty);
-          if (v === 1 || v === 3 || v === 4 || v === 10) return true;
+          if (v === 1 || v === 3 || v === 4 || v === 6 || v === 10) return true;
         }
       }
     }

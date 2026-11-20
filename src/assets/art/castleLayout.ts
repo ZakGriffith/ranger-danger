@@ -4,7 +4,7 @@ export const CASTLE_SOLID_TILE = 10;
 export const CASTLE_TRAP_TILE = 6;
 
 type Cell = { x: number; y: number };
-export type CastleProp = { x: number; y: number; width: number; height: number; kind: 'crypt' | 'tomb' };
+export type CastleProp = { x: number; y: number; width: number; height: number };
 
 export function castleHash(x: number, y: number, seed: number): number {
   let h = Math.imul(x, 374761393) ^ Math.imul(y, 668265263) ^ Math.imul(seed, 1274126177);
@@ -45,9 +45,8 @@ export function castleProps(x: number, y: number, seed: number): CastleProp[] {
   const ox = x * CASTLE_CELL_TILES - CELL_CENTER, oy = y * CASTLE_CELL_TILES - CELL_CENTER;
   for (const [i, [dx, dy]] of [[1, 1], [CASTLE_CELL_TILES - 3, 1], [1, CASTLE_CELL_TILES - 3], [CASTLE_CELL_TILES - 3, CASTLE_CELL_TILES - 3]].entries()) {
     const roll = castleHash(x * 4 + i, y, seed + 71);
-    if (roll > .42) continue;
-    const crypt = roll < .17;
-    props.push({ x: ox + dx, y: oy + dy, width: 2, height: crypt ? 2 : 1, kind: crypt ? 'crypt' : 'tomb' });
+    if (roll < .17 || roll > .42) continue;
+    props.push({ x: ox + dx, y: oy + dy, width: 2, height: 1 });
   }
   return props;
 }

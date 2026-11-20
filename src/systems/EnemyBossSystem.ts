@@ -118,6 +118,7 @@ export class EnemyBossSystem {
       }
     }
     e.setPosition(nx, ny);
+    if (scene.biome === 'castle' && !e.flying) scene.castleNavigation.alignSpawn(e);
     if (e.body && (e.body as any).enable) e.setVelocity(0, 0);
     e.path = [];
     e.pathIdx = 0;
@@ -306,7 +307,7 @@ export class EnemyBossSystem {
       // clamped to vel=0 — treating that as "stuck" would fire Stage 2
       // perpendicular nudges every 600ms, producing the visible "wolves
       // jiggling in place where the player just was" oscillation.
-      const skipsStuckCheck = e.kind === 'toad' || e.kind === 'warlock' || e.flying || (e as any)._attacking === true;
+      const skipsStuckCheck = e.kind === 'toad' || (e.kind === 'warlock' && commandedSpeed <= MOVING_SPEED_THRESH) || e.flying || (e as any)._attacking === true;
       const wasStuckMsec = e.stuckMsec;
       if (!skipsStuckCheck && movedDist < STUCK_MOVE_THRESH) {
         e.stuckMsec += delta;
@@ -365,6 +366,7 @@ export class EnemyBossSystem {
         const dx = e.x - tx, dy = e.y - ty;
         const inv = 1 / Math.sqrt(dx * dx + dy * dy);
         e.setPosition(tx + dx * inv * respawnR, ty + dy * inv * respawnR);
+        if (scene.biome === 'castle' && !e.flying) scene.castleNavigation.alignSpawn(e);
         if (e.body && (e.body as any).enable) e.setVelocity(0, 0);
         e.path = [];
         e.pathIdx = 0;
@@ -381,6 +383,7 @@ export class EnemyBossSystem {
         const dx = e.x - tx, dy = e.y - ty;
         const d = Math.sqrt(dx * dx + dy * dy) || 1;
         e.setPosition(tx + (dx / d) * respawnR, ty + (dy / d) * respawnR);
+        if (scene.biome === 'castle' && !e.flying) scene.castleNavigation.alignSpawn(e);
         if (e.body && (e.body as any).enable) e.setVelocity(0, 0);
         e.path = [];
         e.pathIdx = 0;
@@ -540,6 +543,10 @@ export class EnemyBossSystem {
           return true;
         }
 
+        if (scene.biome === 'castle') {
+          scene.castleNavigation.moveEnemy(e, time, delta);
+          return true;
+        }
         const dx = tx - e.x, dy = ty - e.y;
         const d = dist || 1;
         e.setVelocity((dx / d) * e.speed, (dy / d) * e.speed);
@@ -608,6 +615,10 @@ export class EnemyBossSystem {
         return true;
       }
       (e as any)._attacking = false;
+      if (scene.biome === 'castle' && !e.flying) {
+        scene.castleNavigation.moveEnemy(e, time, delta, wolfBiting);
+        return true;
+      }
 
       // Path recompute runs FIRST — BEFORE direct pursuit — so the path is
       // always cached and ready when LOS unexpectedly blocks (e.g. player
@@ -1090,92 +1101,98 @@ export class EnemyBossSystem {
     }
 
     let moveX = 0, moveY = 0;
-    // Flying bosses ignore wall-blocked pathing — they
-    // fly straight at the player. Keyed off b.flying so a flying boss in any
-    // biome still passes over terrain in endless mode.
-    const clear = b.flying || !scene.pathing.lineBlocked(b.x, b.y, px, py);
-    if (clear) {
-      const dx = px - b.x, dy = py - b.y;
-      const d = Math.hypot(dx, dy) || 1;
-      moveX = dx / d; moveY = dy / d;
-      b.path = [];
+    if (scene.biome === 'castle' && !b.flying) {
+      const velocity = scene.castleNavigation.velocity(b, time, scene.game.loop.delta * scene.timeMult);
+      moveX = velocity.x / b.speed;
+      moveY = velocity.y / b.speed;
     } else {
-      if (time > b.lastPath + 400 || b._pv !== scene.gridVersion || !b.path || b.path.length === 0) {
-        b.lastPath = time;
-        b._pv = scene.gridVersion;
-        const start = scene.pathing.worldToTile(b.x, b.y);
-        const goal = scene.pathing.worldToTile(px, py);
-        const saved = gridGet(scene.grid, goal.x, goal.y);
-        if (saved >= 1) gridSet(scene.grid, goal.x, goal.y, 0);
-        b.path = findPath(scene.grid, start.x, start.y, goal.x, goal.y);
-        if (saved >= 1) gridSet(scene.grid, goal.x, goal.y, saved);
+      // Flying bosses ignore wall-blocked pathing — they
+      // fly straight at the player. Keyed off b.flying so a flying boss in any
+      // biome still passes over terrain in endless mode.
+      const clear = b.flying || !scene.pathing.lineBlocked(b.x, b.y, px, py);
+      if (clear) {
+        const dx = px - b.x, dy = py - b.y;
+        const d = Math.hypot(dx, dy) || 1;
+        moveX = dx / d; moveY = dy / d;
+        b.path = [];
+      } else {
+        if (time > b.lastPath + 400 || b._pv !== scene.gridVersion || !b.path || b.path.length === 0) {
+          b.lastPath = time;
+          b._pv = scene.gridVersion;
+          const start = scene.pathing.worldToTile(b.x, b.y);
+          const goal = scene.pathing.worldToTile(px, py);
+          const saved = gridGet(scene.grid, goal.x, goal.y);
+          if (saved >= 1) gridSet(scene.grid, goal.x, goal.y, 0);
+          b.path = findPath(scene.grid, start.x, start.y, goal.x, goal.y);
+          if (saved >= 1) gridSet(scene.grid, goal.x, goal.y, saved);
 
-        if (b.path.length === 0) {
-          for (let r = 1; r <= 6; r++) {
-            let bestPath: { x: number; y: number }[] = [];
-            for (let dy = -r; dy <= r; dy++) {
-              for (let dx = -r; dx <= r; dx++) {
-                if (Math.abs(dx) !== r && Math.abs(dy) !== r) continue;
-                const nx = goal.x + dx, ny = goal.y + dy;
-                if (gridGet(scene.grid, nx, ny) >= 1) continue;
-                const p = findPath(scene.grid, start.x, start.y, nx, ny);
-                if (p.length > 0 && (bestPath.length === 0 || p.length < bestPath.length)) {
-                  bestPath = p;
+          if (b.path.length === 0) {
+            for (let r = 1; r <= 6; r++) {
+              let bestPath: { x: number; y: number }[] = [];
+              for (let dy = -r; dy <= r; dy++) {
+                for (let dx = -r; dx <= r; dx++) {
+                  if (Math.abs(dx) !== r && Math.abs(dy) !== r) continue;
+                  const nx = goal.x + dx, ny = goal.y + dy;
+                  if (gridGet(scene.grid, nx, ny) >= 1) continue;
+                  const p = findPath(scene.grid, start.x, start.y, nx, ny);
+                  if (p.length > 0 && (bestPath.length === 0 || p.length < bestPath.length)) {
+                    bestPath = p;
+                  }
                 }
               }
+              if (bestPath.length > 0) { b.path = bestPath; break; }
             }
-            if (bestPath.length > 0) { b.path = bestPath; break; }
           }
+
+          b.pathIdx = 0;
         }
 
-        b.pathIdx = 0;
-      }
-
-      if (b.path && b.path.length > 0) {
-        if (b.pathIdx >= b.path.length) b.pathIdx = b.path.length - 1;
-        let lookahead = b.pathIdx;
-        for (let i = b.path.length - 1; i > b.pathIdx; i--) {
-          const node = b.path[i];
+        if (b.path && b.path.length > 0) {
+          if (b.pathIdx >= b.path.length) b.pathIdx = b.path.length - 1;
+          let lookahead = b.pathIdx;
+          for (let i = b.path.length - 1; i > b.pathIdx; i--) {
+            const node = b.path[i];
+            const nx = node.x * CFG.tile + CFG.tile / 2;
+            const ny = node.y * CFG.tile + CFG.tile / 2;
+            if (!scene.pathing.lineBlocked(b.x, b.y, nx, ny)) { lookahead = i; break; }
+          }
+          b.pathIdx = lookahead;
+          const node = b.path[b.pathIdx];
           const nx = node.x * CFG.tile + CFG.tile / 2;
           const ny = node.y * CFG.tile + CFG.tile / 2;
-          if (!scene.pathing.lineBlocked(b.x, b.y, nx, ny)) { lookahead = i; break; }
+          const dx = nx - b.x, dy = ny - b.y;
+          const d = Math.hypot(dx, dy);
+          if (d < 4 && b.pathIdx < b.path.length - 1) b.pathIdx++;
+          if (d > 0.01) { moveX = dx / d; moveY = dy / d; }
+        } else {
+          moveX = 0; moveY = 0;
         }
-        b.pathIdx = lookahead;
-        const node = b.path[b.pathIdx];
-        const nx = node.x * CFG.tile + CFG.tile / 2;
-        const ny = node.y * CFG.tile + CFG.tile / 2;
-        const dx = nx - b.x, dy = ny - b.y;
-        const d = Math.hypot(dx, dy);
-        if (d < 4 && b.pathIdx < b.path.length - 1) b.pathIdx++;
-        if (d > 0.01) { moveX = dx / d; moveY = dy / d; }
-      } else {
-        moveX = 0; moveY = 0;
       }
-    }
 
-    const btx = Math.floor(b.x / CFG.tile), bty = Math.floor(b.y / CFG.tile);
-    let avoidX = 0, avoidY = 0;
-    for (let oy = -1; oy <= 1; oy++) {
-      for (let ox = -1; ox <= 1; ox++) {
-        if (ox === 0 && oy === 0) continue;
-        const gx = btx + ox, gy = bty + oy;
-        if (gridGet(scene.grid, gx, gy) < 1) continue;
-        const wallCX = gx * CFG.tile + CFG.tile / 2;
-        const wallCY = gy * CFG.tile + CFG.tile / 2;
-        const rdx = b.x - wallCX, rdy = b.y - wallCY;
-        const rd = Math.hypot(rdx, rdy) || 1;
-        const strength = Math.max(0, 1 - rd / (CFG.tile * 1.2));
-        avoidX += (rdx / rd) * strength;
-        avoidY += (rdy / rd) * strength;
+      const btx = Math.floor(b.x / CFG.tile), bty = Math.floor(b.y / CFG.tile);
+      let avoidX = 0, avoidY = 0;
+      for (let oy = -1; oy <= 1; oy++) {
+        for (let ox = -1; ox <= 1; ox++) {
+          if (ox === 0 && oy === 0) continue;
+          const gx = btx + ox, gy = bty + oy;
+          if (gridGet(scene.grid, gx, gy) < 1) continue;
+          const wallCX = gx * CFG.tile + CFG.tile / 2;
+          const wallCY = gy * CFG.tile + CFG.tile / 2;
+          const rdx = b.x - wallCX, rdy = b.y - wallCY;
+          const rd = Math.hypot(rdx, rdy) || 1;
+          const strength = Math.max(0, 1 - rd / (CFG.tile * 1.2));
+          avoidX += (rdx / rd) * strength;
+          avoidY += (rdy / rd) * strength;
+        }
       }
-    }
-    const avoidMag = Math.hypot(avoidX, avoidY);
-    if (avoidMag > 0) {
-      const avoidWeight = 0.35;
-      moveX = moveX * (1 - avoidWeight) + (avoidX / avoidMag) * avoidWeight;
-      moveY = moveY * (1 - avoidWeight) + (avoidY / avoidMag) * avoidWeight;
-      const ml = Math.hypot(moveX, moveY) || 1;
-      moveX /= ml; moveY /= ml;
+      const avoidMag = Math.hypot(avoidX, avoidY);
+      if (avoidMag > 0) {
+        const avoidWeight = 0.35;
+        moveX = moveX * (1 - avoidWeight) + (avoidX / avoidMag) * avoidWeight;
+        moveY = moveY * (1 - avoidWeight) + (avoidY / avoidMag) * avoidWeight;
+        const ml = Math.hypot(moveX, moveY) || 1;
+        moveX /= ml; moveY /= ml;
+      }
     }
     b.setVelocity(moveX * b.speed, moveY * b.speed);
     // While a one-shot attack anim plays (e.g. the dragon's fireball
@@ -1350,6 +1367,7 @@ export class EnemyBossSystem {
     };
     scene.physics.add.collider(b, scene.wallGroup, onStructureHit, () => !b.flying);
     scene.physics.add.collider(b, scene.towerGroup, onStructureHit, () => !b.flying);
+    scene.physics.add.collider(b, scene.castle.trapBlockers, onStructureHit, () => !b.flying);
   }
 
   queenAuraStrike(cx: number, cy: number) {

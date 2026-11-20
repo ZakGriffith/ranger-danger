@@ -1,4 +1,5 @@
 import { CastleSystem } from '../systems/CastleSystem';
+import { CastleNavigationSystem } from '../systems/CastleNavigationSystem';
 import Phaser from 'phaser';
 import { getRegistry } from '../core/registry';
 import { getEvents } from '../core/events';
@@ -418,6 +419,7 @@ export class GameScene extends Phaser.Scene {
     this.depthSort = new DepthSortSystem(this);
     this.chunkSystem = new ChunkSystem(this);
     this.castle = new CastleSystem(this);
+    this.castleNavigation = new CastleNavigationSystem(this);
     this.hud = new HudSystem(this);
     this.towerSelect = new TowerPanelSystem(this);
     this.build = new BuildSystem(this);
@@ -555,6 +557,7 @@ export class GameScene extends Phaser.Scene {
     this.physics.add.collider(this.enemies, this.wallGroup, (e, w) => this.enemyBoss.enemyHitsWall(e as Enemy, w as Wall), (_e, _w) => !((_e as Enemy).flying));
     this.physics.add.collider(this.enemies, this.towerGroup, (e, t) => this.enemyBoss.enemyHitsTower(e as Enemy, t as Tower), (_e, _t) => !((_e as Enemy).flying));
     this.physics.add.collider(this.enemies, this.gapBlockers, undefined, (e) => !((e as Enemy).flying));
+    this.physics.add.collider(this.enemies, this.castle.trapBlockers, undefined, (e) => !((e as Enemy).flying));
     // Big-body enemies (currently just golems) push each other apart so their
     // sprites don't overlap. Add more kinds to the filter to extend.
     this.physics.add.collider(this.enemies, this.enemies, undefined, (a, b) => (a as Enemy).kind === 'golem' && (b as Enemy).kind === 'golem');
@@ -883,6 +886,7 @@ export class GameScene extends Phaser.Scene {
   depthSort!: DepthSortSystem;
   chunkSystem!: ChunkSystem;
   castle!: CastleSystem;
+  castleNavigation!: CastleNavigationSystem;
   hud!: HudSystem;
   towerSelect!: TowerPanelSystem;
   build!: BuildSystem;

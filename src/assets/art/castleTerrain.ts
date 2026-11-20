@@ -48,14 +48,14 @@ function wall(mask: number, variant: number): HTMLCanvasElement {
   return canvas;
 }
 
-function tomb(crypt: boolean, variant: number): HTMLCanvasElement {
+function tomb(variant: number): HTMLCanvasElement {
   const canvas = document.createElement('canvas');
-  canvas.width = 144; canvas.height = crypt ? 176 : 112;
+  canvas.width = 144; canvas.height = 112;
   const ctx = canvas.getContext('2d')!;
   ctx.translate(8, 24);
-  const height = crypt ? 128 : 64;
-  const top = crypt ? -9 : -10;
-  const lidBottom = height - (crypt ? 35 : 24);
+  const height = 64;
+  const top = -10;
+  const lidBottom = height - 24;
   ctx.lineJoin = 'round'; ctx.lineCap = 'round';
   oval(ctx, 65, height - 3, 66, 9, '#11172266');
   shape(ctx, wash(ctx, lidBottom, height, [[0, '#71747c'], [1, '#353b4b']]), 2, p => {
@@ -75,21 +75,9 @@ function tomb(crypt: boolean, variant: number): HTMLCanvasElement {
     p.moveTo(18, top + 11); p.lineTo(109, top + 11); p.lineTo(112, lidBottom - 7);
     p.lineTo(17, lidBottom - 7); p.closePath();
   });
-  if (crypt) {
-    shape(ctx, '#686a71', 1.5, p => {
-      p.moveTo(56, 18); p.lineTo(71, 18); p.lineTo(74, 28); p.lineTo(87, 49); p.lineTo(89, 66);
-      p.lineTo(80, 74); p.lineTo(48, 74); p.lineTo(41, 65); p.lineTo(44, 48); p.lineTo(54, 30);
-    });
-    oval(ctx, 64, 23, 8, 9, '#969692');
-    line(ctx, '#aaa393', 2, p => { p.moveTo(57, 39); p.lineTo(63, 49); p.lineTo(73, 39); p.moveTo(52, 61); p.lineTo(76, 61); });
-    for (const x of [17, 99]) {
-      shape(ctx, '#454d5c', 1.5, p => { p.moveTo(x, 106); p.lineTo(x + 12, 106); p.lineTo(x + 15, 119); p.lineTo(x - 1, 119); });
-    }
-  } else {
-    line(ctx, '#4e5664', 3, p => { p.moveTo(63, 7); p.lineTo(63, 27); p.moveTo(51, 15); p.lineTo(76, 15); });
-    line(ctx, '#b6ab94', 1.3, p => { p.moveTo(65, 7); p.lineTo(65, 27); p.moveTo(53, 17); p.lineTo(76, 17); });
-    for (const x of [19, 106]) oval(ctx, x, height - 8, 5, 3.7, '#353c49');
-  }
+  line(ctx, '#4e5664', 3, p => { p.moveTo(63, 7); p.lineTo(63, 27); p.moveTo(51, 15); p.lineTo(76, 15); });
+  line(ctx, '#b6ab94', 1.3, p => { p.moveTo(65, 7); p.lineTo(65, 27); p.moveTo(53, 17); p.lineTo(76, 17); });
+  for (const x of [19, 106]) oval(ctx, x, height - 8, 5, 3.7, '#353c49');
   line(ctx, '#48505c', 1.4, p => {
     p.moveTo(23 + variant * 17, top + 4); p.lineTo(30 + variant * 15, top + 13); p.lineTo(26 + variant * 16, top + 21);
     p.moveTo(101, lidBottom - 9); p.lineTo(96, lidBottom - 2); p.lineTo(99, lidBottom + 4);
@@ -123,8 +111,7 @@ function trap(state: CastleTrapState): HTMLCanvasElement {
 export function generateCastleTerrainTextures(scene: Phaser.Scene): void {
   for (let mask = 0; mask < 16; mask++) for (let v = 0; v < 3; v++) add(scene, `castle_wall_${mask}_${v}`, wall(mask, v));
   for (let v = 0; v < 3; v++) {
-    add(scene, `castle_tomb_${v}`, tomb(false, v));
-    add(scene, `castle_crypt_${v}`, tomb(true, v));
+    add(scene, `castle_tomb_${v}`, tomb(v));
   }
   for (const state of CASTLE_TRAP_STATES) add(scene, `castle_trap_${state}`, trap(state));
 }
