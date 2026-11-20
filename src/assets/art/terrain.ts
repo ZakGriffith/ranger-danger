@@ -11,6 +11,7 @@ import {
 import { MEADOW_TILE_PX, drawMeadowChunk } from './groundMeadow';
 import { FOREST_TILE_PX, drawForestChunk } from './groundForest';
 import { INFECTED_TILE_PX, drawInfectedChunk } from './groundInfected';
+import { CASTLE_TILE_PX, drawCastleChunk } from './groundCastle';
 import { drawInfectedPlantCanvasHD } from './infectedPlants';
 import { drawTreeClusterCanvasHD } from './forestTrees';
 import { RIVER_TILE_PX, drawRiverChunk } from './groundRiver';
@@ -339,178 +340,6 @@ function drawGroundRiver(tileX: number, tileY: number) {
           put(fx, fy, flowerColors[Math.floor(rnd() * flowerColors.length)]);
           put(fx, fy + 1, '#1a3a18');
         }
-      }
-    }
-  };
-}
-
-// Grasslands ground — gradient transitions between green shades like Bounty of One
-// Dark green → medium green → light green → yellow-green in large smooth zones
-// Castle ground — smooth flagstone and courtyard dirt with decorations
-function drawGroundCastle(tileX: number, tileY: number) {
-  return (put: Put) => {
-    let s = ((tileX * 73856093 + tileY * 19349669) >>> 0) % 2147483647;
-    const rnd = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
-
-    // Use noise to decide flagstone vs dirt zones
-    const sampleN = precomputeNoise(tileX, tileY, 5000, 3000, 600);
-
-    // Flagstone shades
-    const stoneShades = ['#4e5864', '#5a6270', '#525c68', '#636d7a'];
-    // Dirt shades
-    const dirtShades = ['#4a3a28', '#5a4a38', '#6a5a46', '#524232'];
-    // Mortar color
-    const mortar = '#3e4654';
-
-    // Per-pixel hash for dithering at transitions
-    const pxHash = (x: number, y: number) => {
-      let h = ((x * 374761393 + y * 668265263 + 1274126177) >>> 0);
-      h = ((h ^ (h >> 13)) * 1103515245 + 12345) >>> 0;
-      return (h & 0xffff) / 0xffff;
-    };
-    const transitionW = 0.06; // noise range over which we dither
-
-    for (let py = 0; py < 32; py++) {
-      for (let px = 0; px < 32; px++) {
-        const n = sampleN(px, py);
-        const worldPx = tileX * 32 + px;
-        const worldPy = tileY * 32 + py;
-
-        // Transition dithering: in the band around 0.45, randomly mix both textures
-        const threshold = 0.45;
-        let useStone: boolean;
-        if (n > threshold + transitionW) {
-          useStone = true;
-        } else if (n < threshold - transitionW) {
-          useStone = false;
-        } else {
-          // Dither zone: probability ramps from 0 to 1 across the band
-          const t = (n - (threshold - transitionW)) / (2 * transitionW);
-          useStone = pxHash(worldPx, worldPy) < t;
-        }
-
-        if (useStone) {
-          // Flagstone zone
-          // Grid pattern for stone slabs (16x16 slabs with offset rows)
-          const slabRow = Math.floor(worldPy / 16);
-          const slabOff = (slabRow % 2) * 8;
-          const localX = (worldPx + slabOff) % 16;
-          const localY = worldPy % 16;
-          // Mortar lines
-          if (localX === 0 || localY === 0) {
-            put(px, py, mortar);
-          } else {
-            // Shade variation per slab
-            const slabSeed = ((Math.floor((worldPx + slabOff) / 16) * 7919 + slabRow * 104729) >>> 0) % 4;
-            put(px, py, stoneShades[slabSeed]);
-          }
-        } else {
-          // Dirt zone
-          const di = Math.floor(rnd() * dirtShades.length);
-          put(px, py, dirtShades[di < dirtShades.length ? di : 0]);
-        }
-      }
-    }
-
-    // Subtle stone speckles in flagstone areas
-    for (let i = 0; i < 20; i++) {
-      const sx = Math.floor(rnd() * 32), sy = Math.floor(rnd() * 32);
-      const n = sampleN(sx, sy);
-      if (n > 0.45) put(sx, sy, rnd() > 0.5 ? '#6a747e' : '#4a5462');
-    }
-
-    // Pebbles in dirt areas
-    for (let i = 0; i < 8; i++) {
-      const sx = Math.floor(rnd() * 32), sy = Math.floor(rnd() * 32);
-      const n = sampleN(sx, sy);
-      if (n <= 0.45) put(sx, sy, '#7a7060');
-    }
-
-    // --- Decorations (deterministic per tile) ---
-
-    // Crack pattern (~12% of tiles)
-    if (rnd() < 0.12) {
-      const cx = 4 + Math.floor(rnd() * 24);
-      const cy = 4 + Math.floor(rnd() * 24);
-      const len = 4 + Math.floor(rnd() * 8);
-      const dx = rnd() > 0.5 ? 1 : 0;
-      const dy = rnd() > 0.5 ? 1 : (dx === 0 ? 1 : 0);
-      for (let i = 0; i < len; i++) {
-        put(cx + i * dx + Math.floor(rnd() * 2 - 0.5), cy + i * dy + Math.floor(rnd() * 2 - 0.5), '#3a4250');
-      }
-    }
-
-    // Scorch mark (~2% of tiles)
-    if (rnd() < 0.02) {
-      const sx = 8 + Math.floor(rnd() * 16);
-      const sy = 8 + Math.floor(rnd() * 16);
-      for (let dy = -3; dy <= 3; dy++) {
-        for (let dx = -3; dx <= 3; dx++) {
-          if (dx * dx + dy * dy <= 9) {
-            const px2 = sx + dx, py2 = sy + dy;
-            if (px2 >= 0 && px2 < 32 && py2 >= 0 && py2 < 32) {
-              put(px2, py2, dx * dx + dy * dy <= 4 ? '#1a1a22' : '#2a2a30');
-            }
-          }
-        }
-      }
-    }
-
-    // Moss patch (~10% of tiles)
-    if (rnd() < 0.10) {
-      const mx = 8 + Math.floor(rnd() * 16);
-      const my = 8 + Math.floor(rnd() * 16);
-      for (let i = 0; i < 8; i++) {
-        put(mx + Math.floor(rnd() * 6 - 3), my + Math.floor(rnd() * 6 - 3), rnd() > 0.5 ? '#2e4a2a' : '#3e5f38');
-      }
-    }
-
-    // Bones (~6% of tiles) — varied patterns
-    if (rnd() < 0.06) {
-      const bx = 6 + Math.floor(rnd() * 20);
-      const by = 8 + Math.floor(rnd() * 16);
-      const bone = '#c8c0b0';
-      const boneHi = '#d8d0c0';
-      const boneLo = '#a8a090';
-      const pattern = Math.floor(rnd() * 5);
-      if (pattern === 0) {
-        // Femur — diagonal with knobs
-        put(bx, by, boneHi); put(bx + 1, by, bone);
-        put(bx + 1, by + 1, bone); put(bx + 2, by + 1, bone);
-        put(bx + 2, by + 2, bone); put(bx + 3, by + 2, boneHi);
-        put(bx - 1, by, boneLo); put(bx + 4, by + 2, boneLo);
-      } else if (pattern === 1) {
-        // Skull fragment — small circle
-        put(bx, by, bone); put(bx + 1, by, boneHi); put(bx + 2, by, bone);
-        put(bx, by + 1, boneHi); put(bx + 1, by + 1, '#2a2228'); put(bx + 2, by + 1, boneHi);
-        put(bx, by + 2, boneLo); put(bx + 1, by + 2, boneLo); put(bx + 2, by + 2, boneLo);
-      } else if (pattern === 2) {
-        // Ribcage — curved lines
-        put(bx, by, bone); put(bx + 1, by - 1, bone); put(bx + 2, by - 1, boneHi); put(bx + 3, by, bone);
-        put(bx, by + 2, boneLo); put(bx + 1, by + 1, boneLo); put(bx + 2, by + 1, bone); put(bx + 3, by + 2, boneLo);
-      } else if (pattern === 3) {
-        // Crossed bones — X shape
-        put(bx, by, boneHi); put(bx + 3, by, boneHi);
-        put(bx + 1, by + 1, bone); put(bx + 2, by + 1, bone);
-        put(bx + 1, by + 2, bone); put(bx + 2, by + 2, bone);
-        put(bx, by + 3, boneLo); put(bx + 3, by + 3, boneLo);
-      } else {
-        // Scattered small bones — 2-3 fragments
-        put(bx, by, bone); put(bx + 1, by, boneHi);
-        put(bx + 3, by + 2, bone); put(bx + 4, by + 2, boneLo);
-        if (rnd() > 0.4) { put(bx + 1, by + 3, boneLo); put(bx + 2, by + 3, bone); }
-      }
-    }
-
-    // Fallen leaves (~10% of tiles)
-    if (rnd() < 0.10) {
-      const leafColors = ['#6a4a20', '#8a5a20', '#5a3a10', '#9a6a30'];
-      for (let i = 0; i < 3; i++) {
-        const lx = 4 + Math.floor(rnd() * 24);
-        const ly = 4 + Math.floor(rnd() * 24);
-        const col = leafColors[Math.floor(rnd() * leafColors.length)];
-        put(lx, ly, col);
-        put(lx + 1, ly, col);
       }
     }
   };
@@ -1057,6 +886,7 @@ export function createGroundChunk(scene: Phaser.Scene, chunkX: number, chunkY: n
   const hd = biome === 'grasslands' ? { tilePx: MEADOW_TILE_PX, draw: drawMeadowChunk }
            : biome === 'forest' ? { tilePx: FOREST_TILE_PX, draw: drawForestChunk }
            : biome === 'infected' ? { tilePx: INFECTED_TILE_PX, draw: drawInfectedChunk }
+           : biome === 'castle' ? { tilePx: CASTLE_TILE_PX, draw: drawCastleChunk }
            : biome === 'river' && riverNet ? { tilePx: RIVER_TILE_PX, draw: (buf: Uint8ClampedArray, size: number, x0: number, y0: number) => drawRiverChunk(buf, size, x0, y0, riverNet) }
            : null;
   if (hd) {
@@ -1085,7 +915,6 @@ export function createGroundChunk(scene: Phaser.Scene, chunkX: number, chunkY: n
       const worldTY = startTY + ty;
       const draw = biome === 'infected' ? drawGroundInfected(worldTX, worldTY)
                  : biome === 'river' ? drawGroundRiver(worldTX, worldTY)
-                 : biome === 'castle' ? drawGroundCastle(worldTX, worldTY)
                  : drawGroundDesert(worldTX, worldTY, sceneLevelId);
       const ox = tx * tileSize;
       const oy = ty * tileSize;

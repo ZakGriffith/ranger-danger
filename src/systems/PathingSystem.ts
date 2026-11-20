@@ -14,7 +14,7 @@ export class PathingSystem {
     return { x: Math.floor(x / CFG.tile), y: Math.floor(y / CFG.tile) };
   }
 
-  /** Tile-grid raycast: returns true if no wall (1) or tower (2) tiles block the line. */
+  /** Raycast against built walls, towers, and Castle architecture. */
   hasLineOfSight(x1: number, y1: number, x2: number, y2: number): boolean {
     const t = CFG.tile;
     const grid = this.scene.grid;
@@ -26,7 +26,7 @@ export class PathingSystem {
     while (true) {
       if (tx === ex && ty === ey) return true;
       const v = gridGet(grid, tx, ty);
-      if (v === 1 || v === 2) return false; // wall or tower blocks
+      if (v === 1 || v === 2 || v === 10) return false; // wall or tower blocks
       const e2 = err * 2;
       if (e2 > -dy) { err -= dy; tx += sx; }
       if (e2 < dx)  { err += dx; ty += sy; }
@@ -69,7 +69,7 @@ export class PathingSystem {
         const ni = idx(nx, ny);
         if (visited[ni]) continue;
         const nv = gridGet(grid, nx, ny);
-        if (nv >= 1 && nv !== 5) continue; // 5 = bridge, walkable
+        if (nv >= 1 && nv !== 5 && nv !== 6) continue; // Bridges and traps are walkable.
         visited[ni] = 1;
         queue.push(ni);
       }
@@ -81,12 +81,12 @@ export class PathingSystem {
         const ni = idx(nx, ny);
         if (visited[ni]) continue;
         const dv = gridGet(grid, nx, ny);
-        if (dv >= 1 && dv !== 5) continue;
+        if (dv >= 1 && dv !== 5 && dv !== 6) continue;
         const c1 = gridGet(grid, cx + dx, cy);
         const c2 = gridGet(grid, cx, cy + dy);
-        const solid1 = c1 === 1 || c1 === 3 || c1 === 4 || c1 === 7 || c1 === 8 || c1 === 9;
-        const solid2 = c2 === 1 || c2 === 3 || c2 === 4 || c2 === 7 || c2 === 8 || c2 === 9;
-        if (solid1 || solid2 || (c1 >= 1 && c2 >= 1)) continue;
+        const solid1 = c1 === 1 || c1 === 3 || c1 === 4 || c1 === 7 || c1 === 8 || c1 === 9 || c1 === 10;
+        const solid2 = c2 === 1 || c2 === 3 || c2 === 4 || c2 === 7 || c2 === 8 || c2 === 9 || c2 === 10;
+        if (solid1 || solid2 || (c1 >= 1 && c1 !== 6 && c2 >= 1 && c2 !== 6)) continue;
         visited[ni] = 1;
         queue.push(ni);
       }
@@ -146,7 +146,7 @@ export class PathingSystem {
       for (let ty = minTY; ty <= maxTY; ty++) {
         for (let tx = minTX; tx <= maxTX; tx++) {
           const v = gridGet(grid, tx, ty);
-          if (v === 1 || v === 3 || v === 4) return true;
+          if (v === 1 || v === 3 || v === 4 || v === 10) return true;
         }
       }
     }
@@ -167,18 +167,18 @@ export class PathingSystem {
       if (x === tx1 && y === ty1) return false;
       const v = gridGet(grid, x, y);
       // Water/rock (4) and quicksand (8) don't block line of sight.
-      if (v >= 1 && v !== 4 && v !== 8 && !(x === tx0 && y === ty0)) return true;
+      if (v >= 1 && v !== 4 && v !== 6 && v !== 8 && !(x === tx0 && y === ty0)) return true;
       const prevX = x, prevY = y;
       const e2 = 2 * err;
       if (e2 > -dy) { err -= dy; x += sx; }
       if (e2 < dx) { err += dx; y += sy; }
-      // Diagonal step: walls (1) and trees (3) always block; towers (2) allow squeeze-through
+      // Full-tile terrain blocks diagonal shortcuts; smaller tower bodies allow gaps.
       if (x !== prevX && y !== prevY) {
         const c1 = gridGet(grid, prevX, y);
         const c2 = gridGet(grid, x, prevY);
-        const s1 = c1 === 1 || c1 === 3 || c1 === 7 || c1 === 9;
-        const s2 = c2 === 1 || c2 === 3 || c2 === 7 || c2 === 9;
-        if (s1 || s2 || (c1 >= 1 && c2 >= 1)) return true;
+        const s1 = c1 === 1 || c1 === 3 || c1 === 7 || c1 === 9 || c1 === 10;
+        const s2 = c2 === 1 || c2 === 3 || c2 === 7 || c2 === 9 || c2 === 10;
+        if (s1 || s2 || (c1 >= 1 && c1 !== 6 && c2 >= 1 && c2 !== 6)) return true;
       }
     }
     return false;
@@ -193,7 +193,7 @@ export class PathingSystem {
       for (let dx = -1; dx <= 1; dx++) {
         if (dx === 0 && dy === 0) continue;
         const v = gridGet(grid, gx + dx, gy + dy);
-        if (v === 1 || v === 2 || v === 3 || v === 4 || v === 7 || v === 8 || v === 9) return true;
+        if (v === 1 || v === 2 || v === 3 || v === 4 || v === 7 || v === 8 || v === 9 || v === 10) return true;
       }
     }
     return false;
@@ -238,7 +238,7 @@ export class PathingSystem {
     const towers = scene.towers;
     const inset = 10; // Tower.ts: bodyRadius = (tile * size - 20) / 2, so 10 px of ground per edge
     const seam = (inset + 2) * 2; // centred on the edge, reaching 2 px past the tangent
-    const isSolid = (v: number) => v === 1 || v === 3 || v === 4 || v === 7 || v === 9;
+    const isSolid = (v: number) => v === 1 || v === 3 || v === 4 || v === 7 || v === 9 || v === 10;
     for (let a = 0; a < towers.length; a++) {
       const A = towers[a];
       const ax0 = A.tileX, ax1 = A.tileX + A.size, ay0 = A.tileY, ay1 = A.tileY + A.size;

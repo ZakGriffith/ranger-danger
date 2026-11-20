@@ -155,7 +155,10 @@ const STATIC_GROUPS: StaticDebugGroup[] = [
       { key: wallTextureKey(), label: 'wall' },
       { key: 'tree_cluster_0', label: 'trees' },
       { key: 'infected_plant_0', label: 'plants' },
-      { key: 'castle_spikes_0', label: 'spikes' },
+      { key: 'castle_wall_0_0', label: 'castle wall' },
+      { key: 'castle_tomb_0', label: 'tomb' },
+      { key: 'castle_crypt_0', label: 'crypt' },
+      { key: 'castle_trap_active', label: 'spikes' },
     ],
   },
   {

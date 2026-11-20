@@ -164,6 +164,11 @@ export const CFG = {
   },
 
   castle: {
+    trapCycle: 4200,
+    trapWarningDuration: 900,
+    trapActiveDuration: 1200,
+    trapDamage: 8,
+    trapDamageInterval: 600,
     warlockRange: 220,         // px — distance at which warlock stops and casts
     warlockFireRate: 2400,     // ms between shots
     warlockBoltSpeed: 160,     // purple bolt speed

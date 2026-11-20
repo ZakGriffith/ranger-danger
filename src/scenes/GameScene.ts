@@ -1,3 +1,4 @@
+import { CastleSystem } from '../systems/CastleSystem';
 import Phaser from 'phaser';
 import { getRegistry } from '../core/registry';
 import { getEvents } from '../core/events';
@@ -226,14 +227,6 @@ export class GameScene extends Phaser.Scene {
   gasClouds: { x: number; y: number; sprites: (Phaser.GameObjects.Arc | Phaser.GameObjects.Sprite)[]; expireAt: number; dmgCd: number }[] = [];
   treeSprites: Phaser.GameObjects.GameObject[] = [];
   treeChunksGenerated = new Set<string>();
-  // Castle-only floor-spike obstacles. Same chunk-level deterministic
-  // generator as trees, but spikes block enemy pathing while letting the
-  // player walk through (with a slow + DOT applied in updatePlayer).
-  spikeSprites: Phaser.GameObjects.GameObject[] = [];
-  spikeChunksGenerated = new Set<string>();
-  /** Real-time timestamp the player can next take spike damage. Throttled
-   *  so a brief stumble onto a spike doesn't melt the HP bar. */
-  private nextSpikeDmgAt = 0;
   cactusSprites: Phaser.GameObjects.GameObject[] = [];
   cactusChunksGenerated = new Set<string>();
   quicksandSprites: Phaser.GameObjects.GameObject[] = [];
@@ -314,9 +307,6 @@ export class GameScene extends Phaser.Scene {
     this.gasClouds = [];
     this.treeSprites = [];
     this.treeChunksGenerated = new Set();
-    this.spikeSprites = [];
-    this.spikeChunksGenerated = new Set();
-    this.nextSpikeDmgAt = 0;
     this.cactusSprites = [];
     this.cactusChunksGenerated = new Set();
     for (const key of this.quicksandTextureKeys) {
@@ -427,6 +417,7 @@ export class GameScene extends Phaser.Scene {
     this.pathing = new PathingSystem(this);
     this.depthSort = new DepthSortSystem(this);
     this.chunkSystem = new ChunkSystem(this);
+    this.castle = new CastleSystem(this);
     this.hud = new HudSystem(this);
     this.towerSelect = new TowerPanelSystem(this);
     this.build = new BuildSystem(this);
@@ -545,13 +536,6 @@ export class GameScene extends Phaser.Scene {
       this.generatedChunks.forEach(key => {
         const [cx, cy] = key.split(',').map(Number);
         this.chunkSystem.placeTreesInChunk(cx, cy);
-      });
-    }
-    // Castle gets floor spikes — same deterministic chunk generator.
-    if (this.biome === 'castle') {
-      this.generatedChunks.forEach(key => {
-        const [cx, cy] = key.split(',').map(Number);
-        this.chunkSystem.placeSpikesInChunk(cx, cy);
       });
     }
     if (this.biome === 'desert') {
@@ -898,6 +882,7 @@ export class GameScene extends Phaser.Scene {
   pathing!: PathingSystem;
   depthSort!: DepthSortSystem;
   chunkSystem!: ChunkSystem;
+  castle!: CastleSystem;
   hud!: HudSystem;
   towerSelect!: TowerPanelSystem;
   build!: BuildSystem;
@@ -992,6 +977,8 @@ export class GameScene extends Phaser.Scene {
     // While dying, keep the world alive for the death animation but skip player input
     if (this.endState.dying) return;
 
+    if (this.biome === 'castle') this.castle.update(time);
+    if (this.endState.dying) return;
     this.updatePlayer(time, vd);
     this.combat.updateTowers(time);
     this.toadPoison.update(vd);
@@ -1094,24 +1081,9 @@ export class GameScene extends Phaser.Scene {
       vy += jy / jmag;
     }
 
-    // Castle floor spikes — when the player's tile is a spike (grid value
-    // 6), halve their move speed and tick contact damage every 500ms.
     const playerTx = Math.floor(this.player.x / CFG.tile);
     const playerTy = Math.floor(this.player.y / CFG.tile);
     const playerTile = gridGet(this.grid, playerTx, playerTy);
-    const onSpike = playerTile === 6;
-    if (onSpike) {
-      if (time >= this.nextSpikeDmgAt) {
-        this.nextSpikeDmgAt = time + 500;
-        this.player.hurt(5, this);
-        this.hud.pushHud();
-        if (this.player.hp <= 0) this.end.lose();
-      }
-    } else {
-      // Reset cooldown the moment they step off — re-entering should bite
-      // immediately, not wait for a stale timer.
-      this.nextSpikeDmgAt = 0;
-    }
 
     let touchingCactus = false;
     if (this.biome === 'desert') {
@@ -1148,7 +1120,7 @@ export class GameScene extends Phaser.Scene {
       this.quicksandEnteredAt = 0;
       this.nextQuicksandDmgAt = 0;
     }
-    const speedMult = (onSpike ? 0.5 : 1) * (onQuicksand ? CFG.desert.quicksandSlowFactor : 1);
+    const speedMult = onQuicksand ? CFG.desert.quicksandSlowFactor : 1;
 
     const moving = vx !== 0 || vy !== 0;
     if (moving) {

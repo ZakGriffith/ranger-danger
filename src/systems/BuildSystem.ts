@@ -150,12 +150,14 @@ export class BuildSystem {
     // Rivers enemies all fly, and its clearings sit inside solid woods, so a
     // ground-reach test from the player would fail everywhere. Skip it there.
     if (scene.biome === 'river') return true;
+    // A maze chamber can have one approach. Building must preserve it.
+    const minimumReach = scene.biome === 'castle' ? this.minimumWallReach(pt) : 2;
     // Temporarily block tiles and check spawn directions can still reach the
     // player. PathingSystem.countReachableDirections runs a single BFS flood
     // from the player; the legacy canReachFromSpawnDirections did up to ~200
     // separate BFS calls per check and stalled the ghost cursor near towers.
     for (let j = 0; j < s; j++) for (let i = 0; i < s; i++) gridSet(scene.grid, tx + i, ty + j, 2);
-    const ok = scene.pathing.countReachableDirections(pt.x, pt.y) >= 2;
+    const ok = scene.pathing.countReachableDirections(pt.x, pt.y) >= minimumReach;
     for (let j = 0; j < s; j++) for (let i = 0; i < s; i++) gridSet(scene.grid, tx + i, ty + j, 0);
     return ok;
   }

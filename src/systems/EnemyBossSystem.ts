@@ -708,7 +708,7 @@ export class EnemyBossSystem {
         for (let ox = -1; ox <= 1 && !nearWall; ox++) {
           if (ox === 0 && oy === 0) continue;
           const v = gridGet(scene.grid, etx + ox, ety + oy);
-          if (v === 1 || v === 3 || v === 4) nearWall = true;
+          if (v === 1 || v === 3 || v === 4 || v === 10) nearWall = true;
         }
       }
 
@@ -1348,8 +1348,8 @@ export class EnemyBossSystem {
     const onStructureHit = () => {
       if (b.state === 'charging') b.stateEnd = 0;
     };
-    scene.physics.add.collider(b, scene.wallGroup, onStructureHit);
-    scene.physics.add.collider(b, scene.towerGroup, onStructureHit);
+    scene.physics.add.collider(b, scene.wallGroup, onStructureHit, () => !b.flying);
+    scene.physics.add.collider(b, scene.towerGroup, onStructureHit, () => !b.flying);
   }
 
   queenAuraStrike(cx: number, cy: number) {

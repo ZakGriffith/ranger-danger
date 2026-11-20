@@ -252,13 +252,13 @@ export class SpawnSystem {
     const grid = this.scene.grid;
     const tx = Math.floor(wx / t), ty = Math.floor(wy / t);
     const v = gridGet(grid, tx, ty);
-    if (v === 0 || v === 5) return { x: wx, y: wy };
+    if (v === 0 || v === 5 || v === 6) return { x: wx, y: wy };
     for (let r = 1; r <= 4; r++) {
       for (let dy = -r; dy <= r; dy++) {
         for (let dx = -r; dx <= r; dx++) {
           if (Math.abs(dx) !== r && Math.abs(dy) !== r) continue;
           const nv = gridGet(grid, tx + dx, ty + dy);
-          if (nv === 0 || nv === 5) {
+          if (nv === 0 || nv === 5 || nv === 6) {
             return { x: (tx + dx) * t + t / 2, y: (ty + dy) * t + t / 2 };
           }
         }

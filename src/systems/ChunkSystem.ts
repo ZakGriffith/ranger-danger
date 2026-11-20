@@ -3,8 +3,6 @@ import { CFG } from '../config';
 import {
   createGroundChunk,
   TREE_PATTERNS,
-  SPIKE_PATTERNS,
-  SPIKE_VARIANT_COUNT,
   CACTUS_VARIANT_COUNT,
   TEMPLE_BLOCK_VARIANT_COUNT,
 } from '../assets/generateArt';
@@ -117,7 +115,7 @@ export class ChunkSystem {
       this.addChunkImages(ccx, ccy, texKey);
       // Generate trees for this chunk if forest biome
       if (scene.biome === 'forest' || scene.biome === 'infected') this.placeTreesInChunk(ccx, ccy);
-      if (scene.biome === 'castle') this.placeSpikesInChunk(ccx, ccy);
+      if (scene.biome === 'castle') scene.castle.generateChunk(ccx, ccy);
       if (scene.biome === 'desert') {
         this.placeCactusInChunk(ccx, ccy);
         if (scene.levelId === 7) this.placeQuicksandInChunk(ccx, ccy);
@@ -545,81 +543,6 @@ export class ChunkSystem {
         (spr as any)._gy = gy;
         scene.treeSprites.push(spr);
       }
-    }
-  }
-
-  /**
-   * Castle floor spikes — same deterministic chunk generator as trees,
-   * but spikes block enemy pathing only (grid value 6) without joining
-   * wallGroup, so the player can walk through and take damage.
-   */
-  placeSpikesInChunk(cx: number, cy: number) {
-    const scene = this.scene;
-    const chunkKey = `${cx},${cy}`;
-    if (scene.spikeChunksGenerated.has(chunkKey)) return;
-    scene.spikeChunksGenerated.add(chunkKey);
-
-    const t = CFG.tile;
-    const cs = CFG.chunkSize;
-    const spikesPerChunk = 4; // a touch denser than tree clusters
-    const maxAttempts = spikesPerChunk * 6;
-
-    // Independent seed from trees so swapping biomes doesn't reuse layouts.
-    let seed = ((scene.treeSeed * 2654435761 + cx * 73856093 + cy * 19349669 + 31337) >>> 0) || 1;
-    const rng = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
-
-    const ptx = Math.floor(scene.player.x / t);
-    const pty = Math.floor(scene.player.y / t);
-    const nearSpawn = Math.abs(cx * cs) < scene.spawnDist + cs && Math.abs(cy * cs) < scene.spawnDist + cs;
-
-    const chunkTileX = cx * cs;
-    const chunkTileY = cy * cs;
-
-    let placed = 0;
-    let attempts = 0;
-    while (placed < spikesPerChunk && attempts < maxAttempts) {
-      attempts++;
-      const pattern = SPIKE_PATTERNS[Math.floor(rng() * SPIKE_PATTERNS.length)];
-      const ox = chunkTileX + Math.floor(rng() * (cs - pattern.w));
-      const oy = chunkTileY + Math.floor(rng() * (cs - pattern.h));
-
-      // Don't place too close to player spawn
-      if (Math.abs(ox) < 3 && Math.abs(oy) < 3) continue;
-
-      // All target tiles must be empty AND not adjacent to player spawn
-      let blocked = false;
-      for (const tile of pattern.tiles) {
-        const gx = ox + tile.dx, gy = oy + tile.dy;
-        if (gridGet(scene.grid, gx, gy) !== 0) { blocked = true; break; }
-        if (Math.abs(gx - ptx) <= 1 && Math.abs(gy - pty) <= 1) { blocked = true; break; }
-      }
-      if (blocked) continue;
-
-      // Tentatively mark as obstacles (grid value 6 = spike)
-      for (const tile of pattern.tiles) {
-        gridSet(scene.grid, ox + tile.dx, oy + tile.dy, 6);
-      }
-
-      // Don't strangle pathing near spawn — same check trees use.
-      if (nearSpawn && !canReachFromSpawnDirections(scene.grid, ptx, pty, scene.spawnDist, 3)) {
-        for (const tile of pattern.tiles) {
-          gridSet(scene.grid, ox + tile.dx, oy + tile.dy, 0);
-        }
-        continue;
-      }
-
-      // Per-tile spike sprite (no wallGroup → player walks through). Each
-      // tile within a cluster picks its own jitter variant so a 3-tile
-      // strip doesn't look stamped.
-      for (const tile of pattern.tiles) {
-        const gx = ox + tile.dx, gy = oy + tile.dy;
-        const wx = gx * t + t / 2;
-        const wy = gy * t + t / 2;
-        const variant = Math.floor(rng() * SPIKE_VARIANT_COUNT);
-        const spr = scene.add.image(wx, wy, `castle_spikes_${variant}`).setDepth(100 + wy * 0.1);
-        scene.spikeSprites.push(spr);
-      }
-      placed++;
     }
   }
 

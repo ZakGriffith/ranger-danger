@@ -10,6 +10,7 @@ import { generateArrowTowerBases } from './art/arrowTower/textures';
 import { generateCannonTowerBases, generateCannonTowerProjectile } from './art/cannonTower/textures';
 import { generateCoinTextures, registerCoinAnimations } from './art/coins';
 import { generateWallTextures } from './art/wallTextures';
+import { generateCastleTerrainTextures } from './art/castleTerrain';
 import { generateCastleEnemyTextures, registerCastleEnemyAnimations } from './art/castleEnemies/textures';
 import { makeHD } from './art/hd';
 import { POISON_SMOKE_VARIANTS, POISON_SMOKE_FRAME_MS } from './art/poisonSmoke';
@@ -42,8 +43,8 @@ import { createMeadowRamFrame } from './art/meadowRam';
 import { drawArrow, drawBoulder, drawBoulderShadow, drawCannonballShadow } from './art/projectiles';
 import { drawBoulderImpact, drawHitSpark, drawDeathBurst, drawCoinPop } from './art/fx';
 import {
-  TREE_PATTERNS, SPIKE_VARIANT_COUNT, CACTUS_VARIANT_COUNT, QUICKSAND_VARIANT_COUNT, TEMPLE_BLOCK_VARIANT_COUNT,
-  drawCastleSpikesCanvas, drawCactusCanvas, drawQuicksandCanvas, drawTempleBlockCanvas,
+  TREE_PATTERNS, CACTUS_VARIANT_COUNT, QUICKSAND_VARIANT_COUNT, TEMPLE_BLOCK_VARIANT_COUNT,
+  drawCactusCanvas, drawQuicksandCanvas, drawTempleBlockCanvas,
   drawTreeClusterCanvas, drawInfectedPlantCanvas, drawFoundation,
 } from './art/terrain';
 // Re-export terrain names that ChunkSystem and other callers consume from
@@ -51,7 +52,7 @@ import {
 // moves to art/terrain.ts.
 export {
   RIVER_HALF_W, riverHorizontalCenterY, riverCenterPx, getRiverTileGrid,
-  TREE_PATTERNS, SPIKE_PATTERNS, SPIKE_VARIANT_COUNT, CACTUS_VARIANT_COUNT, QUICKSAND_VARIANT_COUNT, TEMPLE_BLOCK_VARIANT_COUNT,
+  TREE_PATTERNS, CACTUS_VARIANT_COUNT, QUICKSAND_VARIANT_COUNT, TEMPLE_BLOCK_VARIANT_COUNT,
   createGroundChunk,
 } from './art/terrain';
 import {
@@ -149,6 +150,7 @@ export function generateAllArt(scene: Phaser.Scene) {
   }
 
   generateWallTextures(scene);
+  generateCastleTerrainTextures(scene);
 
   // Arrow
   add(scene, 'arrow_0', makeCanvas(32, drawArrow(0)));
@@ -180,10 +182,6 @@ export function generateAllArt(scene: Phaser.Scene) {
 
   // Infected plant cluster sprites (one per pattern)
   for (let i = 0; i < TREE_PATTERNS.length; i++) add(scene, `infected_plant_${i}`, drawInfectedPlantCanvas(i));
-
-  // Castle floor spikes — register N jitter variants. The placement code
-  // picks per-tile across patterns so multi-tile clusters don't look stamped.
-  for (let i = 0; i < SPIKE_VARIANT_COUNT; i++) add(scene, `castle_spikes_${i}`, drawCastleSpikesCanvas(i));
 
   for (let i = 0; i < CACTUS_VARIANT_COUNT; i++) add(scene, `desert_cactus_${i}`, drawCactusCanvas(i));
   for (let i = 0; i < QUICKSAND_VARIANT_COUNT; i++) add(scene, `desert_quicksand_${i}`, drawQuicksandCanvas(i));

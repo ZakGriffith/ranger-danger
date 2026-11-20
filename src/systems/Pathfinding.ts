@@ -67,7 +67,7 @@ export function findPath(
       const ni = idx(nx, ny);
       if (visited[ni]) continue;
       const nv = gridGet(g, nx, ny);
-      if (nv >= 1 && nv !== 5) continue; // 5 = bridge, walkable
+      if (nv >= 1 && nv !== 5 && nv !== 6) continue; // Bridges and traps are walkable.
       visited[ni] = 1;
       prev[ni] = cur;
       queue.push(ni);
@@ -109,7 +109,7 @@ export function canReachFromSpawnDirections(
           if (Math.abs(dx) !== r && Math.abs(dy) !== r) continue;
           const sx = tp.x + dx, sy = tp.y + dy;
           const sv = gridGet(g, sx, sy);
-          if (sv === 0 || sv === 5) {
+          if (sv === 0 || sv === 5 || sv === 6) {
             const path = findPath(g, sx, sy, px, py);
             if (path.length > 0) found = true;
           }
