@@ -8,7 +8,7 @@
  * File naming convention:  public/audio/<key>.wav  (e.g. public/audio/arrowShoot.wav)
  */
 import { sfxr } from 'jsfxr';
-import { SYNTH_RATE, hoverPat, selectDrum, gameOverHorn, bossThunder, victoryCoins, hammerBlows, levelUpDing, spikeScrape } from './synth';
+import { SYNTH_RATE, hoverPat, selectDrum, gameOverHorn, bossThunder, victoryCoins, hammerBlows, levelUpDing } from './synth';
 
 // ---- Sound keys the game uses ----
 const SFX_KEYS = [
@@ -29,7 +29,6 @@ const SFX_KEYS = [
   'hover',        // level map node under the mouse
   'select',       // level, difficulty or start picked on the level map
   'structDestroy',// wall / tower torn down (sold or destroyed by boss)
-  'spikeRise',
 ] as const;
 
 export type SfxKey = typeof SFX_KEYS[number];
@@ -114,13 +113,11 @@ class SfxManager {
     wallPlace: 80,
     hover: 80,
     bossSpawn: 1500,
-    spikeRise: 120,
   };
   /** Per-sound volume multipliers (0–1, default 1) */
   private volumes: Partial<Record<SfxKey, number>> = {
     cannonShoot: 0.5,
     playerHurt: 0.85,
-    spikeRise: 0.65,
   };
   /** Per-sound playback-rate multipliers (1 = original pitch). <1 = lower
    *  pitch, >1 = higher. */
@@ -214,7 +211,6 @@ class SfxManager {
     this.loadSynth('towerPlace', blows);
     this.loadSynth('upgrade', blows);
     this.loadSynth('levelUp', levelUpDing());
-    this.loadSynth('spikeRise', spikeScrape());
   }
 
   /** @deprecated kept for any old call sites — equivalent to loadAssets(). */

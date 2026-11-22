@@ -402,19 +402,3 @@ export function levelUpDing(): Samples {
   mix(out, norm(strike(1.8, [[f0, 1, 0.9, 0.25], [f0 * 2.76, 0.5, 0.5, 6], [f0 * 5.4, 0.22, 0.3, 10], [f0 * 0.5, 0.15, 0.6, 0.2]], r)), 0, 0.95);
   return finish(convolve(out, HALL(), 0.2), 0.8);
 }
-
-export function spikeScrape(): Samples {
-  const r = rng(219);
-  const out = make(0.48);
-  const friction = filter(noise(0.27, r), biquad('bp', 1900, 0.8));
-  const metal = resonate(friction, [[780, 0.018, 1], [1430, 0.014, 0.8], [2670, 0.01, 0.55]]);
-  for (let i = 0; i < friction.length; i++) {
-    const t = i / SR;
-    const env = Math.pow(Math.sin(Math.PI * t / 0.27), 0.7);
-    const rasp = 0.65 + 0.35 * Math.sin(TAU * (48 * t + 95 * t * t));
-    out[i] = (friction[i] * 0.6 + metal[i] * 0.7) * env * rasp;
-  }
-  mix(out, burst(0.035, r, 'bp', 850, 0.8, 0.007, 0.001), 0.245, 0.45);
-  mix(out, strike(0.22, [[460, 0.14, 0.04, 7], [1230, 0.1, 0.025, 11], [2210, 0.06, 0.016]], r), 0.25);
-  return finish(out, 0.7);
-}
