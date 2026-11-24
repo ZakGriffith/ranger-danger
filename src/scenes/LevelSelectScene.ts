@@ -14,6 +14,7 @@ import {
   MAP_FRAME, MAP_CROP, INK, PARCHMENT_LIGHT, SHIELD_R, shieldLayout,
   drawScrollFrameCanvas, drawMapInsetCanvas, drawRibbonCanvas, drawTagCanvas, drawMedalIconCanvas,
   drawCompassCanvas, drawShieldCanvas, drawShieldGlowCanvas, drawEmberGlowCanvas,
+  drawPlankBoardCanvas, drawBrassPlateCanvas, drawIronPlateCanvas, drawNailedSheetCanvas, drawWoodTabCanvas, drawIronButtonCanvas, drawMedalCheckCanvas,
 } from '../assets/art/levelMap';
 
 /** Testing toggle — when on, every map level is treated as unlocked,
@@ -52,7 +53,7 @@ export class LevelSelectScene extends Phaser.Scene {
   panelExtras: Phaser.GameObjects.GameObject[] = [];
   tooltip: Phaser.GameObjects.Container | null = null;
   tooltipTimer?: Phaser.Time.TimerEvent;
-  diffButtons: { bg: Phaser.GameObjects.Graphics; text: Phaser.GameObjects.Text; diff: Difficulty }[] = [];
+  diffButtons: { bg: Phaser.GameObjects.Image; text: Phaser.GameObjects.Text; diff: Difficulty }[] = [];
   testUnlockAll = false;
 
   /** Unlocked-for-the-UI: wraps the medal-based isLevelUnlocked check
@@ -70,10 +71,14 @@ export class LevelSelectScene extends Phaser.Scene {
   fs(px: number) { return `${Math.round(px * this.sf)}px`; }
   constructor() { super('LevelSelect'); }
 
-  /** Registers a generated canvas as a texture, replacing any earlier one (the scene restarts on resize). */
-  private canvasTexture(key: string, canvas: HTMLCanvasElement): string {
+  /** Texture keys generated since this create(); each is built once per scene life and replaced on restart. */
+  private generated = new Set<string>();
+  /** Registers a generated canvas as a texture. A key already built this scene life is reused; one left from an earlier life (the scene restarts on resize) is replaced. */
+  private canvasTexture(key: string, make: () => HTMLCanvasElement): string {
+    if (this.generated.has(key)) return key;
     if (this.textures.exists(key)) this.textures.remove(key);
-    this.textures.addCanvas(key, canvas);
+    this.textures.addCanvas(key, make());
+    this.generated.add(key);
     return key;
   }
 
@@ -145,6 +150,7 @@ export class LevelSelectScene extends Phaser.Scene {
       getEvents(this.game.events).off('viewport-changed', onViewportChanged);
     });
 
+    this.generated.clear();
     this.medalStore = loadMedals();
     this.medalCount = totalMedals(this.medalStore);
     this.testUnlockAll = loadTestUnlock();
@@ -159,21 +165,21 @@ export class LevelSelectScene extends Phaser.Scene {
     // The painted map sits inside an unrolled scroll; the parchment margin
     // around it carries the chrome. Node coordinates were painted in the
     // stretched full-canvas space, so nodePos() maps them into the frame.
-    this.add.image(0, 0, this.canvasTexture('level_scroll', drawScrollFrameCanvas(W, H, this.sf))).setOrigin(0);
+    this.add.image(0, 0, this.canvasTexture('level_scroll', () => drawScrollFrameCanvas(W, H, this.sf))).setOrigin(0);
     const fx0 = this.p(MAP_FRAME.x0), fy0 = this.p(MAP_FRAME.y0);
     const fw = this.p(MAP_FRAME.x1 - MAP_FRAME.x0), fh = this.p(MAP_FRAME.y1 - MAP_FRAME.y0);
     const sx = fw / MAP_CROP.w, sy = fh / MAP_CROP.h;
     const bg = this.add.image(fx0 - MAP_CROP.x * sx, fy0 - MAP_CROP.y * sy, 'level_map_bg').setOrigin(0);
     bg.setScale(sx, sy);
     bg.setCrop(MAP_CROP.x, MAP_CROP.y, MAP_CROP.w, MAP_CROP.h);
-    this.add.image(fx0, fy0, this.canvasTexture('level_map_inset', drawMapInsetCanvas(this.sf))).setOrigin(0).setDisplaySize(fw, fh);
+    this.add.image(fx0, fy0, this.canvasTexture('level_map_inset', () => drawMapInsetCanvas(this.sf))).setOrigin(0).setDisplaySize(fw, fh);
 
     this.drawPaths();
     this.drawNodes();
 
     // Title ribbon
     const ribbonW = 300, ribbonH = 26;
-    this.add.image(W / 2, this.p(24), this.canvasTexture('level_ribbon', drawRibbonCanvas(ribbonW, ribbonH, this.sf)))
+    this.add.image(W / 2, this.p(24), this.canvasTexture('level_ribbon', () => drawRibbonCanvas(ribbonW, ribbonH, this.sf)))
       .setOrigin(0.5, 0.5).setDisplaySize(this.p(ribbonW + 36), this.p(ribbonH + 10)).setDepth(2);
     this.add.text(W / 2, this.p(25), 'Choose Your Mission', {
       fontFamily: '"Cinzel Decorative", Georgia, serif', fontSize: this.fs(15), fontStyle: 'bold', color: '#f6e7bf',
@@ -182,16 +188,16 @@ export class LevelSelectScene extends Phaser.Scene {
 
     // Medal counter — a pinned tag, top right
     const tagW = 122, tagH = 26, tagX = W - this.p(44 + 142), tagY = this.p(12);
-    this.add.image(tagX, tagY, this.canvasTexture('level_tag_s', drawTagCanvas(tagW, tagH, this.sf)))
+    this.add.image(tagX, tagY, this.canvasTexture('level_tag_s', () => drawTagCanvas(tagW, tagH, this.sf)))
       .setOrigin(0).setDisplaySize(this.p(tagW + 4), this.p(tagH + 5)).setDepth(2);
-    this.add.image(tagX + this.p(8), tagY + this.p(6), this.canvasTexture('level_medal_icon', drawMedalIconCanvas(this.sf)))
+    this.add.image(tagX + this.p(8), tagY + this.p(6), this.canvasTexture('level_medal_icon', () => drawMedalIconCanvas(this.sf)))
       .setOrigin(0).setDisplaySize(this.p(14), this.p(16)).setDepth(2);
     this.add.text(tagX + this.p(26), tagY + this.p(14.5), `Medals  ${this.medalCount} / ${LEVELS.length * 4}`, {
       fontFamily: 'Cinzel, Georgia, serif', fontSize: this.fs(10.5), fontStyle: 'bold', color: INK,
     }).setOrigin(0, 0.5).setDepth(2);
 
     this.drawPlayerLevelBanner();
-    this.add.image(this.p(MAP_FRAME.x0 + 48), this.p(584), this.canvasTexture('level_compass', drawCompassCanvas(26, this.sf)))
+    this.add.image(this.p(MAP_FRAME.x0 + 48), this.p(584), this.canvasTexture('level_compass', () => drawCompassCanvas(26, this.sf)))
       .setOrigin(0.5).setDisplaySize(this.p(56), this.p(56)).setDepth(2);
     this.add.text(this.p(MAP_FRAME.x0 + 48), this.p(584 - 33), 'N', {
       fontFamily: 'Cinzel, Georgia, serif', fontSize: this.fs(9), fontStyle: 'bold', color: INK,
@@ -374,7 +380,7 @@ export class LevelSelectScene extends Phaser.Scene {
     const need = progress.xpToNextLevel;
     const tagW = 128, tagH = 36;
     const tagX = this.p(44 + 16), tagY = this.p(12);
-    const tag = this.add.image(tagX, tagY, this.canvasTexture('level_tag_l', drawTagCanvas(tagW, tagH, this.sf)))
+    const tag = this.add.image(tagX, tagY, this.canvasTexture('level_tag_l', () => drawTagCanvas(tagW, tagH, this.sf)))
       .setOrigin(0).setDisplaySize(this.p(tagW + 4), this.p(tagH + 5)).setDepth(2);
     this.add.text(tagX + this.p(9), tagY + this.p(12), `Ranger  ·  Rank ${lvl}`, {
       fontFamily: 'Cinzel, Georgia, serif', fontSize: this.fs(10.5), fontStyle: 'bold', color: INK,
@@ -509,11 +515,11 @@ export class LevelSelectScene extends Phaser.Scene {
 
       // Heraldic shield marker; boss levels are crowned, the final one burns.
       if (level.boss === 'final') {
-        const ember = this.add.image(ox, oy, this.canvasTexture('level_ember', drawEmberGlowCanvas(this.sf)))
+        const ember = this.add.image(ox, oy, this.canvasTexture('level_ember', () => drawEmberGlowCanvas(this.sf)))
           .setOrigin(0).setDisplaySize(fw, fh).setDepth(2).setAlpha(0.55);
         this.tweens.add({ targets: ember, alpha: 1, yoyo: true, repeat: -1, duration: 1400, ease: 'Sine.easeInOut' });
       }
-      const key = this.canvasTexture(`level_shield_${level.id}`, drawShieldCanvas(level.name === 'Rivers' ? 'river' : level.biome, unlocked, this.sf, level.boss));
+      const key = this.canvasTexture(`level_shield_${level.id}`, () => drawShieldCanvas(level.name === 'Rivers' ? 'river' : level.biome, unlocked, this.sf, level.boss));
       this.add.image(ox, oy, key).setOrigin(0).setDisplaySize(fw, fh).setDepth(3);
 
       // Level name
@@ -576,7 +582,7 @@ export class LevelSelectScene extends Phaser.Scene {
 
       // Hover glow: a gold outline round the shield
       if (unlocked) {
-        const glowKey = this.canvasTexture(`level_shield_glow_${level.boss ?? 'plain'}`, drawShieldGlowCanvas(this.sf, level.boss));
+        const glowKey = this.canvasTexture(`level_shield_glow_${level.boss ?? 'plain'}`, () => drawShieldGlowCanvas(this.sf, level.boss));
         const glow = this.add.image(ox, oy, glowKey).setOrigin(0).setDisplaySize(fw, fh).setAlpha(0).setDepth(2);
 
         hitZone.on('pointerover', () => {
@@ -676,39 +682,27 @@ export class LevelSelectScene extends Phaser.Scene {
     const panelBlocker = this.add.rectangle(0, 0, pw + this.p(6), ph + this.p(6), 0x000000, 0)
       .setInteractive();
 
-    // Panel box
-    const outerBox = this.add.graphics();
-    outerBox.fillStyle(0x0d1220, 0.95);
-    outerBox.fillRoundedRect(-pw / 2 - this.p(3), -ph / 2 - this.p(3), pw + this.p(6), ph + this.p(6), this.p(10));
-    outerBox.lineStyle(this.p(2), 0x4a3a1a, 0.8);
-    outerBox.strokeRoundedRect(-pw / 2 - this.p(3), -ph / 2 - this.p(3), pw + this.p(6), ph + this.p(6), this.p(10));
+    // The board: planks with riveted iron corners, a brass title plate and
+    // the level's sheet nailed on. Every piece is a generated canvas drawn
+    // in base units, so it scales with the screen like the scroll does.
+    const bs = this.sf;
+    const shadow = this.add.graphics();
+    shadow.fillStyle(0x000000, 0.4);
+    shadow.fillRect(-pw / 2 + this.p(5), -ph / 2 + this.p(7), pw, ph);
+    const board = this.add.image(0, 0, this.canvasTexture('panel_board', () => drawPlankBoardCanvas(pw / bs, ph / bs, bs))).setDisplaySize(pw, ph);
 
-    const innerBox = this.add.graphics();
-    innerBox.fillStyle(0x11172a, 0.95);
-    innerBox.fillRoundedRect(-pw / 2, -ph / 2, pw, ph, this.p(8));
-    innerBox.lineStyle(this.p(1), 0x2a3760, 0.8);
-    innerBox.strokeRoundedRect(-pw / 2, -ph / 2, pw, ph, this.p(8));
-
-    // Level name
     const biome = BIOME_COLORS[level.biome];
-    const titleY = -ph / 2 + this.p(isMobile ? 38 : 28);
-    const tagY = -ph / 2 + this.p(isMobile ? 70 : 52);
+    const plateW = Math.min(pw - this.p(100), this.p(isMobile ? 320 : 200)), plateH = this.p(isMobile ? 44 : 30);
+    const plateY = -ph / 2 + this.p(isMobile ? 20 : 14) + plateH / 2;
+    const plateBack = this.add.image(0, plateY, this.canvasTexture('panel_plate_back', () => drawIronPlateCanvas(plateW / bs, plateH / bs, bs))).setDisplaySize(plateW, plateH);
+    const plateInset = this.p(4);
+    const plate = this.add.image(0, plateY, this.canvasTexture('panel_plate', () => drawBrassPlateCanvas((plateW - plateInset * 2) / bs, (plateH - plateInset * 2) / bs, bs, 'lit')))
+      .setDisplaySize(plateW - plateInset * 2, plateH - plateInset * 2);
+    const title = this.add.text(0, plateY + this.p(1), level.name, {
+      fontFamily: '"Cinzel Decorative", Georgia, serif', fontSize: this.fs(isMobile ? 22 : 15), fontStyle: 'bold', color: INK,
+    }).setOrigin(0.5);
+
     const dividerY = -ph / 2 + this.p(isMobile ? 92 : 68);
-    const title = this.add.text(0, titleY, level.name, {
-      fontFamily: 'monospace', fontSize: this.fs(isMobile ? 26 : 18), color: '#7cc4ff',
-      stroke: '#000', strokeThickness: this.p(3)
-    }).setOrigin(0.5);
-
-    // Biome tag
-    const tag = this.add.text(0, tagY, biome.label.toUpperCase(), {
-      fontFamily: 'monospace', fontSize: this.fs(isMobile ? 14 : 10), color: biome.textHex,
-      stroke: '#000', strokeThickness: this.p(2)
-    }).setOrigin(0.5);
-
-    // Divider line
-    const divider = this.add.graphics();
-    divider.lineStyle(this.p(1), 0x2a3760, 0.6);
-    divider.lineBetween(-pw / 2 + this.p(20), dividerY, pw / 2 - this.p(20), dividerY);
 
     // Difficulty buttons — larger and more spaced on mobile to fill the
     // taller panel and stay tap-friendly.
@@ -727,136 +721,106 @@ export class LevelSelectScene extends Phaser.Scene {
     const btnStartY = dividerY + blockTopGap + btnH / 2;
     this.diffBtnW = btnW;
     this.diffBtnH = btnH;
-    const items: Phaser.GameObjects.GameObject[] = [backdrop, panelBlocker, outerBox, innerBox, title, tag, divider];
+    // The sheet carries the biome name and the difficulty tabs.
+    const sheetW = btnW + this.p(28);
+    const sheetTop = dividerY - this.p(isMobile ? 16 : 12);
+    const lastBtnBottom = btnStartY + (btnCount - 1) * (btnH + btnGap) + btnH / 2;
+    const sheetH = lastBtnBottom + this.p(12) - sheetTop;
+    const sheetShadow = this.add.graphics();
+    sheetShadow.fillStyle(0x000000, 0.35);
+    sheetShadow.fillRect(-sheetW / 2 + this.p(2), sheetTop + this.p(3), sheetW, sheetH);
+    const sheet = this.add.image(0, sheetTop + sheetH / 2, this.canvasTexture('panel_sheet', () => drawNailedSheetCanvas(sheetW / bs, sheetH / bs, bs))).setDisplaySize(sheetW, sheetH);
+    const tag = this.add.text(0, sheetTop + this.p(isMobile ? 18 : 13), biome.label.toUpperCase(), {
+      fontFamily: 'Cinzel, Georgia, serif', fontSize: this.fs(isMobile ? 12 : 8.5), fontStyle: 'bold', color: '#8c2a22',
+    }).setOrigin(0.5);
+    const items: Phaser.GameObjects.GameObject[] = [backdrop, panelBlocker, shadow, board, plateBack, plate, title, sheetShadow, sheet, tag];
+
+    const tabKeys = {
+      idle: this.canvasTexture('panel_tab_idle', () => drawWoodTabCanvas(btnW / bs, btnH / bs, bs, 'idle')),
+      hover: this.canvasTexture('panel_tab_hover', () => drawWoodTabCanvas(btnW / bs, btnH / bs, bs, 'hover')),
+      selected: this.canvasTexture('panel_tab_selected', () => drawWoodTabCanvas(btnW / bs, btnH / bs, bs, 'selected')),
+    };
+    const setTab = (btn: { bg: Phaser.GameObjects.Image; text: Phaser.GameObjects.Text; diff: Difficulty }, state: keyof typeof tabKeys) => {
+      btn.bg.setTexture(tabKeys[state]).setDisplaySize(btnW, btnH);
+      btn.text.setColor(state === 'selected' ? '#fff0c8' : '#f0dfb8');
+    };
 
     for (let i = 0; i < DIFFICULTY_ORDER.length; i++) {
       const diff = DIFFICULTY_ORDER[i];
       const by = btnStartY + i * (btnH + btnGap);
 
-      const btnBg = this.add.graphics();
-      btnBg.fillStyle(0x1a2540, 1);
-      btnBg.fillRoundedRect(-btnW / 2, by - btnH / 2, btnW, btnH, this.p(6));
-      btnBg.lineStyle(this.p(1), 0x2a3760, 0.8);
-      btnBg.strokeRoundedRect(-btnW / 2, by - btnH / 2, btnW, btnH, this.p(6));
-
+      const btnBg = this.add.image(0, by, tabKeys.idle).setDisplaySize(btnW, btnH);
       const hitRect = this.add.rectangle(0, by, btnW, btnH, 0x000000, 0)
         .setInteractive({ useHandCursor: true });
 
-      const label = this.add.text(-btnW / 2 + this.p(20), by, DIFFICULTY_LABELS[diff], {
-        fontFamily: 'monospace', fontSize: this.fs(isMobile ? 20 : 13), color: '#ccd',
-        stroke: '#000', strokeThickness: this.p(1)
+      const label = this.add.text(-btnW / 2 + this.p(18), by, DIFFICULTY_LABELS[diff], {
+        fontFamily: 'Cinzel, Georgia, serif', fontSize: this.fs(isMobile ? 18 : 12), fontStyle: 'bold', color: '#f0dfb8',
+        stroke: '#28140a', strokeThickness: this.p(2),
       }).setOrigin(0, 0.5);
+      const btn = { bg: btnBg, text: label, diff };
 
       hitRect.on('pointerover', () => {
         if (getRegistry(this.game).get('tutorialActive') && diff !== 'easy') return;
-        btnBg.clear();
-        btnBg.fillStyle(0x2a3760, 1);
-        btnBg.fillRoundedRect(-btnW / 2, by - btnH / 2, btnW, btnH, this.p(6));
-        btnBg.lineStyle(this.p(1), 0x4a5a8a, 0.8);
-        btnBg.strokeRoundedRect(-btnW / 2, by - btnH / 2, btnW, btnH, this.p(6));
+        if (this.selectedDiff !== diff) setTab(btn, 'hover');
       });
       hitRect.on('pointerout', () => {
         if (getRegistry(this.game).get('tutorialActive') && diff !== 'easy') return;
-        const selected = this.selectedDiff === diff;
-        btnBg.clear();
-        btnBg.fillStyle(selected ? 0x2a3a60 : 0x1a2540, 1);
-        btnBg.fillRoundedRect(-btnW / 2, by - btnH / 2, btnW, btnH, this.p(6));
-        btnBg.lineStyle(this.p(1), selected ? 0x6a8acc : 0x2a3760, 0.8);
-        btnBg.strokeRoundedRect(-btnW / 2, by - btnH / 2, btnW, btnH, this.p(6));
+        setTab(btn, this.selectedDiff === diff ? 'selected' : 'idle');
       });
       hitRect.on('pointerdown', () => {
         // During tutorial, only Easy is selectable
         if (getRegistry(this.game).get('tutorialActive') && diff !== 'easy') return;
         SFX.play('select');
         this.selectedDiff = diff;
-        for (const btn of this.diffButtons) {
-          const sel = btn.diff === diff;
-          btn.bg.clear();
-          btn.bg.fillStyle(sel ? 0x2a3a60 : 0x1a2540, 1);
-          const bby = btnStartY + DIFFICULTY_ORDER.indexOf(btn.diff) * (btnH + btnGap);
-          btn.bg.fillRoundedRect(-btnW / 2, bby - btnH / 2, btnW, btnH, this.p(6));
-          btn.bg.lineStyle(this.p(1), sel ? 0x6a8acc : 0x2a3760, 0.8);
-          btn.bg.strokeRoundedRect(-btnW / 2, bby - btnH / 2, btnW, btnH, this.p(6));
-          btn.text.setColor(sel ? '#fff' : '#ccd');
-        }
+        for (const b of this.diffButtons) setTab(b, b.diff === diff ? 'selected' : 'idle');
         this.updateStartButton();
         if (getRegistry(this.game).get('tutorialActive')) {
           getEvents(this.game.events).emit('tutorial-diff-clicked', diff);
         }
       });
 
-      this.diffButtons.push({ bg: btnBg, text: label, diff });
+      this.diffButtons.push(btn);
       items.push(btnBg, hitRect, label);
-    }
 
-    // Green checkmarks for completed difficulties
-    const chkSize = this.p(isMobile ? 40 : 28);
-    for (let i = 0; i < DIFFICULTY_ORDER.length; i++) {
-      const diff = DIFFICULTY_ORDER[i];
+      // Medal check for an earned difficulty, an empty ring otherwise
       const earned = medals?.[diff] ?? false;
-      if (earned) {
-        const by = btnStartY + i * (btnH + btnGap);
-        const chk = this.add.image(btnW / 2 - chkSize / 2 - this.p(8), by, 'green_check').setOrigin(0.5).setDisplaySize(chkSize, chkSize);
-        items.push(chk);
-      }
+      const chkSize = this.p(isMobile ? 20 : 14);
+      const chkKey = this.canvasTexture(`panel_check_${earned ? diff : 'none'}`, () => drawMedalCheckCanvas(earned ? MEDAL_COLORS[diff].hex : null, bs));
+      items.push(this.add.image(btnW / 2 - this.p(16), by, chkKey).setDisplaySize(chkSize, chkSize));
     }
 
-    // START button — sized up on mobile to match the larger panel.
-    // Positioned just below the last difficulty button so the gap stays
-    // tight regardless of how many difficulties exist. (Bottom-anchoring
-    // left a big void below the difficulties when the count was 4.)
-    const startBtnW = isMobile ? this.p(220) : this.p(120);
-    const startBtnH = isMobile ? this.p(56) : this.p(36);
-    const lastBtnBottom = btnStartY + (btnCount - 1) * (btnH + btnGap) + btnH / 2;
-    const gapToStart = isMobile ? this.p(20) : this.p(14);
-    this.startBtnY = lastBtnBottom + gapToStart;
-    this.startBtnG = this.add.graphics();
-    this.startBtnG.fillStyle(0x1a2540, 1);
-    this.startBtnG.fillRoundedRect(-startBtnW / 2, this.startBtnY, startBtnW, startBtnH, this.p(8));
-    this.startBtnG.lineStyle(this.p(1), 0x2a3760, 0.8);
-    this.startBtnG.strokeRoundedRect(-startBtnW / 2, this.startBtnY, startBtnW, startBtnH, this.p(8));
-    this.startText = this.add.text(0, this.startBtnY + startBtnH / 2, 'START', {
-      fontFamily: 'monospace', fontSize: this.fs(isMobile ? 22 : 15), color: '#556',
-      stroke: '#000', strokeThickness: this.p(2)
+    // START: a brass plate, dull until a difficulty is chosen. Positioned
+    // just below the sheet so the gap stays tight however many tabs there are.
+    const startBtnW = isMobile ? this.p(220) : this.p(148);
+    const startBtnH = isMobile ? this.p(56) : this.p(28);
+    const gapToStart = isMobile ? this.p(20) : this.p(18);
+    this.startBtnY = lastBtnBottom + this.p(12) + gapToStart;
+    const startShadow = this.add.graphics();
+    startShadow.fillStyle(0x000000, 0.35);
+    startShadow.fillRect(-startBtnW / 2 + this.p(2), this.startBtnY + this.p(2), startBtnW, startBtnH);
+    for (const state of ['lit', 'hover', 'unlit'] as const) this.canvasTexture(`panel_start_${state}`, () => drawBrassPlateCanvas(startBtnW / bs, startBtnH / bs, bs, state));
+    this.startBtnG = this.add.image(0, this.startBtnY + startBtnH / 2, 'panel_start_unlit').setDisplaySize(startBtnW, startBtnH);
+    this.startText = this.add.text(0, this.startBtnY + startBtnH / 2 + this.p(1), 'START', {
+      fontFamily: '"Cinzel Decorative", Georgia, serif', fontSize: this.fs(isMobile ? 22 : 14), fontStyle: 'bold', color: '#3a3328',
     }).setOrigin(0.5);
     this.startHit = this.add.rectangle(0, this.startBtnY + startBtnH / 2, startBtnW, startBtnH, 0x000000, 0);
     this.startBtnW = startBtnW;
     this.startBtnH = startBtnH;
-    items.push(this.startBtnG, this.startText, this.startHit);
+    items.push(startShadow, this.startBtnG, this.startText, this.startHit);
 
-    // Close button
-    const clBtnSz = this.p(isMobile ? 40 : 24);
-    const clX = pw / 2 - this.p(isMobile ? 50 : 32);
-    const clY = -ph / 2 + this.p(isMobile ? 14 : 8);
-    const closeG = this.add.graphics();
-    closeG.fillStyle(0x1a2540, 1);
-    closeG.fillRoundedRect(clX, clY, clBtnSz, clBtnSz, this.p(4));
-    closeG.lineStyle(this.p(1), 0x2a3760, 0.8);
-    closeG.strokeRoundedRect(clX, clY, clBtnSz, clBtnSz, this.p(4));
-    const closeCx = clX + clBtnSz / 2;
-    const closeCy = clY + clBtnSz / 2;
-    const closeX = this.add.text(closeCx, closeCy, 'X', {
-      fontFamily: 'monospace', fontSize: this.fs(isMobile ? 20 : 12), color: '#aab',
-      stroke: '#000', strokeThickness: this.p(1)
-    }).setOrigin(0.5);
-    const closeHit = this.add.rectangle(closeCx, closeCy, clBtnSz + this.p(4), clBtnSz + this.p(4), 0x000000, 0)
+    // Close: a round iron button in the top-right corner
+    const clR = this.p(isMobile ? 16 : 8);
+    const closeCx = pw / 2 - this.p(isMobile ? 36 : 24);
+    const closeCy = -ph / 2 + this.p(isMobile ? 36 : 28);
+    const closeIdle = this.canvasTexture('panel_close_idle', () => drawIronButtonCanvas(clR / bs, bs, false));
+    const closeHover = this.canvasTexture('panel_close_hover', () => drawIronButtonCanvas(clR / bs, bs, true));
+    const closeBtn = this.add.image(closeCx, closeCy, closeIdle).setDisplaySize(clR * 2 + this.p(2), clR * 2 + this.p(2));
+    const closeHit = this.add.rectangle(closeCx, closeCy, clR * 2 + this.p(8), clR * 2 + this.p(8), 0x000000, 0)
       .setInteractive({ useHandCursor: true });
     closeHit.on('pointerdown', () => this.closeDifficultyPanel());
-    closeHit.on('pointerover', () => {
-      closeG.clear();
-      closeG.fillStyle(0x3b4d84, 1);
-      closeG.fillRoundedRect(clX, clY, clBtnSz, clBtnSz, this.p(4));
-      closeG.lineStyle(this.p(1), 0x4a5a8a, 0.8);
-      closeG.strokeRoundedRect(clX, clY, clBtnSz, clBtnSz, this.p(4));
-    });
-    closeHit.on('pointerout', () => {
-      closeG.clear();
-      closeG.fillStyle(0x1a2540, 1);
-      closeG.fillRoundedRect(clX, clY, clBtnSz, clBtnSz, this.p(4));
-      closeG.lineStyle(this.p(1), 0x2a3760, 0.8);
-      closeG.strokeRoundedRect(clX, clY, clBtnSz, clBtnSz, this.p(4));
-    });
-    items.push(closeG, closeX, closeHit);
+    closeHit.on('pointerover', () => closeBtn.setTexture(closeHover).setDisplaySize(clR * 2 + this.p(2), clR * 2 + this.p(2)));
+    closeHit.on('pointerout', () => closeBtn.setTexture(closeIdle).setDisplaySize(clR * 2 + this.p(2), clR * 2 + this.p(2)));
+    items.push(closeBtn, closeHit);
 
     this.panel = this.add.container(px, py, items).setDepth(50);
 
@@ -865,7 +829,7 @@ export class LevelSelectScene extends Phaser.Scene {
     this.tweens.add({ targets: this.panel, alpha: 1, duration: 200 });
   }
 
-  startBtnG: Phaser.GameObjects.Graphics | null = null;
+  startBtnG: Phaser.GameObjects.Image | null = null;
   startHit: Phaser.GameObjects.Rectangle | null = null;
   startText: Phaser.GameObjects.Text | null = null;
   startBtnY = 0;
@@ -878,36 +842,20 @@ export class LevelSelectScene extends Phaser.Scene {
 
   updateStartButton() {
     if (!this.startBtnG || !this.startHit || !this.startText) return;
-    const g = this.startBtnG;
+    const plate = this.startBtnG;
     const text = this.startText;
     const hit = this.startHit;
     const bw = this.startBtnW, bh = this.startBtnH;
+    const show = (state: 'lit' | 'hover' | 'unlit') => plate.setTexture(`panel_start_${state}`).setDisplaySize(bw, bh);
 
     if (this.selectedDiff) {
-      const by = this.startBtnY;
-      g.clear();
-      g.fillStyle(0x1e4a2e, 1);
-      g.fillRoundedRect(-bw / 2, by, bw, bh, this.p(8));
-      g.lineStyle(this.p(2), 0x4ad96a, 0.9);
-      g.strokeRoundedRect(-bw / 2, by, bw, bh, this.p(8));
-      text.setColor('#7cf29a');
+      show('lit');
+      text.setColor(INK);
       hit.setInteractive({ useHandCursor: true });
-      hit.off('pointerdown');
+      hit.off('pointerdown'); hit.off('pointerover'); hit.off('pointerout');
       hit.on('pointerdown', () => { SFX.play('select'); this.startMission(); });
-      hit.on('pointerover', () => {
-        g.clear();
-        g.fillStyle(0x2a6a3e, 1);
-        g.fillRoundedRect(-bw / 2, by, bw, bh, this.p(8));
-        g.lineStyle(this.p(2), 0x6afa8a, 0.9);
-        g.strokeRoundedRect(-bw / 2, by, bw, bh, this.p(8));
-      });
-      hit.on('pointerout', () => {
-        g.clear();
-        g.fillStyle(0x1e4a2e, 1);
-        g.fillRoundedRect(-bw / 2, by, bw, bh, this.p(8));
-        g.lineStyle(this.p(2), 0x4ad96a, 0.9);
-        g.strokeRoundedRect(-bw / 2, by, bw, bh, this.p(8));
-      });
+      hit.on('pointerover', () => show('hover'));
+      hit.on('pointerout', () => show('lit'));
     }
   }
 

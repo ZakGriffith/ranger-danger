@@ -301,3 +301,108 @@ export function drawEmberGlowCanvas(sf: number): HTMLCanvasElement {
 }
 /** Centre of a regular shield inside its canvas, in base px. */
 export const SHIELD_CENTER = { x: SHIELD_W / 2 + SHIELD_PAD, y: SHIELD_PAD + SHIELD_H * 0.46 };
+
+// ---------------------------------------------------------------- mission panel: iron and timber
+function nail(ctx: CanvasRenderingContext2D, x: number, y: number) {
+  ctx.beginPath(); ctx.arc(x, y, 2.2, 0, Math.PI * 2); ctx.fillStyle = '#c9a24e'; ctx.fill();
+  ctx.lineWidth = 0.7; ctx.strokeStyle = INK; ctx.stroke();
+  ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.fillRect(x - 1.2, y - 1.2, 1, 1);
+}
+function parchmentSheet(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, seed: number) {
+  ctx.fillStyle = PARCHMENT_LIGHT; ctx.fillRect(x, y, w, h);
+  ctx.fillStyle = 'rgba(120,90,50,0.08)';
+  for (let i = 0; i < 40; i++) {
+    const px = x + ((i * 7919 + seed * 13) % 1000) / 1000 * w, py = y + ((i * 104729 + seed * 7) % 1000) / 1000 * h;
+    ctx.beginPath(); ctx.ellipse(px, py, 6 + (i % 5) * 4, 3 + (i % 3) * 2, i, 0, Math.PI * 2); ctx.fill();
+  }
+  const g = ctx.createLinearGradient(x, y, x, y + h); g.addColorStop(0, 'rgba(255,245,220,0.25)'); g.addColorStop(1, 'rgba(90,60,30,0.18)');
+  ctx.fillStyle = g; ctx.fillRect(x, y, w, h);
+}
+function bracket(ctx: CanvasRenderingContext2D, x: number, y: number, sx: number, sy: number, arm: number) {
+  const t = arm * 0.26;
+  ctx.fillStyle = '#4b4a4e'; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + sx * arm, y); ctx.lineTo(x + sx * arm, y + sy * t); ctx.lineTo(x + sx * t, y + sy * t); ctx.lineTo(x + sx * t, y + sy * arm); ctx.lineTo(x, y + sy * arm); ctx.closePath(); ctx.fill();
+  ctx.lineWidth = 1; ctx.strokeStyle = '#1e1d20'; ctx.stroke();
+  ctx.fillStyle = '#8c8b90'; ctx.fillRect(Math.min(x, x + sx * arm), Math.min(y, y + sy * 2), arm, 1.5);
+  for (const [rx, ry] of [[x + sx * t * 0.55, y + sy * t * 0.55], [x + sx * arm * 0.76, y + sy * t * 0.55], [x + sx * t * 0.55, y + sy * arm * 0.76]]) {
+    ctx.beginPath(); ctx.arc(rx, ry, 1.8, 0, Math.PI * 2); ctx.fillStyle = '#9a9aa2'; ctx.fill(); ctx.strokeStyle = '#1e1d20'; ctx.lineWidth = 0.7; ctx.stroke();
+  }
+}
+/** The plank board the mission panel is built on; w x h in base px. */
+export function drawPlankBoardCanvas(w: number, h: number, sf: number): HTMLCanvasElement {
+  const [c, ctx] = canvasOf(w * sf, h * sf);
+  ctx.scale(sf, sf);
+  const n = Math.max(4, Math.round(h / 60)), ph = h / n;
+  for (let i = 0; i < n; i++) {
+    const y = i * ph;
+    ctx.fillStyle = i % 2 ? '#7a4f2d' : '#6e4628'; ctx.fillRect(0, y, w, ph);
+    ctx.strokeStyle = 'rgba(40,20,8,0.35)'; ctx.lineWidth = 1;
+    for (let k = 0; k < 6; k++) { const yy = y + 3 + ((k * 37 + i * 11) % Math.max(1, ph - 6)); ctx.beginPath(); ctx.moveTo(4, yy); ctx.bezierCurveTo(w * 0.3, yy + 2, w * 0.6, yy - 2, w - 4, yy + 1); ctx.stroke(); }
+    ctx.fillStyle = 'rgba(255,220,160,0.12)'; ctx.fillRect(0, y, w, 2);
+    ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(0, y + ph - 2, w, 2);
+  }
+  ctx.lineWidth = 1.2; ctx.strokeStyle = '#2a1608'; ctx.strokeRect(0.6, 0.6, w - 1.2, h - 1.2);
+  const arm = Math.min(34, w * 0.14);
+  bracket(ctx, 1, 1, 1, 1, arm); bracket(ctx, w - 1, 1, -1, 1, arm); bracket(ctx, 1, h - 1, 1, -1, arm); bracket(ctx, w - 1, h - 1, -1, -1, arm);
+  return c;
+}
+/** A brass plate with four nails; lit is the usable state, unlit the waiting one. */
+export function drawBrassPlateCanvas(w: number, h: number, sf: number, state: 'lit' | 'hover' | 'unlit'): HTMLCanvasElement {
+  const [c, ctx] = canvasOf(w * sf, h * sf);
+  ctx.scale(sf, sf);
+  ctx.fillStyle = state === 'unlit' ? '#7a6f58' : state === 'hover' ? '#e2bd6a' : '#c9a24e'; ctx.fillRect(0, 0, w, h);
+  ctx.fillStyle = 'rgba(255,255,255,0.18)'; ctx.fillRect(0, 0, w, 4);
+  ctx.fillStyle = 'rgba(0,0,0,0.15)'; ctx.fillRect(0, h - 3, w, 3);
+  ctx.lineWidth = 1; ctx.strokeStyle = INK; ctx.strokeRect(0.5, 0.5, w - 1, h - 1);
+  for (const [nx, ny] of [[6, 6], [w - 6, 6], [6, h - 6], [w - 6, h - 6]]) nail(ctx, nx, ny);
+  return c;
+}
+/** The dark iron backing a brass title plate sits on. */
+export function drawIronPlateCanvas(w: number, h: number, sf: number): HTMLCanvasElement {
+  const [c, ctx] = canvasOf(w * sf, h * sf);
+  ctx.scale(sf, sf);
+  ctx.fillStyle = '#3f3e42'; ctx.fillRect(0, 0, w, h);
+  ctx.lineWidth = 1; ctx.strokeStyle = '#1e1d20'; ctx.strokeRect(0.5, 0.5, w - 1, h - 1);
+  return c;
+}
+/** The parchment sheet nailed to the board; w x h in base px. */
+export function drawNailedSheetCanvas(w: number, h: number, sf: number): HTMLCanvasElement {
+  const [c, ctx] = canvasOf(w * sf, h * sf);
+  ctx.scale(sf, sf);
+  parchmentSheet(ctx, 0, 0, w, h, 5);
+  ctx.lineWidth = 0.9; ctx.strokeStyle = INK; ctx.strokeRect(0.5, 0.5, w - 1, h - 1);
+  for (const [nx, ny] of [[6, 6], [w - 6, 6], [6, h - 6], [w - 6, h - 6]]) nail(ctx, nx, ny);
+  return c;
+}
+/** A wooden difficulty tab with a brass nail at its left. */
+export function drawWoodTabCanvas(w: number, h: number, sf: number, state: 'idle' | 'hover' | 'selected'): HTMLCanvasElement {
+  const [c, ctx] = canvasOf(w * sf, h * sf);
+  ctx.scale(sf, sf);
+  ctx.fillStyle = state === 'selected' ? '#b07a3e' : state === 'hover' ? '#b8864c' : '#9a6a3a'; ctx.fillRect(0, 0, w, h);
+  ctx.strokeStyle = 'rgba(40,20,8,0.3)'; ctx.lineWidth = 1;
+  for (let k = 0; k < 3; k++) { const yy = 4 + ((k * 37 + 5) % Math.max(1, h - 8)); ctx.beginPath(); ctx.moveTo(4, yy); ctx.bezierCurveTo(w * 0.3, yy + 1.5, w * 0.6, yy - 1.5, w - 4, yy + 0.5); ctx.stroke(); }
+  ctx.fillStyle = 'rgba(255,230,180,0.2)'; ctx.fillRect(0, 0, w, 3);
+  ctx.fillStyle = 'rgba(0,0,0,0.2)'; ctx.fillRect(0, h - 2, w, 2);
+  ctx.lineWidth = state === 'selected' ? 1.4 : 0.9; ctx.strokeStyle = state === 'selected' ? '#e6c06a' : '#3a2010'; ctx.strokeRect(0.5, 0.5, w - 1, h - 1);
+  nail(ctx, 8, h / 2);
+  return c;
+}
+/** The round iron close button. */
+export function drawIronButtonCanvas(r: number, sf: number, hover: boolean): HTMLCanvasElement {
+  const [c, ctx] = canvasOf((r * 2 + 2) * sf, (r * 2 + 2) * sf);
+  ctx.scale(sf, sf);
+  const cx = r + 1, cy = r + 1;
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fillStyle = hover ? '#6e6d73' : '#5a595e'; ctx.fill(); ctx.strokeStyle = '#1e1d20'; ctx.lineWidth = 1; ctx.stroke();
+  ctx.fillStyle = 'rgba(255,255,255,0.15)'; ctx.beginPath(); ctx.arc(cx, cy - r * 0.3, r * 0.6, Math.PI, 0); ctx.fill();
+  const a = r * 0.4; ctx.lineWidth = 1.8; ctx.strokeStyle = '#e8e0cc'; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(cx - a, cy - a); ctx.lineTo(cx + a, cy + a); ctx.moveTo(cx + a, cy - a); ctx.lineTo(cx - a, cy + a); ctx.stroke();
+  return c;
+}
+/** A medal check for an earned difficulty, or an empty inked ring. */
+export function drawMedalCheckCanvas(colorHex: string | null, sf: number): HTMLCanvasElement {
+  const [c, ctx] = canvasOf(14 * sf, 14 * sf);
+  ctx.scale(sf, sf);
+  if (!colorHex) { ctx.beginPath(); ctx.arc(7, 7, 5, 0, Math.PI * 2); ctx.strokeStyle = 'rgba(255,235,200,0.55)'; ctx.lineWidth = 1; ctx.stroke(); return c; }
+  ctx.beginPath(); ctx.arc(7, 7, 5.5, 0, Math.PI * 2); ctx.fillStyle = colorHex; ctx.fill(); ctx.lineWidth = 0.9; ctx.strokeStyle = INK; ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(4, 7); ctx.lineTo(6.2, 9.4); ctx.lineTo(10.2, 4.4); ctx.lineWidth = 1.6; ctx.strokeStyle = INK; ctx.lineCap = 'round'; ctx.stroke();
+  return c;
+}
