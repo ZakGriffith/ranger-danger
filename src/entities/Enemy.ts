@@ -6,7 +6,7 @@ import { DEBUG } from '../debug.config';
 import { CASTLE_RAT_COUNT } from '../assets/art/castleEnemies/textures';
 import { BLOB_FOOT_Y, BLOB_ORIGIN_Y, BLOB_SPRITE_SCALE, BLOB_VARIANTS } from '../assets/art/infectedBlob';
 import { INFECTED_SPIDER_VARIANTS, infectedSpiderTexturePrefix } from '../assets/art/infectedSpider';
-import { MIRE_SNAPPER_ORIGIN_Y, MIRE_SNAPPER_PALETTES, mireSnapperTexturePrefix } from '../assets/art/infectedEnemies/mireSnapper';
+import { FUNGAL_BRUTE_ORIGIN_Y, FUNGAL_BRUTE_PREFIX } from '../assets/art/infectedEnemies/fungalBrute';
 import { TOAD_ART, TOAD_VARIANTS, toadTexturePrefix } from '../assets/art/toad';
 import { MEADOW_ENEMY_ART } from '../assets/art/meadowEnemies/textures';
 import { FOREST_BEAR_ART } from '../assets/art/forestEnemies/bear';
@@ -136,7 +136,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
         this.setSize(44, 24).setOffset(26, 76);
         break;
       case 'infected_heavy':
-        this.setScale(0.6).setOrigin(0.5, MIRE_SNAPPER_ORIGIN_Y);
+        this.setScale(0.6).setOrigin(0.5, FUNGAL_BRUTE_ORIGIN_Y);
         this.setSize(32, 32).setOffset(32, 44);
         this.play(`${texPrefix}-move`);
         break;
@@ -251,7 +251,6 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
   /** Kinds with several art variants pick one per enemy. */
   static pickVariant(kind: EnemyKind): number {
     if (kind === 'infected_basic') return Phaser.Math.Between(0, BLOB_VARIANTS - 1);
-    if (kind === 'infected_heavy') return Phaser.Math.Between(0, MIRE_SNAPPER_PALETTES.length - 1);
     if (kind === 'infected_runner') return Phaser.Math.Between(0, INFECTED_SPIDER_VARIANTS - 1);
     if (kind === 'toad') return Phaser.Math.Between(0, TOAD_VARIANTS - 1);
     if (kind === 'bat') return Phaser.Math.Between(0, RIVER_BAT_COUNT - 1);
@@ -266,7 +265,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
       case 'rat': return 'erat';
       case 'deer': return 'eder';
       case 'infected_basic': return `eiblob${variant}`;
-      case 'infected_heavy': return mireSnapperTexturePrefix(variant);
+      case 'infected_heavy': return FUNGAL_BRUTE_PREFIX;
       case 'infected_runner': return infectedSpiderTexturePrefix(variant);
       case 'toad': return toadTexturePrefix(variant);
       case 'wolf': return 'ew';

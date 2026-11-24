@@ -23,19 +23,15 @@ import {
   lanternMawWakeKey, makeLanternMawWakeFrame,
 } from './lanternMawSmoke';
 import {
-  MIRE_SNAPPER_ATTACK_FPS, MIRE_SNAPPER_ATTACK_FRAMES, MIRE_SNAPPER_FRAMES,
-  MIRE_SNAPPER_MOVE_FPS, MIRE_SNAPPER_MOVE_FRAMES, MIRE_SNAPPER_PALETTES,
-  makeMireSnapperFrame, mireSnapperTexturePrefix,
-} from './mireSnapper';
+  FUNGAL_BRUTE_ATTACK_FPS, FUNGAL_BRUTE_ATTACK_FRAMES, FUNGAL_BRUTE_FRAMES,
+  FUNGAL_BRUTE_MOVE_FPS, FUNGAL_BRUTE_MOVE_FRAMES, FUNGAL_BRUTE_PREFIX, makeFungalBruteFrame,
+} from './fungalBrute';
 
 export function generateInfectedTextures(scene: Phaser.Scene): void {
   for (let variant = 0; variant < BLOB_VARIANTS; variant++) {
     for (const frame of BLOB_FRAMES) add(scene, `eiblob${variant}_${frame}`, makeInfectedBlobFrame(frame, variant));
   }
-  for (let variant = 0; variant < MIRE_SNAPPER_PALETTES.length; variant++) {
-    const prefix = mireSnapperTexturePrefix(variant);
-    for (const frame of MIRE_SNAPPER_FRAMES) add(scene, `${prefix}_${frame}`, makeMireSnapperFrame(frame, variant));
-  }
+  for (const frame of FUNGAL_BRUTE_FRAMES) add(scene, `${FUNGAL_BRUTE_PREFIX}_${frame}`, makeFungalBruteFrame(frame));
   for (let variant = 0; variant < INFECTED_SPIDER_VARIANTS; variant++) {
     const prefix = infectedSpiderTexturePrefix(variant);
     for (const frame of INFECTED_SPIDER_FRAMES) add(scene, `${prefix}_${frame}`, makeIllustratedInfectedRunnerFrame(frame, variant));
@@ -72,12 +68,9 @@ export function registerInfectedAnimations(scene: Phaser.Scene): void {
     register(prefix, 'atk', BLOB_ATTACK_FRAMES, 1000 / BLOB_ATTACK_FRAME_MS, 0);
     register(prefix, 'hit', ['hit'], 10, 0);
   }
-  for (let variant = 0; variant < MIRE_SNAPPER_PALETTES.length; variant++) {
-    const prefix = mireSnapperTexturePrefix(variant);
-    register(prefix, 'move', MIRE_SNAPPER_MOVE_FRAMES, MIRE_SNAPPER_MOVE_FPS, -1);
-    register(prefix, 'atk', MIRE_SNAPPER_ATTACK_FRAMES, MIRE_SNAPPER_ATTACK_FPS, 0);
-    register(prefix, 'hit', ['hit'], 8, 0);
-  }
+  register(FUNGAL_BRUTE_PREFIX, 'move', FUNGAL_BRUTE_MOVE_FRAMES, FUNGAL_BRUTE_MOVE_FPS, -1);
+  register(FUNGAL_BRUTE_PREFIX, 'atk', FUNGAL_BRUTE_ATTACK_FRAMES, FUNGAL_BRUTE_ATTACK_FPS, 0);
+  register(FUNGAL_BRUTE_PREFIX, 'hit', ['hit'], 8, 0);
   for (let variant = 0; variant < INFECTED_SPIDER_VARIANTS; variant++) {
     const prefix = infectedSpiderTexturePrefix(variant);
     register(prefix, 'move', INFECTED_SPIDER_MOVE_FRAMES, INFECTED_SPIDER_MOVE_FPS, -1);

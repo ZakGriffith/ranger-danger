@@ -107,7 +107,7 @@ const OVERRIDES: Record<string, CharacterOverrides> = {
   shadow_imp:  { anims: { move: { fps: 18 } } },
   toad:  { pngScaleMultiplier: 1.2 },
   infected_basic:  { pngScaleMultiplier: 1.2,  anims: { atk: { fps: 22 } } },
-  infected_heavy:  { anims: { atk: { fps: 18 } } },
+  infected_heavy:  { anims: { move: { fps: 24 }, atk: { fps: 30 } } },
   heavy:  { pngScaleMultiplier: 1.3 },
   // Boss slam: the wind-up state is 600 ms (EnemyBossSystem.slam_wind), and
   // every boss's atk.png is 12 frames. 12 / 0.6 = 20 fps makes the swing
@@ -194,7 +194,7 @@ const BUILTIN: CharacterSpec[] = [
   { folder: 'spider',         texPrefix: 'es',    anims: stdEnemyAnims('es') },
   { folder: 'infected_basic', texPrefix: 'eiblob0', anims: stdEnemyAnims('eiblob0'), proceduralCanvasSize: 112 },
   { folder: 'infected_runner', texPrefix: 'eir0', anims: stdEnemyAnims('eir0') },
-  { folder: 'infected_heavy', texPrefix: 'eih0',  anims: stdEnemyAnims('eih0') },
+  { folder: 'infected_heavy', texPrefix: 'eifb',  anims: stdEnemyAnims('eifb'), proceduralCanvasSize: 96 },
   { folder: 'crow',           texPrefix: 'ecr',   anims: stdEnemyAnims('ecr'), proceduralCanvasSize: RIVER_FLIER_SIZE },
   { folder: 'river_bat',      texPrefix: riverBatTexturePrefix(0), anims: stdEnemyAnims(riverBatTexturePrefix(0)), proceduralCanvasSize: RIVER_FLIER_SIZE },
   { folder: 'bat',            texPrefix: 'ebt',   anims: stdEnemyAnims('ebt') },

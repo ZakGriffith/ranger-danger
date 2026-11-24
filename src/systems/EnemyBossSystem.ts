@@ -12,7 +12,7 @@ import { getEvents } from '../core/events';
 import { getRegistry } from '../core/registry';
 import { DEBUG } from '../debug.config';
 import { POISON_SMOKE_DEPTH, POISON_SMOKE_GROUND_Y, POISON_SMOKE_RADIUS } from '../assets/art/poisonSmoke';
-import { MIRE_SNAPPER_IMPACT_FRAME } from '../assets/art/infectedEnemies/mireSnapper';
+import { FUNGAL_BRUTE_IMPACT_FRAME } from '../assets/art/infectedEnemies/fungalBrute';
 import { RIVER_MOSQUITO_MUZZLE } from '../assets/art/riverEnemies/textures';
 import {
   LANTERN_MAW_GAS_FIRST_FRAME, LANTERN_MAW_WAKE_MS,
@@ -33,7 +33,7 @@ const MELEE_EXIT_RADIUS = 40;
 export class EnemyBossSystem {
   private readonly lanternMawToss: LanternMawTossSystem;
   private readonly galeclawCombat: GaleclawCombat;
-  private readonly pendingMireSnaps = new WeakSet<Enemy>();
+  private readonly pendingFungalPunches = new WeakSet<Enemy>();
 
   constructor(private scene: GameScene) {
     this.lanternMawToss = new LanternMawTossSystem(scene);
@@ -201,11 +201,11 @@ export class EnemyBossSystem {
         }
       }
 
-      const snapFrame = this.mireSnapperAttackFrame(e);
-      if (snapFrame) {
+      const punchFrame = this.fungalBruteAttackFrame(e);
+      if (punchFrame) {
         // Phaser indexes frames from 1; the art identifies the strike by its zero-based texture suffix.
-        if (snapFrame.index > MIRE_SNAPPER_IMPACT_FRAME && this.pendingMireSnaps.delete(e)) {
-          this.resolveMireSnap(e);
+        if (punchFrame.index > FUNGAL_BRUTE_IMPACT_FRAME && this.pendingFungalPunches.delete(e)) {
+          this.resolveFungalPunch(e);
         }
         e.setVelocity(0, 0);
         (e as any)._attacking = true;
@@ -606,7 +606,7 @@ export class EnemyBossSystem {
           if (e.kind === 'bear') this.playBearAttack(e);
           else if (e.kind === 'wolf') this.playWolfAttack(e);
           else if (e.kind === 'infected_heavy') {
-            this.startMireSnap(e);
+            this.startFungalPunch(e);
             return true;
           }
           scene.player.hurt(e.dmg, scene);
@@ -1834,24 +1834,24 @@ export class EnemyBossSystem {
     e.play('ew-atk');
   }
 
-  private mireSnapperAttackFrame(e: Enemy): Phaser.Animations.AnimationFrame | null {
+  private fungalBruteAttackFrame(e: Enemy): Phaser.Animations.AnimationFrame | null {
     return e.kind === 'infected_heavy' && e.anims.currentAnim?.key === `${e.dirPrefix()}-atk` && e.anims.isPlaying
       ? e.anims.currentFrame : null;
   }
 
-  private startMireSnap(e: Enemy) {
+  private startFungalPunch(e: Enemy) {
     e.setVelocity(0, 0);
     e.setFlipX(this.scene.player.x - e.x < 0);
-    this.pendingMireSnaps.add(e);
+    this.pendingFungalPunches.add(e);
     e.play(`${e.dirPrefix()}-atk`);
   }
 
-  private resolveMireSnap(e: Enemy) {
+  private resolveFungalPunch(e: Enemy) {
     const scene = this.scene;
     const dx = scene.player.x - e.x;
     const dy = scene.player.y - e.y;
-    const behindBite = dx * (e.flipX ? -1 : 1) < -4;
-    if (behindBite || dx * dx + dy * dy >= MELEE_EXIT_RADIUS ** 2 || scene.endState.dying || scene.endState.gameOver) return;
+    const behindPunch = dx * (e.flipX ? -1 : 1) < -4;
+    if (behindPunch || dx * dx + dy * dy >= MELEE_EXIT_RADIUS ** 2 || scene.endState.dying || scene.endState.gameOver) return;
 
     scene.player.hurt(e.dmg, scene);
     scene.hud.pushHud();
@@ -1865,13 +1865,13 @@ export class EnemyBossSystem {
       scene.infectedBlobs.tryAttack(e);
       return;
     }
-    if (this.mireSnapperAttackFrame(e)) return;
+    if (this.fungalBruteAttackFrame(e)) return;
     if (scene.vTime > e.attackCd) {
       e.attackCd = scene.vTime + 700;
       if (e.kind === 'bear') this.playBearAttack(e);
       else if (e.kind === 'wolf') this.playWolfAttack(e);
       else if (e.kind === 'infected_heavy') {
-        this.startMireSnap(e);
+        this.startFungalPunch(e);
         return;
       }
       scene.player.hurt(e.dmg, scene);
