@@ -10,6 +10,11 @@ import {
 } from '../levels';
 import { isTutorialNeeded, markTutorialDone } from './TutorialScene';
 import { PlayerProfilePanel } from '../ui/PlayerProfilePanel';
+import {
+  MAP_FRAME, MAP_CROP, INK, PARCHMENT_LIGHT, SHIELD_R, SHIELD_CENTER,
+  drawScrollFrameCanvas, drawMapInsetCanvas, drawRibbonCanvas, drawTagCanvas, drawMedalIconCanvas,
+  drawCompassCanvas, drawShieldCanvas, drawShieldGlowCanvas, drawRangerMarkerCanvas,
+} from '../assets/art/levelMap';
 
 /** Testing toggle — when on, every map level is treated as unlocked,
  *  regardless of medals or implementation status. Persisted in localStorage
@@ -64,6 +69,36 @@ export class LevelSelectScene extends Phaser.Scene {
   /** Build a font-size string at the scaled resolution */
   fs(px: number) { return `${Math.round(px * this.sf)}px`; }
   constructor() { super('LevelSelect'); }
+
+  /** Registers a generated canvas as a texture, replacing any earlier one (the scene restarts on resize). */
+  private canvasTexture(key: string, canvas: HTMLCanvasElement): string {
+    if (this.textures.exists(key)) this.textures.remove(key);
+    this.textures.addCanvas(key, canvas);
+    return key;
+  }
+
+  /** A level's marker position on screen: its painted spot mapped from the full map image into the frame. */
+  private nodePos(level: LevelDef): { x: number; y: number } {
+    const src = this.textures.get('level_map_bg').getSourceImage() as { width: number; height: number };
+    const ix = level.x / CFG.width * src.width, iy = level.y / CFG.height * src.height;
+    return {
+      x: this.p(MAP_FRAME.x0 + (ix - MAP_CROP.x) / MAP_CROP.w * (MAP_FRAME.x1 - MAP_FRAME.x0)),
+      y: this.p(MAP_FRAME.y0 + (iy - MAP_CROP.y) / MAP_CROP.h * (MAP_FRAME.y1 - MAP_FRAME.y0)),
+    };
+  }
+
+  /** The ranger stands beside the furthest unlocked level. */
+  private drawRangerMarker() {
+    let here = LEVELS[0];
+    for (const l of LEVELS) if (this.unlockedFor(l.id) && l.id > here.id) here = l;
+    const { x, y } = this.nodePos(here);
+    const size = this.p(32);
+    const g = this.add.graphics().setDepth(3);
+    g.fillStyle(0x000000, 0.3);
+    g.fillEllipse(x + this.p(18) + size / 2, y - this.p(28) + size - this.p(2), this.p(18), this.p(6));
+    this.add.image(x + this.p(18), y - this.p(28), this.canvasTexture('level_ranger', drawRangerMarkerCanvas()))
+      .setOrigin(0).setDisplaySize(size, size).setDepth(3);
+  }
 
   create() {
     // Resume the intro/menu theme. The HTMLAudioElement is started in
@@ -134,41 +169,47 @@ export class LevelSelectScene extends Phaser.Scene {
     const W = nativeW;
     const H = nativeH;
 
-    // Map background image — stretched to fill canvas
-    const bg = this.add.image(W / 2, H / 2, 'level_map_bg');
-    bg.setDisplaySize(W, H);
-
-    // Slight dark overlay so nodes/text pop
-    this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.15);
+    // The painted map sits inside an unrolled scroll; the parchment margin
+    // around it carries the chrome. Node coordinates were painted in the
+    // stretched full-canvas space, so nodePos() maps them into the frame.
+    this.add.image(0, 0, this.canvasTexture('level_scroll', drawScrollFrameCanvas(W, H, this.sf))).setOrigin(0);
+    const fx0 = this.p(MAP_FRAME.x0), fy0 = this.p(MAP_FRAME.y0);
+    const fw = this.p(MAP_FRAME.x1 - MAP_FRAME.x0), fh = this.p(MAP_FRAME.y1 - MAP_FRAME.y0);
+    const sx = fw / MAP_CROP.w, sy = fh / MAP_CROP.h;
+    const bg = this.add.image(fx0 - MAP_CROP.x * sx, fy0 - MAP_CROP.y * sy, 'level_map_bg').setOrigin(0);
+    bg.setScale(sx, sy);
+    bg.setCrop(MAP_CROP.x, MAP_CROP.y, MAP_CROP.w, MAP_CROP.h);
+    this.add.image(fx0, fy0, this.canvasTexture('level_map_inset', drawMapInsetCanvas(this.sf))).setOrigin(0).setDisplaySize(fw, fh);
 
     this.drawPaths();
     this.drawNodes();
+    this.drawRangerMarker();
 
-    // Title banner
-    const bannerW = this.p(320), bannerH = this.p(36);
-    const bannerG = this.add.graphics();
-    bannerG.fillStyle(0x11172a, 0.85);
-    bannerG.fillRoundedRect(W / 2 - bannerW / 2, this.p(6), bannerW, bannerH, this.p(8));
-    bannerG.lineStyle(this.p(1), 0x2a3760, 0.8);
-    bannerG.strokeRoundedRect(W / 2 - bannerW / 2, this.p(6), bannerW, bannerH, this.p(8));
-    this.add.text(W / 2, this.p(24), 'SELECT YOUR MISSION', {
-      fontFamily: 'monospace', fontSize: this.fs(18), color: '#7cc4ff',
-      stroke: '#000', strokeThickness: this.p(3)
+    // Title ribbon
+    const ribbonW = 300, ribbonH = 26;
+    this.add.image(W / 2, this.p(24), this.canvasTexture('level_ribbon', drawRibbonCanvas(ribbonW, ribbonH, this.sf)))
+      .setOrigin(0.5, 0.5).setDisplaySize(this.p(ribbonW + 36), this.p(ribbonH + 10)).setDepth(2);
+    this.add.text(W / 2, this.p(25), 'Choose Your Mission', {
+      fontFamily: '"Cinzel Decorative", Georgia, serif', fontSize: this.fs(15), fontStyle: 'bold', color: '#f6e7bf',
+      stroke: '#3c0a08', strokeThickness: this.p(3),
     }).setOrigin(0.5).setDepth(2);
 
-    // Medal counter — top right
-    const mcW = this.p(158), mcH = this.p(36);
-    const medalBg = this.add.graphics();
-    medalBg.fillStyle(0x11172a, 0.85);
-    medalBg.fillRoundedRect(W - this.p(170), this.p(6), mcW, mcH, this.p(8));
-    medalBg.lineStyle(this.p(1), 0x2a3760, 0.8);
-    medalBg.strokeRoundedRect(W - this.p(170), this.p(6), mcW, mcH, this.p(8));
-    this.add.text(W - this.p(91), this.p(24), `Medals: ${this.medalCount} / ${LEVELS.length * 4}`, {
-      fontFamily: 'monospace', fontSize: this.fs(12), color: '#ffd84a',
-      stroke: '#000', strokeThickness: this.p(2)
-    }).setOrigin(0.5).setDepth(2);
+    // Medal counter — a pinned tag, top right
+    const tagW = 122, tagH = 26, tagX = W - this.p(44 + 142), tagY = this.p(12);
+    this.add.image(tagX, tagY, this.canvasTexture('level_tag_s', drawTagCanvas(tagW, tagH, this.sf)))
+      .setOrigin(0).setDisplaySize(this.p(tagW + 4), this.p(tagH + 5)).setDepth(2);
+    this.add.image(tagX + this.p(8), tagY + this.p(6), this.canvasTexture('level_medal_icon', drawMedalIconCanvas(this.sf)))
+      .setOrigin(0).setDisplaySize(this.p(14), this.p(16)).setDepth(2);
+    this.add.text(tagX + this.p(26), tagY + this.p(14.5), `Medals  ${this.medalCount} / ${LEVELS.length * 4}`, {
+      fontFamily: 'Cinzel, Georgia, serif', fontSize: this.fs(10.5), fontStyle: 'bold', color: INK,
+    }).setOrigin(0, 0.5).setDepth(2);
 
     this.drawPlayerLevelBanner();
+    this.add.image(this.p(MAP_FRAME.x0 + 48), this.p(584), this.canvasTexture('level_compass', drawCompassCanvas(26, this.sf)))
+      .setOrigin(0.5).setDisplaySize(this.p(56), this.p(56)).setDepth(2);
+    this.add.text(this.p(MAP_FRAME.x0 + 48), this.p(584 - 33), 'N', {
+      fontFamily: 'Cinzel, Georgia, serif', fontSize: this.fs(9), fontStyle: 'bold', color: INK,
+    }).setOrigin(0.5).setDepth(2);
     this.drawTestUnlockToggle();
 
     // Dev/testing hook: ?level=N[&diff=easy] skips the map and starts that
@@ -201,25 +242,25 @@ export class LevelSelectScene extends Phaser.Scene {
 
         const unlocked = this.unlockedFor(target.id);
 
-        const x0 = this.p(level.x), y0 = this.p(level.y);
-        const x1 = this.p(target.x), y1 = this.p(target.y);
+        const { x: x0, y: y0 } = this.nodePos(level);
+        const { x: x1, y: y1 } = this.nodePos(target);
         const dx = x1 - x0;
         const dy = y1 - y0;
         const dist = Math.hypot(dx, dy);
         const segments = Math.floor(dist / this.p(10));
 
+        // A pen-dashed route on a pale halo; solid ink once the next level is open.
         for (let pass = 0; pass < 2; pass++) {
           if (pass === 0) {
-            g.lineStyle(this.p(6), 0x000000, unlocked ? 0.55 : 0.3);
+            g.lineStyle(this.p(3.4), 0xeadcb4, unlocked ? 0.75 : 0.45);
           } else {
-            // Unlocked paths use the same tan as the unlocked-node ring so
-            // the "you've earned this" signal carries from node to path.
-            g.lineStyle(this.p(3), unlocked ? 0xc8a86a : 0x2a2018, unlocked ? 1 : 0.4);
+            g.lineStyle(this.p(unlocked ? 2.2 : 1.6), unlocked ? 0x2b1d12 : 0x4a3524, unlocked ? 0.9 : 0.5);
           }
           for (let i = 0; i < segments; i++) {
             if (i % 2 !== 0) continue;
             const t0 = i / segments;
             const t1 = Math.min((i + 1) / segments, 1);
+            if (t0 < 0.14 || t1 > 0.86) continue;
             g.lineBetween(
               x0 + dx * t0, y0 + dy * t0,
               x0 + dx * t1, y0 + dy * t1
@@ -345,42 +386,33 @@ export class LevelSelectScene extends Phaser.Scene {
     const lvl = progress.level;
     const inLvl = progress.xpInCurrentLevel;
     const need = progress.xpToNextLevel;
-    const pillW = this.p(158), pillH = this.p(48);
-    const pillX = this.p(12), pillY = this.p(6);
+    const tagW = 128, tagH = 36;
+    const tagX = this.p(44 + 16), tagY = this.p(12);
+    const tag = this.add.image(tagX, tagY, this.canvasTexture('level_tag_l', drawTagCanvas(tagW, tagH, this.sf)))
+      .setOrigin(0).setDisplaySize(this.p(tagW + 4), this.p(tagH + 5)).setDepth(2);
+    this.add.text(tagX + this.p(9), tagY + this.p(12), `Ranger  ·  Rank ${lvl}`, {
+      fontFamily: 'Cinzel, Georgia, serif', fontSize: this.fs(10.5), fontStyle: 'bold', color: INK,
+    }).setOrigin(0, 0.5).setDepth(2);
+    // XP bar inside the tag
     const g = this.add.graphics().setDepth(2);
-    g.fillStyle(0x11172a, 0.85);
-    g.fillRoundedRect(pillX, pillY, pillW, pillH, this.p(8));
-    g.lineStyle(this.p(1), 0x2a3760, 0.8);
-    g.strokeRoundedRect(pillX, pillY, pillW, pillH, this.p(8));
-    this.add.text(pillX + pillW / 2, pillY + this.p(12), `LVL ${lvl}`, {
-      fontFamily: 'monospace', fontSize: this.fs(13), fontStyle: 'bold', color: '#b4a8ff',
-      stroke: '#000', strokeThickness: this.p(2),
-    }).setOrigin(0.5).setDepth(2);
-    // XP bar inside the pill
-    const barX = pillX + this.p(10);
-    const barY = pillY + this.p(25);
-    const barW = pillW - this.p(20);
-    const barH = this.p(6);
-    g.fillStyle(0x0b0f1a, 0.9);
-    g.fillRoundedRect(barX, barY, barW, barH, this.p(2));
+    const barX = tagX + this.p(9), barY = tagY + this.p(22), barW = this.p(112), barH = this.p(6);
+    g.fillStyle(0x2b1d12, 0.25);
+    g.fillRect(barX, barY, barW, barH);
     const pct = Math.max(0, Math.min(1, inLvl / need));
-    g.fillStyle(0x8a78ff, 0.95);
-    g.fillRoundedRect(barX, barY, barW * pct, barH, this.p(2));
-    this.add.text(pillX + pillW / 2, pillY + this.p(40), `${inLvl} / ${need} XP`, {
-      fontFamily: 'monospace', fontSize: this.fs(9), color: '#9ab0d0',
-    }).setOrigin(0.5).setDepth(2);
-    // Click pill → open player profile modal. Hover redraws the pill
-    // border in the progression purple so the affordance reads.
-    const hit = this.add.rectangle(pillX, pillY, pillW, pillH, 0x000000, 0)
+    g.fillStyle(0x5f9a3e, 1);
+    g.fillRect(barX, barY, barW * pct, barH);
+    g.lineStyle(this.p(0.8), 0x2b1d12, 1);
+    g.strokeRect(barX, barY, barW, barH);
+    this.add.text(barX + barW, tagY + this.p(32), `${inLvl} / ${need} XP`, {
+      fontFamily: 'Cinzel, Georgia, serif', fontSize: this.fs(7.5), color: 'rgba(43,29,18,0.8)',
+    }).setOrigin(1, 0.5).setDepth(2);
+    // Click tag → open player profile modal. Hover lifts the tag a touch.
+    const hit = this.add.rectangle(tagX, tagY, this.p(tagW + 4), this.p(tagH + 5), 0x000000, 0)
       .setOrigin(0, 0)
       .setDepth(3)
       .setInteractive({ useHandCursor: true });
-    const redrawHover = (hover: boolean) => {
-      g.lineStyle(this.p(hover ? 2 : 1), hover ? 0x8a78ff : 0x2a3760, hover ? 0.9 : 0.8);
-      g.strokeRoundedRect(pillX, pillY, pillW, pillH, this.p(8));
-    };
-    hit.on('pointerover', () => redrawHover(true));
-    hit.on('pointerout', () => redrawHover(false));
+    hit.on('pointerover', () => tag.setTint(0xfff3d6));
+    hit.on('pointerout', () => tag.clearTint());
     hit.on('pointerdown', () => this.openPlayerProfile());
   }
 
@@ -481,61 +513,30 @@ export class LevelSelectScene extends Phaser.Scene {
 
   drawNodes() {
     const isMobile = !!getRegistry(this.game).get('isMobile');
+    const R = this.p(SHIELD_R);
+    const glowKey = this.canvasTexture('level_shield_glow', drawShieldGlowCanvas(this.sf));
+    const glowSrc = this.textures.get(glowKey).getSourceImage() as { width: number; height: number };
     for (const level of LEVELS) {
       const unlocked = this.unlockedFor(level.id);
       const medals = this.medalStore[String(level.id)];
+      const { x: cx, y: cy } = this.nodePos(level);
 
-      const R = this.p(26); // main circle radius
-      const cx = this.p(level.x), cy = this.p(level.y);
-
-      const nodeG = this.add.graphics().setDepth(3);
-
-      // Drop shadow
-      nodeG.fillStyle(0x000000, 0.4);
-      nodeG.fillCircle(cx + this.p(2), cy + this.p(2), R);
-
-      if (unlocked) {
-        nodeG.fillStyle(0x3a2a18, 1);
-        nodeG.fillCircle(cx, cy, R + this.p(2));
-        nodeG.fillStyle(0x6a5838, 1);
-        nodeG.fillCircle(cx, cy, R);
-        nodeG.lineStyle(this.p(2), 0xc8a86a, 0.9);
-        nodeG.strokeCircle(cx, cy, R);
-        nodeG.fillStyle(0x7a6842, 1);
-        nodeG.fillCircle(cx, cy - this.p(3), this.p(10));
-      } else {
-        nodeG.fillStyle(0x1a1614, 1);
-        nodeG.fillCircle(cx, cy, R + this.p(2));
-        nodeG.fillStyle(0x2a2420, 1);
-        nodeG.fillCircle(cx, cy, R);
-        nodeG.lineStyle(this.p(1), 0x444444, 0.5);
-        nodeG.strokeCircle(cx, cy, R);
-      }
-
-      // Biome icon or lock icon
-      const iconG = this.add.graphics().setDepth(4);
-      if (unlocked) {
-        this.drawBiomeIcon(iconG, cx, cy - this.p(3), level.name === 'Rivers' ? 'river' : level.biome);
-      } else {
-        iconG.fillStyle(0x666666, 0.8);
-        iconG.fillRoundedRect(cx - this.p(6), cy - this.p(2), this.p(12), this.p(9), this.p(2));
-        iconG.lineStyle(this.p(2), 0x666666, 0.8);
-        iconG.beginPath();
-        iconG.arc(cx, cy - this.p(5), this.p(5), Math.PI, 0, false);
-        iconG.strokePath();
-      }
+      // Heraldic shield marker; the canvas is centred on the shield's centre.
+      const key = this.canvasTexture(`level_shield_${level.id}`, drawShieldCanvas(level.name === 'Rivers' ? 'river' : level.biome, unlocked, this.sf));
+      this.add.image(cx - this.p(SHIELD_CENTER.x), cy - this.p(SHIELD_CENTER.y), key)
+        .setOrigin(0).setDisplaySize(glowSrc.width, glowSrc.height).setDepth(3);
 
       // Level name
-      this.add.text(cx, cy + this.p(isMobile ? 16 : 12), level.name, {
-        fontFamily: 'monospace', fontSize: this.fs(isMobile ? 20 : 7),
-        color: unlocked ? '#e8dcc8' : '#4a4030',
-        stroke: '#000', strokeThickness: this.p(isMobile ? 2 : 1)
-        }).setOrigin(0.5).setDepth(4);
+      this.add.text(cx, cy + R + this.p(isMobile ? 14 : 10), level.name, {
+        fontFamily: 'Cinzel, Georgia, serif', fontSize: this.fs(isMobile ? 18 : 10.5), fontStyle: 'bold',
+        color: unlocked ? INK : 'rgba(43,29,18,0.72)',
+        stroke: PARCHMENT_LIGHT, strokeThickness: this.p(isMobile ? 4 : 3),
+      }).setOrigin(0.5).setDepth(4);
 
-      // Medal dots
+      // Medal dots: inked circles, filled with the medal metal once earned
       const medalDifficulties = DIFFICULTY_ORDER.filter(diff => diff !== 'endless');
-      const dotY = cy + R + this.p(8);
-      const dotSpacing = this.p(11);
+      const dotY = cy + R + this.p(isMobile ? 30 : 21);
+      const dotSpacing = this.p(9);
       const startX = cx - (dotSpacing * (medalDifficulties.length - 1)) / 2;
       const dotG = this.add.graphics().setDepth(4);
       for (let i = 0; i < medalDifficulties.length; i++) {
@@ -544,21 +545,17 @@ export class LevelSelectScene extends Phaser.Scene {
         const mc = MEDAL_COLORS[diff];
         const dx = startX + i * dotSpacing;
         if (earned) {
-          dotG.fillStyle(mc.fill, 0.3);
-          dotG.fillCircle(dx, dotY, this.p(5));
           dotG.fillStyle(mc.fill, 1);
-          dotG.fillCircle(dx, dotY, this.p(3.5));
-          dotG.fillStyle(0xffffff, 0.3);
-          dotG.fillCircle(dx - this.p(1), dotY - this.p(1), this.p(1.5));
+          dotG.fillCircle(dx, dotY, this.p(3));
+          dotG.lineStyle(this.p(0.8), 0x2b1d12, 1);
+          dotG.strokeCircle(dx, dotY, this.p(3));
+          dotG.fillStyle(0xffffff, 0.5);
+          dotG.fillCircle(dx - this.p(1), dotY - this.p(1), this.p(1));
         } else {
-          dotG.fillStyle(0x000000, 0.3);
-          dotG.fillCircle(dx + this.p(0.5), dotY + this.p(0.75), this.p(5));
-          dotG.fillStyle(0x2a3140, 0.78);
-          dotG.fillCircle(dx, dotY, this.p(4));
-          dotG.lineStyle(this.p(1.25), unlocked ? 0xbfae84 : 0x787268, unlocked ? 0.82 : 0.62);
-          dotG.strokeCircle(dx, dotY, this.p(4));
-          dotG.fillStyle(0xe8dcc8, unlocked ? 0.14 : 0.08);
-          dotG.fillCircle(dx - this.p(1), dotY - this.p(1), this.p(1.25));
+          dotG.fillStyle(0xe8d6ac, 0.6);
+          dotG.fillCircle(dx, dotY, this.p(3));
+          dotG.lineStyle(this.p(0.8), 0x2b1d12, unlocked ? 0.7 : 0.45);
+          dotG.strokeCircle(dx, dotY, this.p(3));
         }
       }
 
@@ -587,24 +584,21 @@ export class LevelSelectScene extends Phaser.Scene {
         }
       });
 
-      // Hover glow
+      // Hover glow: a gold outline round the shield
       if (unlocked) {
-        const glowG = this.add.graphics().setAlpha(0).setDepth(2);
-        glowG.lineStyle(this.p(2), 0xffd84a, 0.5);
-        glowG.strokeCircle(cx, cy, R + this.p(5));
-        glowG.lineStyle(this.p(1), 0xffd84a, 0.2);
-        glowG.strokeCircle(cx, cy, R + this.p(9));
+        const glow = this.add.image(cx - this.p(SHIELD_CENTER.x), cy - this.p(SHIELD_CENTER.y), glowKey)
+          .setOrigin(0).setDisplaySize(glowSrc.width, glowSrc.height).setAlpha(0).setDepth(2);
 
         hitZone.on('pointerover', () => {
           SFX.play('hover');
-          glowG.setAlpha(1);
+          glow.setAlpha(1);
           this.tweens.add({
-            targets: glowG, alpha: 0.6, yoyo: true, repeat: -1, duration: 600
+            targets: glow, alpha: 0.6, yoyo: true, repeat: -1, duration: 600
           });
         });
         hitZone.on('pointerout', () => {
-          this.tweens.killTweensOf(glowG);
-          glowG.setAlpha(0);
+          this.tweens.killTweensOf(glow);
+          glow.setAlpha(0);
         });
       }
     }
@@ -620,15 +614,16 @@ export class LevelSelectScene extends Phaser.Scene {
 
     const bg = this.add.graphics();
     const t = this.add.text(0, 0, text, {
-      fontFamily: 'monospace', fontSize: this.fs(11), color: '#eee',
-      stroke: '#000', strokeThickness: this.p(2)
+      fontFamily: 'Cinzel, Georgia, serif', fontSize: this.fs(10), fontStyle: 'bold', color: INK,
     }).setOrigin(0.5);
 
     const pw = t.width + this.p(16), ph = this.p(24);
-    bg.fillStyle(0x11172a, 0.9);
-    bg.fillRoundedRect(-pw / 2, -ph / 2, pw, ph, this.p(6));
-    bg.lineStyle(this.p(1), 0x2a3760, 0.8);
-    bg.strokeRoundedRect(-pw / 2, -ph / 2, pw, ph, this.p(6));
+    bg.fillStyle(0x000000, 0.3);
+    bg.fillRect(-pw / 2 + this.p(1.5), -ph / 2 + this.p(2), pw, ph);
+    bg.fillStyle(0xe8d6ac, 1);
+    bg.fillRect(-pw / 2, -ph / 2, pw, ph);
+    bg.lineStyle(this.p(1), 0x2b1d12, 1);
+    bg.strokeRect(-pw / 2, -ph / 2, pw, ph);
 
     this.tooltip = this.add.container(clampedX, y, [bg, t]).setDepth(100);
 

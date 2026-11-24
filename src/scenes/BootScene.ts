@@ -23,7 +23,13 @@ export class BootScene extends Phaser.Scene {
       this.scene.start('DebugGallery');
       return;
     }
-    // Art generation deferred to GameScene — go straight to level select
-    this.scene.start('LevelSelect');
+    // Art generation deferred to GameScene — go straight to level select,
+    // once the map's Cinzel faces are in (they're already requested by
+    // index.html for the title; the race keeps a slow font from holding the map).
+    const fonts = (document as { fonts?: { load(spec: string): Promise<unknown> } }).fonts;
+    const ready = fonts
+      ? Promise.race([Promise.all([fonts.load('700 20px "Cinzel"'), fonts.load('700 20px "Cinzel Decorative"')]), new Promise(r => setTimeout(r, 1500))])
+      : Promise.resolve();
+    ready.then(() => this.scene.start('LevelSelect'));
   }
 }
