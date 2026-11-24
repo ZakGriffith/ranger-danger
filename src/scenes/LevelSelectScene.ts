@@ -415,42 +415,18 @@ export class LevelSelectScene extends Phaser.Scene {
   }
 
   // ---- LEVEL NODES ----
-  /** Bottom-left "unlock all (test)" checkbox. Toggles the test flag in
-   *  localStorage and restarts the scene so node states + path lines
-   *  re-render against the new unlock predicate. */
+  /** Bottom-left "unlock all (test)" toggle as a wooden tab. Toggles the
+   *  test flag in localStorage and restarts the scene so node states + path
+   *  lines re-render against the new unlock predicate. */
   drawTestUnlockToggle() {
     const x = this.p(12);
     const y = this.scale.height - this.p(20);
-    const boxSize = this.p(14);
-    const box = this.add.graphics().setDepth(2);
-    const drawBox = () => {
-      box.clear();
-      box.fillStyle(0x11172a, 0.85);
-      box.fillRoundedRect(x, y - boxSize / 2, boxSize, boxSize, this.p(2));
-      box.lineStyle(this.p(1), 0x6a8acc, 0.85);
-      box.strokeRoundedRect(x, y - boxSize / 2, boxSize, boxSize, this.p(2));
-      if (this.testUnlockAll) {
-        // Filled checkmark — short ✓
-        box.lineStyle(this.p(2), 0x4ad96a, 1);
-        box.beginPath();
-        box.moveTo(x + this.p(3), y);
-        box.lineTo(x + this.p(6), y + this.p(3));
-        box.lineTo(x + this.p(11), y - this.p(3));
-        box.strokePath();
-      }
-    };
-    drawBox();
-    const label = this.add.text(x + boxSize + this.p(6), y, 'Unlock all (test)', {
-      fontFamily: 'monospace', fontSize: this.fs(11),
-      color: this.testUnlockAll ? '#4ad96a' : '#7a8aaa',
-      stroke: '#000', strokeThickness: this.p(2),
-    }).setOrigin(0, 0.5).setDepth(2);
-    const hit = this.add.rectangle(
-      x, y - boxSize / 2,
-      boxSize + label.width + this.p(10), boxSize,
-      0x000000, 0
-    ).setOrigin(0).setInteractive({ useHandCursor: true });
-    hit.on('pointerdown', () => {
+    const checkSize = this.p(14);
+    const tab = this.devTab('dev_unlock', x, y, 'Unlock all (test)', checkSize + this.p(4), this.testUnlockAll);
+    this.add.image(x + this.p(16) + checkSize / 2, y,
+      this.canvasTexture(`dev_check_${this.testUnlockAll ? 'on' : 'off'}`, () => drawMedalCheckCanvas(this.testUnlockAll ? '#e6c06a' : null, this.sf)))
+      .setDisplaySize(checkSize, checkSize).setDepth(3);
+    tab.hit.on('pointerdown', () => {
       this.testUnlockAll = !this.testUnlockAll;
       saveTestUnlock(this.testUnlockAll);
       SFX.play('click');
@@ -468,39 +444,39 @@ export class LevelSelectScene extends Phaser.Scene {
       this.scene.restart();
     });
 
-    this.drawDebugGalleryButton(label.x + label.width + this.p(14), y);
+    this.drawDebugGalleryButton(x + tab.width + this.p(8), y);
   }
 
   private drawDebugGalleryButton(x: number, y: number) {
-    const buttonH = this.p(18);
-    const padX = this.p(8);
-    const text = this.add.text(x + padX, y, 'Debug gallery', {
-      fontFamily: 'monospace', fontSize: this.fs(10),
-      color: '#7cc4ff',
-      stroke: '#000', strokeThickness: this.p(2),
-    }).setOrigin(0, 0.5).setDepth(3);
-    const buttonW = text.width + padX * 2;
-    const bg = this.add.graphics().setDepth(2);
-    const drawButton = (hovered: boolean) => {
-      bg.clear();
-      bg.fillStyle(hovered ? 0x1b2a48 : 0x11172a, 0.9);
-      bg.fillRoundedRect(x, y - buttonH / 2, buttonW, buttonH, this.p(4));
-      bg.lineStyle(this.p(1), hovered ? 0x7cc4ff : 0x2a3760, hovered ? 1 : 0.85);
-      bg.strokeRoundedRect(x, y - buttonH / 2, buttonW, buttonH, this.p(4));
-    };
-    drawButton(false);
-
-    const hit = this.add.rectangle(x, y - buttonH / 2, buttonW, buttonH, 0x000000, 0)
-      .setOrigin(0)
-      .setInteractive({ useHandCursor: true })
-      .setDepth(4);
-    hit.on('pointerover', () => drawButton(true));
-    hit.on('pointerout', () => drawButton(false));
-    hit.on('pointerdown', () => {
+    const tab = this.devTab('dev_gallery', x, y, 'Debug gallery', 0, false);
+    tab.hit.on('pointerdown', () => {
       SFX.play('click');
       if (this.scene.isActive('Tutorial')) this.scene.stop('Tutorial');
       this.scene.start('DebugGallery');
     });
+  }
+
+  /** A small wooden tab in the mission panel's style, anchored at its left
+   *  edge and vertical centre. `lead` reserves room after the nail for an icon. */
+  private devTab(key: string, x: number, y: number, label: string, lead: number, selected: boolean) {
+    const h = this.p(20);
+    const textX = x + this.p(16) + lead;
+    const text = this.add.text(textX, y, label, {
+      fontFamily: 'Cinzel, Georgia, serif', fontSize: this.fs(10), fontStyle: 'bold',
+      color: selected ? '#fff0c8' : '#f0dfb8', stroke: '#28140a', strokeThickness: this.p(2),
+    }).setOrigin(0, 0.5).setDepth(3);
+    const w = textX - x + text.width + this.p(8);
+    const bw = w / this.sf, bh = h / this.sf;
+    const keys = {
+      idle: this.canvasTexture(`${key}_idle`, () => drawWoodTabCanvas(bw, bh, this.sf, 'idle')),
+      hover: this.canvasTexture(`${key}_hover`, () => drawWoodTabCanvas(bw, bh, this.sf, 'hover')),
+      selected: this.canvasTexture(`${key}_selected`, () => drawWoodTabCanvas(bw, bh, this.sf, 'selected')),
+    };
+    const bg = this.add.image(x, y, selected ? keys.selected : keys.idle).setOrigin(0, 0.5).setDisplaySize(w, h).setDepth(2);
+    const hit = this.add.rectangle(x, y, w, h, 0x000000, 0).setOrigin(0, 0.5).setInteractive({ useHandCursor: true }).setDepth(4);
+    hit.on('pointerover', () => bg.setTexture(keys.hover).setDisplaySize(w, h));
+    hit.on('pointerout', () => bg.setTexture(selected ? keys.selected : keys.idle).setDisplaySize(w, h));
+    return { hit, width: w };
   }
 
   drawNodes() {
