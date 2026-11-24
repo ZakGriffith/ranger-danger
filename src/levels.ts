@@ -30,7 +30,7 @@ export const LEVELS: LevelDef[] = [
     rampFactor: 0.88, minInterval: 250, waveSize: 120, clusterMax: 3 },
   { id: 4,  name: 'Rivers',        biome: 'river',      x: 168, y: 200, connectsTo: [5],    unlockCost: 4,  implemented: true,
     rampFactor: 0.86, minInterval: 220, waveSize: 130, clusterMax: 2 },
-  { id: 5,  name: 'The Castle',    biome: 'castle',     x: 125, y: 95, connectsTo: [6],    unlockCost: 5,  implemented: true,
+  { id: 5,  name: 'The Castle',    biome: 'castle',     x: 125, y: 95, connectsTo: [6],    unlockCost: 5,  implemented: true, boss: 'biome',
     rampFactor: 0.90, minInterval: 300, waveSize: 90, clusterMax: 3 },
   // Desert — top-center/right (ruins & dunes), ending in the blight creeping out of the infected trees
   { id: 6,  name: 'Fissures',      biome: 'desert',     x: 395, y: 165, connectsTo: [7],    unlockCost: 7,  implemented: true,
