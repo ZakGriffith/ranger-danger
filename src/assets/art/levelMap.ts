@@ -406,3 +406,34 @@ export function drawMedalCheckCanvas(colorHex: string | null, sf: number): HTMLC
   ctx.beginPath(); ctx.moveTo(4, 7); ctx.lineTo(6.2, 9.4); ctx.lineTo(10.2, 4.4); ctx.lineWidth = 1.6; ctx.strokeStyle = INK; ctx.lineCap = 'round'; ctx.stroke();
   return c;
 }
+
+// ---------------------------------------------------------------- ranger profile: ledger on the board
+/** The brass medallion the rank sits on; r in base px. */
+export function drawMedallionCanvas(r: number, sf: number): HTMLCanvasElement {
+  const [c, ctx] = canvasOf((r * 2 + 4) * sf, (r * 2 + 4) * sf);
+  ctx.scale(sf, sf);
+  const cx = r + 2, cy = r + 2;
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fillStyle = '#c9a24e'; ctx.fill(); ctx.lineWidth = 1.2; ctx.strokeStyle = INK; ctx.stroke();
+  ctx.beginPath(); ctx.arc(cx, cy, r - 5, 0, Math.PI * 2); ctx.lineWidth = 0.8; ctx.strokeStyle = 'rgba(43,29,18,0.6)'; ctx.stroke();
+  const g = ctx.createRadialGradient(cx - r * 0.3, cy - r * 0.37, 2, cx, cy, r); g.addColorStop(0, 'rgba(255,245,210,0.45)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+  return c;
+}
+/** An iron trough with a gold XP fill; w x h is the inner bar in base px, the frame adds 3 all round. */
+export function drawXpTroughCanvas(w: number, h: number, sf: number, pct: number): HTMLCanvasElement {
+  const [c, ctx] = canvasOf((w + 6) * sf, (h + 6) * sf);
+  ctx.scale(sf, sf);
+  ctx.fillStyle = '#3f3e42'; ctx.fillRect(0, 0, w + 6, h + 6); ctx.lineWidth = 1; ctx.strokeStyle = '#1e1d20'; ctx.strokeRect(0.5, 0.5, w + 5, h + 5);
+  ctx.fillStyle = '#1e1a16'; ctx.fillRect(3, 3, w, h);
+  const fill = Math.max(0, Math.min(1, pct)) * w;
+  if (fill > 0) { ctx.fillStyle = '#c9a24e'; ctx.fillRect(3, 3, fill, h); ctx.fillStyle = 'rgba(255,245,210,0.35)'; ctx.fillRect(3, 3, fill, 3); }
+  for (const [nx, ny] of [[3, 3], [w + 3, 3], [3, h + 3], [w + 3, h + 3]]) nail(ctx, nx, ny);
+  return c;
+}
+/** A small padlock in the given colour, 14 px square. */
+export function drawLockCanvas(colorHex: string, sf: number): HTMLCanvasElement {
+  const [c, ctx] = canvasOf(14 * sf, 14 * sf);
+  ctx.scale(sf, sf);
+  lockGlyph(ctx, 7, 8, colorHex);
+  return c;
+}

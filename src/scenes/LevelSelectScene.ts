@@ -64,7 +64,7 @@ export class LevelSelectScene extends Phaser.Scene {
   }
 
   /** Scale factor: all base-resolution (960×640) coordinates get multiplied by this */
-  private sf = 1;
+  sf = 1;
   /** Scale a value from base resolution to native */
   p(v: number) { return v * this.sf; }
   /** Build a font-size string at the scaled resolution */
@@ -74,7 +74,7 @@ export class LevelSelectScene extends Phaser.Scene {
   /** Texture keys generated since this create(); each is built once per scene life and replaced on restart. */
   private generated = new Set<string>();
   /** Registers a generated canvas as a texture. A key already built this scene life is reused; one left from an earlier life (the scene restarts on resize) is replaced. */
-  private canvasTexture(key: string, make: () => HTMLCanvasElement): string {
+  canvasTexture(key: string, make: () => HTMLCanvasElement): string {
     if (this.generated.has(key)) return key;
     if (this.textures.exists(key)) this.textures.remove(key);
     this.textures.addCanvas(key, make());

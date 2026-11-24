@@ -3,202 +3,145 @@ import type { LevelSelectScene } from '../scenes/LevelSelectScene';
 import { getRegistry } from '../core/registry';
 import { UNLOCKS, type UnlockDef } from '../state/unlocks';
 import { SOFT_CAP_LEVEL } from '../state/PlayerProgressState';
+import {
+  INK, drawPlankBoardCanvas, drawIronPlateCanvas, drawBrassPlateCanvas, drawNailedSheetCanvas,
+  drawIronButtonCanvas, drawMedalCheckCanvas, drawMedallionCanvas, drawXpTroughCanvas, drawLockCanvas,
+} from '../assets/art/levelMap';
+
+const RED_INK = '#8c2a22';
+const CINZEL = 'Cinzel, Georgia, serif';
+const CINZEL_DECO = '"Cinzel Decorative", Georgia, serif';
 
 /**
- * Modal overlay opened by tapping the LV pill on LevelSelect. Shows
- * the player's current level + a prominent XP bar, what they've
- * unlocked so far, and what's coming on the next levels. Mirrors the
- * UpgradePanel pattern: backdrop click or × to close.
+ * Modal opened from the Ranger tag on LevelSelect: the ranger's rank on a
+ * brass medallion, an iron XP trough, and the unlock ledger inked on a
+ * sheet nailed to the mission panel's plank board. Backdrop click or the
+ * iron button closes it.
  */
 export class PlayerProfilePanel {
   private root: Phaser.GameObjects.Container;
   private destroyed = false;
-  private scene: LevelSelectScene;
   private onClose: () => void;
 
   constructor(scene: LevelSelectScene, onClose: () => void) {
-    this.scene = scene;
     this.onClose = onClose;
-
     const p = (v: number) => scene.p(v);
     const fs = (v: number) => scene.fs(v);
-    const W = scene.scale.width;
-    const H = scene.scale.height;
+    const bs = scene.sf;
+    const W = scene.scale.width, H = scene.scale.height;
 
     const progress = getRegistry(scene.game).get('playerProgress');
-    const lvl = progress.level;
+    const rank = progress.level;
     const inLvl = progress.xpInCurrentLevel;
     const need = progress.xpToNextLevel;
     const total = progress.totalXp;
-
-    // Split unlocks into already-earned vs upcoming. Upcoming is sorted
-    // by requiredLevel so the next unlock is at the top of the list.
-    const earned: UnlockDef[] = UNLOCKS.filter((u) => u.requiredLevel <= lvl);
+    const capped = rank >= SOFT_CAP_LEVEL;
+    const earned: UnlockDef[] = UNLOCKS.filter((u) => u.requiredLevel <= rank);
     const upcoming: UnlockDef[] = UNLOCKS
-      .filter((u) => u.requiredLevel > lvl)
+      .filter((u) => u.requiredLevel > rank)
       .slice()
       .sort((a, b) => a.requiredLevel - b.requiredLevel);
 
-    // Panel sized to comfortably fit a big XP bar + two unlock columns.
-    const panelW = p(420);
-    const baseH = p(360);
-    const listRowH = p(34);
-    const listHeaderH = p(28);
-    const listsH =
-      (earned.length > 0 ? listHeaderH + earned.length * listRowH : listHeaderH + listRowH) +
-      (upcoming.length > 0 ? listHeaderH + upcoming.length * listRowH : listHeaderH + listRowH);
-    const panelH = baseH + listsH;
-    const panelX = W / 2 - panelW / 2;
-    const panelY = Math.max(p(20), H / 2 - panelH / 2);
-    const r = p(12);
+    const rowGap = 22, headerH = 16;
+    const sectionH = (rows: number) => headerH + Math.max(1, rows) * rowGap;
+    const sheetH = 20 + sectionH(earned.length) + 4 + sectionH(upcoming.length) + 8;
+    const w = 320, sheetTop = capped ? 178 : 166, h = sheetTop + sheetH + 26;
+    const x = -w / 2, y = -h / 2;
+    const items: Phaser.GameObjects.GameObject[] = [];
+    const tex = (key: string, make: () => HTMLCanvasElement) => scene.canvasTexture(key, make);
+    const text = (tx: number, ty: number, s: string, size: number, color: string, opts: { deco?: boolean; weight?: string; origin?: [number, number]; stroke?: string } = {}) => {
+      const t = scene.add.text(p(tx), p(ty), s, {
+        fontFamily: opts.deco ? CINZEL_DECO : CINZEL, fontSize: fs(size), fontStyle: opts.weight ?? 'bold', color,
+        ...(opts.stroke ? { stroke: opts.stroke, strokeThickness: p(2) } : {}),
+      }).setOrigin(...(opts.origin ?? [0.5, 0.5]));
+      items.push(t);
+      return t;
+    };
+    const image = (tx: number, ty: number, key: string, dw: number, dh: number) => {
+      const img = scene.add.image(p(tx), p(ty), key).setDisplaySize(p(dw), p(dh));
+      items.push(img);
+      return img;
+    };
 
-    const backdrop = scene.add.rectangle(0, 0, W, H, 0x000000, 0.55)
-      .setOrigin(0, 0)
-      .setInteractive();
+    const backdrop = scene.add.rectangle(-W / 2, -H / 2, W, H, 0x000000, 0.55).setOrigin(0).setInteractive();
     backdrop.on('pointerdown', () => this.close());
+    const blocker = scene.add.rectangle(0, 0, p(w + 6), p(h + 6), 0x000000, 0).setInteractive();
+    const shadow = scene.add.graphics();
+    shadow.fillStyle(0x000000, 0.4);
+    shadow.fillRect(p(x + 5), p(y + 7), p(w), p(h));
+    items.push(backdrop, blocker, shadow);
+    image(0, 0, tex(`profile_board_${h}`, () => drawPlankBoardCanvas(w, h, bs)), w, h);
 
-    const panelBg = scene.add.graphics();
-    panelBg.fillStyle(0x0b0f1a, 0.97);
-    panelBg.fillRoundedRect(panelX, panelY, panelW, panelH, r);
-    panelBg.lineStyle(p(1), 0x2a3760, 0.7);
-    panelBg.strokeRoundedRect(panelX + p(3), panelY + p(3), panelW - p(6), panelH - p(6), r - p(2));
-    panelBg.lineStyle(p(2), 0x8a78ff, 0.9);
-    panelBg.strokeRoundedRect(panelX, panelY, panelW, panelH, r);
+    const plateW = 180, plateH = 30, plateY = y + 14 + plateH / 2;
+    image(0, plateY, tex('profile_plate_back', () => drawIronPlateCanvas(plateW, plateH, bs)), plateW, plateH);
+    image(0, plateY, tex('profile_plate', () => drawBrassPlateCanvas(plateW - 8, plateH - 8, bs, 'lit')), plateW - 8, plateH - 8);
+    text(0, plateY + 1, 'RANGER', 15, INK, { deco: true });
 
-    // Eat clicks inside the panel so empty space doesn't close it.
-    const panelHit = scene.add.rectangle(panelX, panelY, panelW, panelH, 0x000000, 0)
-      .setOrigin(0, 0)
-      .setInteractive();
-
-    // Title
-    const title = scene.add.text(panelX + panelW / 2, panelY + p(28), 'PLAYER PROFILE', {
-      fontFamily: 'monospace', fontSize: fs(16), fontStyle: 'bold', color: '#b4a8ff',
-      stroke: '#0b0f1a', strokeThickness: p(2),
-    }).setOrigin(0.5);
-
-    // Close ×
-    const closeCx = panelX + panelW - p(20);
-    const closeCy = panelY + p(20);
-    const closeText = scene.add.text(closeCx, closeCy, '×', {
-      fontFamily: 'monospace', fontSize: fs(22), fontStyle: 'bold', color: '#ff8a8a',
-    }).setOrigin(0.5);
-    const closeHit = scene.add.rectangle(closeCx, closeCy, p(36), p(28), 0x000000, 0)
-      .setInteractive({ useHandCursor: true });
+    const closeR = 8, closeX = x + w - 24, closeY = y + 28;
+    const closeIdle = tex('panel_close_idle', () => drawIronButtonCanvas(closeR, bs, false));
+    const closeHover = tex('panel_close_hover', () => drawIronButtonCanvas(closeR, bs, true));
+    const closeBtn = image(closeX, closeY, closeIdle, closeR * 2 + 2, closeR * 2 + 2);
+    const closeHit = scene.add.rectangle(p(closeX), p(closeY), p(32), p(32), 0x000000, 0).setInteractive({ useHandCursor: true });
+    closeHit.on('pointerover', () => closeBtn.setTexture(closeHover).setDisplaySize(p(closeR * 2 + 2), p(closeR * 2 + 2)));
+    closeHit.on('pointerout', () => closeBtn.setTexture(closeIdle).setDisplaySize(p(closeR * 2 + 2), p(closeR * 2 + 2)));
     closeHit.on('pointerdown', () => this.close());
+    items.push(closeHit);
 
-    // Big LEVEL number
-    const levelY = panelY + p(72);
-    const lvlText = scene.add.text(panelX + panelW / 2, levelY, `LVL ${lvl}`, {
-      fontFamily: 'monospace', fontSize: fs(46), fontStyle: 'bold', color: '#dfe8ff',
-      stroke: '#0b0f1a', strokeThickness: p(4),
-    }).setOrigin(0.5);
+    const mr = 27, my = y + 84;
+    const medalShadow = scene.add.graphics();
+    medalShadow.fillStyle(0x000000, 0.35);
+    medalShadow.fillCircle(p(2), p(my + 3), p(mr));
+    items.push(medalShadow);
+    image(0, my, tex('profile_medallion', () => drawMedallionCanvas(mr, bs)), mr * 2 + 4, mr * 2 + 4);
+    text(0, my - 11, 'RANK', 6.5, '#5a3e14');
+    text(0, my + 5, String(rank), 26, INK, { deco: true });
 
-    // Soft-cap hint when the player is past the unlock cap
-    let capHint: Phaser.GameObjects.Text | undefined;
-    if (lvl >= SOFT_CAP_LEVEL) {
-      capHint = scene.add.text(panelX + panelW / 2, levelY + p(28),
-        'Soft cap reached — every level beyond is bragging rights.', {
-          fontFamily: 'monospace', fontSize: fs(10), color: '#9ab0d0',
-        }).setOrigin(0.5);
-    }
+    const bw = w - 60, bh = 16, by = y + 124 + bh / 2;
+    const pct = need > 0 ? Math.max(0, Math.min(1, inLvl / need)) : 1;
+    image(0, by, tex(`profile_trough_${Math.round(pct * 100)}`, () => drawXpTroughCanvas(bw, bh, bs, pct)), bw + 6, bh + 6);
+    text(0, by + 0.5, `${inLvl} / ${need} XP`, 9.5, '#f6e7bf', { stroke: '#1e140a' });
+    text(0, by + bh / 2 + 12, `${total.toLocaleString()} XP in all`, 7.5, '#d9c6a0', { weight: 'normal' });
+    if (capped) text(0, by + bh / 2 + 23, 'Soft cap reached. Every rank beyond is bragging rights.', 7, '#d9c6a0', { weight: 'normal' });
 
-    // Big XP bar
-    const barW = panelW - p(60);
-    const barH = p(28);
-    const barX = panelX + p(30);
-    const barY = levelY + p(58);
-    const pct = Math.max(0, Math.min(1, inLvl / need));
-    const barG = scene.add.graphics();
-    barG.fillStyle(0x0b0f1a, 0.95);
-    barG.fillRoundedRect(barX, barY, barW, barH, p(6));
-    barG.lineStyle(p(1), 0x2a3760, 0.7);
-    barG.strokeRoundedRect(barX, barY, barW, barH, p(6));
-    barG.fillStyle(0x8a78ff, 0.95);
-    barG.fillRoundedRect(barX + p(2), barY + p(2), Math.max(0, (barW - p(4)) * pct), barH - p(4), p(5));
+    const sx = x + 26, sy = y + sheetTop, sw = w - 52;
+    const sheetShadow = scene.add.graphics();
+    sheetShadow.fillStyle(0x000000, 0.35);
+    sheetShadow.fillRect(p(sx + 2), p(sy + 3), p(sw), p(sheetH));
+    items.push(sheetShadow);
+    image(sx + sw / 2, sy + sheetH / 2, tex(`profile_sheet_${sheetH}`, () => drawNailedSheetCanvas(sw, sheetH, bs)), sw, sheetH);
 
-    const barLabel = scene.add.text(panelX + panelW / 2, barY + barH / 2, `${inLvl} / ${need} XP`, {
-      fontFamily: 'monospace', fontSize: fs(13), fontStyle: 'bold', color: '#ffffff',
-      stroke: '#0b0f1a', strokeThickness: p(3),
-    }).setOrigin(0.5);
-
-    const xpTotal = scene.add.text(panelX + panelW / 2, barY + barH + p(14),
-      `${total.toLocaleString()} XP total`, {
-        fontFamily: 'monospace', fontSize: fs(11), color: '#9ab0d0',
-      }).setOrigin(0.5);
-
-    // ---- Lists ----
-    let cursorY = barY + barH + p(40);
-
-    const children: Phaser.GameObjects.GameObject[] = [
-      backdrop, panelBg, panelHit, title, closeText, closeHit,
-      lvlText, barG, barLabel, xpTotal,
-    ];
-    if (capHint) children.push(capHint);
-
-    const drawListHeader = (label: string, accentHex: string) => {
-      const t = scene.add.text(panelX + p(28), cursorY, label, {
-        fontFamily: 'monospace', fontSize: fs(12), fontStyle: 'bold', color: accentHex,
-        stroke: '#0b0f1a', strokeThickness: p(2),
-      }).setOrigin(0, 0.5);
-      // Divider line to the right of the header
-      const lineG = scene.add.graphics();
-      const labelW = t.width;
-      const lineStartX = panelX + p(28) + labelW + p(10);
-      const lineEndX = panelX + panelW - p(28);
-      lineG.lineStyle(p(1), 0x2a3760, 0.7);
-      lineG.lineBetween(lineStartX, cursorY, lineEndX, cursorY);
-      children.push(t, lineG);
-      cursorY += p(22);
+    const rules = scene.add.graphics();
+    items.push(rules);
+    const lx = sx + 16, lw = sw - 32;
+    let cursor = sy + 20;
+    const section = (label: string, rows: UnlockDef[], isEarned: boolean, empty: string) => {
+      const head = text(lx, cursor, label, 8.5, RED_INK, { origin: [0, 0.5] });
+      rules.lineStyle(p(0.8), 0x2b1d12, 0.45);
+      rules.lineBetween(head.x + head.width + p(8), p(cursor), p(lx + lw), p(cursor));
+      cursor += headerH;
+      if (rows.length === 0) {
+        text(lx + lw / 2, cursor + 2, empty, 9, 'rgba(43,29,18,0.6)', { weight: 'normal' });
+        cursor += rowGap;
+        return;
+      }
+      for (const def of rows) {
+        const iconKey = isEarned
+          ? tex('profile_check', () => drawMedalCheckCanvas('#e6c06a', bs))
+          : tex('profile_lock', () => drawLockCanvas(RED_INK, bs));
+        image(lx + 7, cursor, iconKey, 14, 14);
+        text(lx + 20, cursor + 0.5, def.label, 10.5, INK, { origin: [0, 0.5], weight: 'normal' });
+        text(lx + lw, cursor + 0.5, isEarned ? 'Unlocked' : `Rank ${def.requiredLevel}`, 9, isEarned ? '#8a6a1e' : RED_INK, { origin: [1, 0.5] });
+        rules.lineStyle(p(0.8), 0x2b1d12, 0.2);
+        rules.lineBetween(p(lx), p(cursor + 10), p(lx + lw), p(cursor + 10));
+        cursor += rowGap;
+      }
     };
+    section('UNLOCKED', earned, true, 'Nothing yet. Rank up to earn rewards.');
+    cursor += 4;
+    section('UPCOMING', upcoming, false, 'All current rewards collected.');
 
-    const drawUnlockRow = (def: UnlockDef, isEarned: boolean) => {
-      const rowX = panelX + p(28);
-      const rowW = panelW - p(56);
-      const rowH = p(28);
-      const rowG = scene.add.graphics();
-      rowG.fillStyle(isEarned ? 0x1a2a1a : 0x141a28, 0.85);
-      rowG.fillRoundedRect(rowX, cursorY, rowW, rowH, p(5));
-      rowG.lineStyle(p(1), isEarned ? 0x4ad96a : 0x2a3760, 0.6);
-      rowG.strokeRoundedRect(rowX, cursorY, rowW, rowH, p(5));
-
-      const icon = scene.add.text(rowX + p(10), cursorY + rowH / 2, isEarned ? '✓' : '🔒', {
-        fontFamily: 'monospace', fontSize: fs(13), fontStyle: 'bold',
-        color: isEarned ? '#7cf29a' : '#b4a8ff',
-      }).setOrigin(0, 0.5);
-
-      const label = scene.add.text(rowX + p(34), cursorY + rowH / 2, def.label, {
-        fontFamily: 'monospace', fontSize: fs(12), color: isEarned ? '#dfffe8' : '#dfe8ff',
-      }).setOrigin(0, 0.5);
-
-      const right = scene.add.text(rowX + rowW - p(10), cursorY + rowH / 2,
-        isEarned ? 'UNLOCKED' : `LVL ${def.requiredLevel}`, {
-          fontFamily: 'monospace', fontSize: fs(11), fontStyle: 'bold',
-          color: isEarned ? '#7cf29a' : '#b4a8ff',
-        }).setOrigin(1, 0.5);
-
-      children.push(rowG, icon, label, right);
-      cursorY += p(34);
-    };
-
-    const drawEmptyNote = (note: string) => {
-      const t = scene.add.text(panelX + panelW / 2, cursorY + p(8), note, {
-        fontFamily: 'monospace', fontSize: fs(10), color: '#6e7a98', fontStyle: 'italic',
-      }).setOrigin(0.5, 0);
-      children.push(t);
-      cursorY += p(34);
-    };
-
-    drawListHeader('UNLOCKED', '#7cf29a');
-    if (earned.length === 0) drawEmptyNote('Nothing unlocked yet — level up to start collecting rewards.');
-    else earned.forEach((d) => drawUnlockRow(d, true));
-
-    cursorY += p(6);
-
-    drawListHeader('UPCOMING', '#b4a8ff');
-    if (upcoming.length === 0) drawEmptyNote('All current rewards collected. More coming in future updates.');
-    else upcoming.forEach((d) => drawUnlockRow(d, false));
-
-    this.root = scene.add.container(0, 0, children).setDepth(3000);
+    this.root = scene.add.container(W / 2, H / 2, items).setDepth(3000).setAlpha(0);
+    scene.tweens.add({ targets: this.root, alpha: 1, duration: 200 });
   }
 
   close() {
