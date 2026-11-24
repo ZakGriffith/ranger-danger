@@ -10,6 +10,8 @@ export interface LevelDef {
   connectsTo: number[];
   unlockCost: number;
   implemented: boolean;
+  /** Boss levels get the crowned marker; the final one burns. */
+  boss?: 'biome' | 'final';
   // Per-level spawn tuning (overrides CFG defaults)
   rampFactor?: number;   // how fast spawn interval tightens (lower = harder)
   minInterval?: number;  // spawn interval floor in ms
@@ -37,17 +39,17 @@ export const LEVELS: LevelDef[] = [
     rampFactor: 0.87, minInterval: 240, waveSize: 105, clusterMax: 4, waveCount: 6 },
   { id: 8,  name: 'Desert Temple', biome: 'desert',     x: 620, y: 200, connectsTo: [9],    unlockCost: 12, implemented: true,
     rampFactor: 0.85, minInterval: 220, waveSize: 110, clusterMax: 3, waveCount: 6 },
-  { id: 9,  name: 'Blighted Sands', biome: 'desert',    x: 522, y: 282, connectsTo: [10],   unlockCost: 14, implemented: false },
+  { id: 9,  name: 'Blighted Sands', biome: 'desert',    x: 522, y: 282, connectsTo: [10],   unlockCost: 14, implemented: false, boss: 'biome' },
   // Tundra — bottom-center (caves & the frozen lake), ending in a boss level by the lower caves
   { id: 10, name: 'Ice Cavern',    biome: 'tundra',     x: 402, y: 428, connectsTo: [11],   unlockCost: 16, implemented: false },
   { id: 11, name: 'Frozen Lake',   biome: 'tundra',     x: 440, y: 552, connectsTo: [12],   unlockCost: 19, implemented: false },
   { id: 12, name: 'Blizzard Peak', biome: 'tundra',     x: 560, y: 402, connectsTo: [13],   unlockCost: 22, implemented: false },
-  { id: 13, name: 'Glacial Depths', biome: 'tundra',    x: 625, y: 548, connectsTo: [14],   unlockCost: 25, implemented: false },
+  { id: 13, name: 'Glacial Depths', biome: 'tundra',    x: 625, y: 548, connectsTo: [14],   unlockCost: 25, implemented: false, boss: 'biome' },
   // Volcanic — right side (lava & the dark castle), ending with the final boss in the castle itself
   { id: 14, name: 'Ashen Path',    biome: 'volcanic',   x: 652, y: 368, connectsTo: [15],   unlockCost: 28, implemented: false },
   { id: 15, name: 'Lava Fields',   biome: 'volcanic',   x: 720, y: 255, connectsTo: [16],   unlockCost: 31, implemented: false },
   { id: 16, name: "Dragon's Maw",  biome: 'volcanic',   x: 748, y: 378, connectsTo: [17],   unlockCost: 34, implemented: false },
-  { id: 17, name: 'The Dark Citadel', biome: 'volcanic', x: 812, y: 330, connectsTo: [],    unlockCost: 38, implemented: false },
+  { id: 17, name: 'The Dark Citadel', biome: 'volcanic', x: 812, y: 330, connectsTo: [],    unlockCost: 38, implemented: false, boss: 'final' },
 ];
 
 export const DIFFICULTY_ORDER: Difficulty[] = ['easy', 'medium', 'hard', 'oneHP', 'endless'];

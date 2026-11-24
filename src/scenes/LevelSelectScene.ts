@@ -11,9 +11,9 @@ import {
 import { isTutorialNeeded, markTutorialDone } from './TutorialScene';
 import { PlayerProfilePanel } from '../ui/PlayerProfilePanel';
 import {
-  MAP_FRAME, MAP_CROP, INK, PARCHMENT_LIGHT, SHIELD_R, SHIELD_CENTER,
+  MAP_FRAME, MAP_CROP, INK, PARCHMENT_LIGHT, SHIELD_R, shieldLayout,
   drawScrollFrameCanvas, drawMapInsetCanvas, drawRibbonCanvas, drawTagCanvas, drawMedalIconCanvas,
-  drawCompassCanvas, drawShieldCanvas, drawShieldGlowCanvas,
+  drawCompassCanvas, drawShieldCanvas, drawShieldGlowCanvas, drawEmberGlowCanvas,
 } from '../assets/art/levelMap';
 
 /** Testing toggle — when on, every map level is treated as unlocked,
@@ -499,18 +499,22 @@ export class LevelSelectScene extends Phaser.Scene {
 
   drawNodes() {
     const isMobile = !!getRegistry(this.game).get('isMobile');
-    const R = this.p(SHIELD_R);
-    const glowKey = this.canvasTexture('level_shield_glow', drawShieldGlowCanvas(this.sf));
-    const glowSrc = this.textures.get(glowKey).getSourceImage() as { width: number; height: number };
     for (const level of LEVELS) {
       const unlocked = this.unlockedFor(level.id);
       const medals = this.medalStore[String(level.id)];
       const { x: cx, y: cy } = this.nodePos(level);
+      const L = shieldLayout(level.boss);
+      const R = this.p(SHIELD_R * L.scale);
+      const ox = cx - this.p(L.cx), oy = cy - this.p(L.cy), fw = this.p(L.w), fh = this.p(L.h);
 
-      // Heraldic shield marker; the canvas is centred on the shield's centre.
-      const key = this.canvasTexture(`level_shield_${level.id}`, drawShieldCanvas(level.name === 'Rivers' ? 'river' : level.biome, unlocked, this.sf));
-      this.add.image(cx - this.p(SHIELD_CENTER.x), cy - this.p(SHIELD_CENTER.y), key)
-        .setOrigin(0).setDisplaySize(glowSrc.width, glowSrc.height).setDepth(3);
+      // Heraldic shield marker; boss levels are crowned, the final one burns.
+      if (level.boss === 'final') {
+        const ember = this.add.image(ox, oy, this.canvasTexture('level_ember', drawEmberGlowCanvas(this.sf)))
+          .setOrigin(0).setDisplaySize(fw, fh).setDepth(2).setAlpha(0.55);
+        this.tweens.add({ targets: ember, alpha: 1, yoyo: true, repeat: -1, duration: 1400, ease: 'Sine.easeInOut' });
+      }
+      const key = this.canvasTexture(`level_shield_${level.id}`, drawShieldCanvas(level.name === 'Rivers' ? 'river' : level.biome, unlocked, this.sf, level.boss));
+      this.add.image(ox, oy, key).setOrigin(0).setDisplaySize(fw, fh).setDepth(3);
 
       // Level name
       this.add.text(cx, cy + R + this.p(isMobile ? 14 : 10), level.name, {
@@ -546,7 +550,7 @@ export class LevelSelectScene extends Phaser.Scene {
       }
 
       // Hit zone
-      const hitW = this.p(26 * 2.2), hitH = this.p(26 * 2.2 + 16);
+      const hitW = this.p(26 * 2.2 * L.scale), hitH = this.p((26 * 2.2 + 16) * L.scale);
       const hitZone = this.add.zone(cx, cy, hitW, hitH)
         .setInteractive({ useHandCursor: unlocked }).setDepth(5);
 
@@ -572,8 +576,8 @@ export class LevelSelectScene extends Phaser.Scene {
 
       // Hover glow: a gold outline round the shield
       if (unlocked) {
-        const glow = this.add.image(cx - this.p(SHIELD_CENTER.x), cy - this.p(SHIELD_CENTER.y), glowKey)
-          .setOrigin(0).setDisplaySize(glowSrc.width, glowSrc.height).setAlpha(0).setDepth(2);
+        const glowKey = this.canvasTexture(`level_shield_glow_${level.boss ?? 'plain'}`, drawShieldGlowCanvas(this.sf, level.boss));
+        const glow = this.add.image(ox, oy, glowKey).setOrigin(0).setDisplaySize(fw, fh).setAlpha(0).setDepth(2);
 
         hitZone.on('pointerover', () => {
           SFX.play('hover');

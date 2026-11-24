@@ -236,12 +236,30 @@ function shieldPath(ctx: CanvasRenderingContext2D, cx: number, cy: number, grow 
   ctx.quadraticCurveTo(cx + w / 2, top + h * 0.85, cx, top + h); ctx.quadraticCurveTo(cx - w / 2, top + h * 0.85, cx - w / 2, top + h * 0.5); ctx.closePath();
 }
 const SHIELD_PAD = 6;
-/** The marker canvas is centred on the shield's centre: (SHIELD_W/2 + pad, SHIELD_H*0.46 + pad). */
-export function drawShieldCanvas(biome: Biome, unlocked: boolean, sf: number): HTMLCanvasElement {
-  const cw = SHIELD_W + SHIELD_PAD * 2, ch = SHIELD_H + SHIELD_PAD * 2;
-  const [c, ctx] = canvasOf(cw * sf, ch * sf);
-  ctx.scale(sf, sf);
-  const cx = cw / 2, cy = SHIELD_PAD + SHIELD_H * 0.46, top = cy - SHIELD_H * 0.46, w = SHIELD_W, h = SHIELD_H;
+/** Boss shields are a quarter larger and carry a crown above the chief. */
+export const BOSS_SCALE = 1.25;
+const CROWN_H = 11;
+export type BossTier = 'biome' | 'final' | undefined;
+/** Canvas footprint of a marker in base px, with the shield's centre inside it. */
+export function shieldLayout(boss: BossTier) {
+  const scale = boss ? BOSS_SCALE : 1;
+  const w = (SHIELD_W + SHIELD_PAD * 2) * scale, h = (SHIELD_H + SHIELD_PAD * 2) * scale + (boss ? CROWN_H : 0);
+  return { w, h, cx: w / 2, cy: (SHIELD_PAD + SHIELD_H * 0.46) * scale + (boss ? CROWN_H : 0), scale };
+}
+function crown(ctx: CanvasRenderingContext2D, cx: number, cy: number, w: number, unlocked: boolean) {
+  const h = w * 0.55;
+  ctx.beginPath(); ctx.moveTo(cx - w / 2, cy); ctx.lineTo(cx - w / 2, cy - h * 0.6); ctx.lineTo(cx - w * 0.25, cy - h * 0.3); ctx.lineTo(cx, cy - h); ctx.lineTo(cx + w * 0.25, cy - h * 0.3); ctx.lineTo(cx + w / 2, cy - h * 0.6); ctx.lineTo(cx + w / 2, cy); ctx.closePath();
+  ctx.fillStyle = unlocked ? '#e6c06a' : '#a39b8e'; ctx.fill(); ctx.lineWidth = 0.9; ctx.strokeStyle = INK; ctx.stroke();
+  ctx.fillStyle = unlocked ? '#b23a2e' : '#6e6862';
+  for (const ox of [-w * 0.25, 0, w * 0.25]) { ctx.beginPath(); ctx.arc(cx + ox, cy - h * 0.15, w * 0.07, 0, Math.PI * 2); ctx.fill(); }
+  ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.fillRect(cx - w / 2 + 1, cy - h * 0.6 + 1, 1.5, 2);
+}
+/** The marker canvas; shieldLayout(boss) gives the shield centre inside it. */
+export function drawShieldCanvas(biome: Biome, unlocked: boolean, sf: number, boss: BossTier = undefined): HTMLCanvasElement {
+  const L = shieldLayout(boss);
+  const [c, ctx] = canvasOf(L.w * sf, L.h * sf);
+  ctx.scale(sf * L.scale, sf * L.scale);
+  const cx = L.cx / L.scale, cy = L.cy / L.scale, top = cy - SHIELD_H * 0.46, w = SHIELD_W, h = SHIELD_H;
   ctx.save(); ctx.translate(2, 3); shieldPath(ctx, cx, cy); ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.fill(); ctx.restore();
   shieldPath(ctx, cx, cy); ctx.fillStyle = unlocked ? SHIELD_FILL[biome] : '#5e5a55'; ctx.fill();
   ctx.save(); shieldPath(ctx, cx, cy); ctx.clip();
@@ -254,17 +272,32 @@ export function drawShieldCanvas(biome: Biome, unlocked: boolean, sf: number): H
   for (const ox of [-w * 0.36, w * 0.36]) { ctx.beginPath(); ctx.arc(cx + ox, top + 4, 1.1, 0, Math.PI * 2); ctx.fill(); }
   if (unlocked) { biomeGlyph(ctx, cx + 0.7, cy + 0.7, biome, 'rgba(0,0,0,0.45)'); biomeGlyph(ctx, cx, cy, biome, '#f6ecd2'); }
   else { lockGlyph(ctx, cx + 0.7, cy + 0.7, 'rgba(0,0,0,0.45)'); lockGlyph(ctx, cx, cy, '#c9c1b2'); }
+  if (boss) {
+    shieldPath(ctx, cx, cy, 2.4); ctx.lineWidth = 1.2; ctx.strokeStyle = unlocked ? '#e6c06a' : '#8b8378'; ctx.stroke();
+    shieldPath(ctx, cx, cy, 3.6); ctx.lineWidth = 0.7; ctx.strokeStyle = INK; ctx.stroke();
+    ctx.setTransform(sf, 0, 0, sf, 0, 0);
+    crown(ctx, L.cx, L.cy - SHIELD_H * 0.46 * L.scale - 1.5, boss === 'final' ? SHIELD_W * 0.8 : SHIELD_W * 0.6, unlocked);
+  }
   return c;
 }
-/** A gold outline a little larger than the shield, for the hover state. Same canvas size and centre as the marker. */
-export function drawShieldGlowCanvas(sf: number): HTMLCanvasElement {
-  const cw = SHIELD_W + SHIELD_PAD * 2, ch = SHIELD_H + SHIELD_PAD * 2;
-  const [c, ctx] = canvasOf(cw * sf, ch * sf);
-  ctx.scale(sf, sf);
-  const cx = cw / 2, cy = SHIELD_PAD + SHIELD_H * 0.46;
-  shieldPath(ctx, cx, cy, 4.5); ctx.lineWidth = 2.5; ctx.strokeStyle = 'rgba(255,216,74,0.35)'; ctx.stroke();
-  shieldPath(ctx, cx, cy, 3); ctx.lineWidth = 1.6; ctx.strokeStyle = '#ffd84a'; ctx.stroke();
+/** A gold outline a little larger than the shield, for the hover state. Same footprint and centre as the marker. */
+export function drawShieldGlowCanvas(sf: number, boss: BossTier = undefined): HTMLCanvasElement {
+  const L = shieldLayout(boss);
+  const [c, ctx] = canvasOf(L.w * sf, L.h * sf);
+  ctx.scale(sf * L.scale, sf * L.scale);
+  const cx = L.cx / L.scale, cy = L.cy / L.scale, g = boss ? 4 : 0;
+  shieldPath(ctx, cx, cy, 4.5 + g); ctx.lineWidth = 2.5; ctx.strokeStyle = 'rgba(255,216,74,0.35)'; ctx.stroke();
+  shieldPath(ctx, cx, cy, 3 + g); ctx.lineWidth = 1.6; ctx.strokeStyle = '#ffd84a'; ctx.stroke();
   return c;
 }
-/** Centre of the shield inside its canvas, in base px. */
+/** The final boss's ember glow, drawn under its shield; the scene pulses its alpha. Same footprint and centre as the marker. */
+export function drawEmberGlowCanvas(sf: number): HTMLCanvasElement {
+  const L = shieldLayout('final');
+  const [c, ctx] = canvasOf(L.w * sf, L.h * sf);
+  ctx.scale(sf * L.scale, sf * L.scale);
+  const cx = L.cx / L.scale, cy = L.cy / L.scale;
+  for (let i = 4; i >= 1; i--) { shieldPath(ctx, cx, cy, 2 + i * 2.2); ctx.fillStyle = `rgba(255,90,30,${0.09 * (5 - i)})`; ctx.fill(); }
+  return c;
+}
+/** Centre of a regular shield inside its canvas, in base px. */
 export const SHIELD_CENTER = { x: SHIELD_W / 2 + SHIELD_PAD, y: SHIELD_PAD + SHIELD_H * 0.46 };
