@@ -13,7 +13,7 @@ import { PlayerProfilePanel } from '../ui/PlayerProfilePanel';
 import {
   MAP_FRAME, MAP_CROP, INK, PARCHMENT_LIGHT, SHIELD_R, SHIELD_CENTER,
   drawScrollFrameCanvas, drawMapInsetCanvas, drawRibbonCanvas, drawTagCanvas, drawMedalIconCanvas,
-  drawCompassCanvas, drawShieldCanvas, drawShieldGlowCanvas, drawRangerMarkerCanvas,
+  drawCompassCanvas, drawShieldCanvas, drawShieldGlowCanvas,
 } from '../assets/art/levelMap';
 
 /** Testing toggle — when on, every map level is treated as unlocked,
@@ -85,19 +85,6 @@ export class LevelSelectScene extends Phaser.Scene {
       x: this.p(MAP_FRAME.x0 + (ix - MAP_CROP.x) / MAP_CROP.w * (MAP_FRAME.x1 - MAP_FRAME.x0)),
       y: this.p(MAP_FRAME.y0 + (iy - MAP_CROP.y) / MAP_CROP.h * (MAP_FRAME.y1 - MAP_FRAME.y0)),
     };
-  }
-
-  /** The ranger stands beside the furthest unlocked level. */
-  private drawRangerMarker() {
-    let here = LEVELS[0];
-    for (const l of LEVELS) if (this.unlockedFor(l.id) && l.id > here.id) here = l;
-    const { x, y } = this.nodePos(here);
-    const size = this.p(32);
-    const g = this.add.graphics().setDepth(3);
-    g.fillStyle(0x000000, 0.3);
-    g.fillEllipse(x + this.p(18) + size / 2, y - this.p(28) + size - this.p(2), this.p(18), this.p(6));
-    this.add.image(x + this.p(18), y - this.p(28), this.canvasTexture('level_ranger', drawRangerMarkerCanvas()))
-      .setOrigin(0).setDisplaySize(size, size).setDepth(3);
   }
 
   create() {
@@ -183,7 +170,6 @@ export class LevelSelectScene extends Phaser.Scene {
 
     this.drawPaths();
     this.drawNodes();
-    this.drawRangerMarker();
 
     // Title ribbon
     const ribbonW = 300, ribbonH = 26;

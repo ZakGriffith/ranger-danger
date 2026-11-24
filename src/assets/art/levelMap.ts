@@ -1,6 +1,4 @@
 import type { Biome } from '../../levels';
-import { makeHD } from './hd';
-import { drawPlayer, drawBow } from './player';
 
 /**
  * Level-select dressing: the painted map sits inside an unrolled scroll with
@@ -270,11 +268,3 @@ export function drawShieldGlowCanvas(sf: number): HTMLCanvasElement {
 }
 /** Centre of the shield inside its canvas, in base px. */
 export const SHIELD_CENTER = { x: SHIELD_W / 2 + SHIELD_PAD, y: SHIELD_PAD + SHIELD_H * 0.46 };
-
-/** The ranger, standing on the map at the furthest unlocked level. */
-export function drawRangerMarkerCanvas(): HTMLCanvasElement {
-  const [c, ctx] = canvasOf(64, 64);
-  ctx.drawImage(makeHD(64, drawPlayer('idle0', 'level')), 0, 0);
-  ctx.drawImage(makeHD(64, drawBow(false)), 0, 0);
-  return c;
-}

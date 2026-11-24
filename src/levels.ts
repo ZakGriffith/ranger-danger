@@ -40,13 +40,13 @@ export const LEVELS: LevelDef[] = [
   { id: 9,  name: 'Blighted Sands', biome: 'desert',    x: 500, y: 282, connectsTo: [10],   unlockCost: 14, implemented: false },
   // Tundra — bottom-center (caves & the frozen lake), ending in a boss level by the lower caves
   { id: 10, name: 'Ice Cavern',    biome: 'tundra',     x: 402, y: 428, connectsTo: [11],   unlockCost: 16, implemented: false },
-  { id: 11, name: 'Frozen Lake',   biome: 'tundra',     x: 400, y: 540, connectsTo: [12],   unlockCost: 19, implemented: false },
+  { id: 11, name: 'Frozen Lake',   biome: 'tundra',     x: 440, y: 552, connectsTo: [12],   unlockCost: 19, implemented: false },
   { id: 12, name: 'Blizzard Peak', biome: 'tundra',     x: 610, y: 450, connectsTo: [13],   unlockCost: 22, implemented: false },
   { id: 13, name: 'Glacial Depths', biome: 'tundra',    x: 625, y: 548, connectsTo: [14],   unlockCost: 25, implemented: false },
   // Volcanic — right side (lava & the dark castle), ending with the final boss in the castle itself
   { id: 14, name: 'Ashen Path',    biome: 'volcanic',   x: 670, y: 365, connectsTo: [15],   unlockCost: 28, implemented: false },
   { id: 15, name: 'Lava Fields',   biome: 'volcanic',   x: 720, y: 255, connectsTo: [16],   unlockCost: 31, implemented: false },
-  { id: 16, name: "Dragon's Maw",  biome: 'volcanic',   x: 835, y: 420, connectsTo: [17],   unlockCost: 34, implemented: false },
+  { id: 16, name: "Dragon's Maw",  biome: 'volcanic',   x: 808, y: 402, connectsTo: [17],   unlockCost: 34, implemented: false },
   { id: 17, name: 'The Dark Citadel', biome: 'volcanic', x: 815, y: 321, connectsTo: [],    unlockCost: 38, implemented: false },
 ];
 
