@@ -20,7 +20,7 @@ export interface LevelDef {
 
 export const LEVELS: LevelDef[] = [
   // Grasslands — top-left (castle & forest area)
-  { id: 1,  name: 'Meadow',        biome: 'grasslands', x: 150, y: 345, connectsTo: [2],    unlockCost: 0,  implemented: true,
+  { id: 1,  name: 'Meadow',        biome: 'grasslands', x: 150, y: 320, connectsTo: [2],    unlockCost: 0,  implemented: true,
     rampFactor: 0.93, minInterval: 350, waveSize: 100, clusterMax: 4 },
   { id: 2,  name: 'Forest',        biome: 'forest',     x: 265, y: 425, connectsTo: [3],    unlockCost: 1,  implemented: true,
     rampFactor: 0.91, minInterval: 320, waveSize: 110, clusterMax: 3 },
@@ -30,21 +30,24 @@ export const LEVELS: LevelDef[] = [
     rampFactor: 0.86, minInterval: 220, waveSize: 130, clusterMax: 2 },
   { id: 5,  name: 'The Castle',    biome: 'castle',     x: 125, y: 95, connectsTo: [6],    unlockCost: 5,  implemented: true,
     rampFactor: 0.90, minInterval: 300, waveSize: 90, clusterMax: 3 },
-  // Desert — top-center/right (ruins & dunes)
-  { id: 6,  name: 'Fissures',      biome: 'desert',     x: 430, y: 170, connectsTo: [7],    unlockCost: 7,  implemented: true,
+  // Desert — top-center/right (ruins & dunes), ending in the blight creeping out of the infected trees
+  { id: 6,  name: 'Fissures',      biome: 'desert',     x: 395, y: 165, connectsTo: [7],    unlockCost: 7,  implemented: true,
     rampFactor: 0.89, minInterval: 280, waveSize: 95, clusterMax: 4, waveCount: 6 },
   { id: 7,  name: 'Sand Dunes',    biome: 'desert',     x: 540, y: 110, connectsTo: [8],    unlockCost: 9,  implemented: true,
     rampFactor: 0.87, minInterval: 240, waveSize: 105, clusterMax: 4, waveCount: 6 },
   { id: 8,  name: 'Desert Temple', biome: 'desert',     x: 620, y: 200, connectsTo: [9],    unlockCost: 12, implemented: true,
     rampFactor: 0.85, minInterval: 220, waveSize: 110, clusterMax: 3, waveCount: 6 },
-  // Tundra — bottom-center (frozen lakes & caves)
-  { id: 9,  name: 'Frozen Lake',   biome: 'tundra',     x: 380, y: 460, connectsTo: [10],   unlockCost: 15, implemented: false },
-  { id: 10, name: 'Ice Cavern',    biome: 'tundra',     x: 490, y: 530, connectsTo: [11],   unlockCost: 18, implemented: false },
-  { id: 11, name: 'Blizzard Peak', biome: 'tundra',     x: 610, y: 450, connectsTo: [12],   unlockCost: 22, implemented: false },
-  // Volcanic — right side (lava & dungeon)
-  { id: 12, name: 'Ashen Path',    biome: 'volcanic',   x: 750, y: 340, connectsTo: [13],   unlockCost: 26, implemented: false },
-  { id: 13, name: 'Lava Fields',   biome: 'volcanic',   x: 830, y: 200, connectsTo: [14],   unlockCost: 30, implemented: false },
-  { id: 14, name: "Dragon's Maw",  biome: 'volcanic',   x: 870, y: 420, connectsTo: [],     unlockCost: 34, implemented: false },
+  { id: 9,  name: 'Blighted Sands', biome: 'desert',    x: 500, y: 262, connectsTo: [10],   unlockCost: 14, implemented: false },
+  // Tundra — bottom-center (caves & the frozen lake), ending in a boss level by the lower caves
+  { id: 10, name: 'Ice Cavern',    biome: 'tundra',     x: 385, y: 428, connectsTo: [11],   unlockCost: 16, implemented: false },
+  { id: 11, name: 'Frozen Lake',   biome: 'tundra',     x: 548, y: 490, connectsTo: [12],   unlockCost: 19, implemented: false },
+  { id: 12, name: 'Blizzard Peak', biome: 'tundra',     x: 610, y: 450, connectsTo: [13],   unlockCost: 22, implemented: false },
+  { id: 13, name: 'Glacial Depths', biome: 'tundra',    x: 653, y: 548, connectsTo: [14],   unlockCost: 25, implemented: false },
+  // Volcanic — right side (lava & the dark castle), ending with the final boss in the castle itself
+  { id: 14, name: 'Ashen Path',    biome: 'volcanic',   x: 670, y: 365, connectsTo: [15],   unlockCost: 28, implemented: false },
+  { id: 15, name: 'Lava Fields',   biome: 'volcanic',   x: 720, y: 255, connectsTo: [16],   unlockCost: 31, implemented: false },
+  { id: 16, name: "Dragon's Maw",  biome: 'volcanic',   x: 870, y: 420, connectsTo: [17],   unlockCost: 34, implemented: false },
+  { id: 17, name: 'The Dark Citadel', biome: 'volcanic', x: 815, y: 321, connectsTo: [],    unlockCost: 38, implemented: false },
 ];
 
 export const DIFFICULTY_ORDER: Difficulty[] = ['easy', 'medium', 'hard', 'oneHP', 'endless'];
